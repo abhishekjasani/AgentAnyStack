@@ -1,0 +1,42 @@
+# Git / IDE
+.git
+.cursor
+.idea
+.vscode
+
+# Local env & venv (never copy into image)
+venv
+.venv
+.env
+.env.local
+
+# Python junk
+__pycache__
+*.py[cod]
+*.egg-info
+.eggs
+dist
+build
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Runtime host mounts (compose mounts these; do not bake in)
+data
+*.db
+*.sqlite3
+
+# Docs / mockups not needed at runtime
+docs/mockups
+docs/OPEN_SOURCE_MARKET_RESEARCH.md
+
+# UI build deps (when office-ui exists)
+node_modules
+apps/office-ui/dist
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp

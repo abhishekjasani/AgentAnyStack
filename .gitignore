@@ -1,0 +1,36 @@
+# env / secrets
+.env
+.env.local
+*.pem
+
+# python — repo-root venv (Python 3.12)
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# runtime data (OKF DB later)
+data/
+*.db
+*.sqlite3
+
+# node (office-ui later)
+node_modules/
+apps/office-ui/dist/
+
+# ide / os
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
