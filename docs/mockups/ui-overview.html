@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AgentAnyStack — UI Overview Mockup</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2330;
+    --border: #2d3644;
+    --text: #e6edf3;
+    --muted: #8b98a9;
+    --accent: #4f8cff;
+    --green: #3fb950;
+    --amber: #d29922;
+    --red: #f85149;
+    --purple: #a371f7;
+    --chip: #21283a;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    line-height: 1.5;
+    padding: 32px 16px 80px;
+  }
+  .page { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 26px; margin-bottom: 4px; }
+  .sub { color: var(--muted); margin-bottom: 36px; font-size: 14px; }
+
+  .screen {
+    margin-bottom: 56px;
+  }
+  .screen > h2 {
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .screen > p.note {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 14px;
+    max-width: 760px;
+  }
+
+  /* app frame */
+  .frame {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--panel);
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  }
+  .topbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 16px;
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .logo { font-weight: 700; letter-spacing: .3px; }
+  .logo span { color: var(--accent); }
+  .crumbs { color: var(--muted); }
+  .crumbs b { color: var(--text); font-weight: 600; }
+  .topbar .right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  .avatar {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    display: inline-block;
+  }
+
+  .body { display: flex; min-height: 420px; }
+  .sidebar {
+    width: 190px; flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    padding: 14px 10px;
+    background: var(--panel);
+    font-size: 13px;
+  }
+  .sidebar .nav-item {
+    padding: 8px 10px; border-radius: 8px; color: var(--muted);
+    margin-bottom: 2px; cursor: default;
+  }
+  .sidebar .nav-item.active { background: var(--chip); color: var(--text); font-weight: 600; }
+  .sidebar .section-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); margin: 16px 10px 6px;
+  }
+  .main { flex: 1; padding: 18px; min-width: 0; }
+
+  .grid { display: grid; gap: 14px; }
+  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+  .card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+  }
+  .card h3 { font-size: 15px; margin-bottom: 4px; }
+  .card .desc { color: var(--muted); font-size: 12.5px; margin-bottom: 10px; }
+
+  .chip {
+    display: inline-block; background: var(--chip); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 10px; font-size: 11.5px; color: var(--muted);
+    margin: 2px 4px 2px 0;
+  }
+  .chip.stack-cursor { color: #6ea8ff; border-color: #2a4a80; }
+  .chip.stack-claude { color: #e8a87c; border-color: #7a4a2a; }
+  .chip.stack-local  { color: #7ee2a8; border-color: #2a6a45; }
+  .chip.tool { color: var(--text); }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot.on { background: var(--green); }
+  .dot.busy { background: var(--amber); }
+  .dot.err { background: var(--red); }
+  .status { font-size: 12px; color: var(--muted); }
+
+  .meta-row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; color: var(--muted); }
+
+  /* agent card (box screen) */
+  .agent-card { display: flex; flex-direction: column; gap: 8px; }
+  .agent-head { display: flex; align-items: center; gap: 10px; }
+  .agent-ava {
+    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px;
+  }
+  .agent-ava.a { background: #1f3a63; color: #6ea8ff; }
+  .agent-ava.d { background: #4a2a63; color: #c89bff; }
+  .agent-ava.t { background: #1f5238; color: #7ee2a8; }
+  .agent-name { font-size: 15px; font-weight: 600; }
+  .agent-role { font-size: 12px; color: var(--muted); }
+  .kv { font-size: 12px; color: var(--muted); }
+  .kv b { color: var(--text); font-weight: 600; }
+  .label { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-top: 4px; }
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+  .btn {
+    font-size: 12px; padding: 5px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--chip); color: var(--text);
+    cursor: default;
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* activity panel */
+  .activity {
+    width: 270px; flex-shrink: 0;
+    border-left: 1px solid var(--border);
+    padding: 14px; font-size: 12.5px;
+    background: var(--panel);
+  }
+  .activity h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; }
+  .event { padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .event .t { color: var(--muted); font-size: 11px; }
+  .event .who { font-weight: 600; }
+  .event .ctx { color: var(--muted); }
+  .event .ctx code { color: var(--purple); font-size: 11.5px; }
+
+  /* chat bar */
+  .chatbar {
+    display: flex; gap: 10px; align-items: center;
+    border-top: 1px solid var(--border);
+    padding: 12px 16px; background: var(--panel-2);
+  }
+  .chatbar .input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; font-size: 13px; color: var(--muted);
+  }
+
+  /* memory bars */
+  .mem-scope { display: flex; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+  .mem-pill {
+    font-size: 10.5px; padding: 2px 8px; border-radius: 6px;
+    background: var(--chip); border: 1px solid var(--border); color: var(--muted);
+  }
+  .mem-pill.active { border-color: var(--purple); color: var(--purple); }
+
+  /* model catalog mini */
+  .model-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 4px; border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .model-row .grade { margin-left: auto; }
+  .grade-demo { color: var(--amber); font-size: 11.5px; }
+  .grade-dev  { color: var(--green); font-size: 11.5px; }
+  .bar { height: 6px; border-radius: 3px; background: var(--chip); width: 120px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); }
+
+  .legend { color: var(--muted); font-size: 12.5px; margin-top: 10px; }
+  .legend code { color: var(--purple); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>AgentAnyStack <span style="color:var(--muted);font-weight:400">— UI overview mockup</span></h1>
+  <p class="sub">Static HTML+CSS only. Shows how the main screens should look. Hierarchy: <b>Office → Floor → Box → Agent</b>.</p>
+
+  <!-- ============ SCREEN 1: OFFICE ============ -->
+  <div class="screen">
+    <h2>Screen 1 — Office (home)</h2>
+    <p class="note">Top level. One office = one business use case. Shows all floors, org memory, and global activity. Click a floor to go in.</p>
+    <div class="frame">
+      <div class="topbar">
+        <div class="logo">Agent<span>AnyStack</span></div>
+        <div class="crumbs">Office: <b>Morfgage HQ</b></div>
+        <div class="right"><span class="chip"><span class="dot on"></span>12 agents online</span><span class="avatar"></span></div>
+      </div>
+      <div class="body">
+        <div class="sidebar">
+          <div class="nav-item active">🏢 Office</div>
+          <div class="nav-item">🧠 Org memory</div>
+          <div class="nav-item">📡 Activity</div>
+          <div class="nav-item">🔌 Stacks &amp; models</div>
+          <div class="section-label">Floors</div>
+          <div class="nav-item">Product floor</div>
+          <div class="nav-item">Engineering floor</div>
+          <div class="nav-item">Ops floor</div>
+        </div>
+        <div class="main">
+          <div class="grid cols-3">
+            <div class="card">
+              <h3>Product floor</h3>
+              <div class="desc">Research, specs, borrower analysis</div>
+              <span class="chip">2 boxes</span><span class="chip">4 agents</span>
+              <div class="meta-row"><span><span class="dot on"></span><span class="status">healthy</span></span><span>floor memory: 38 facts</span></div>
+            </div>
+            <div class="card">
+              <h3>Engineering floor</h3>
+              <div class="desc">Build, test, ship the POC website</div>
+              <span class="chip">3 boxes</span><span class="chip">6 agents</span>
+              <div class="meta-row"><span><span class="dot busy"></span><span class="status">2 runs active</span></span><span>floor memory: 61 facts</span></div>
+            </div>
+            <div class="card">
+              <h3>Ops floor</h3>
+              <div class="desc">Deploy, monitor, report</div>
+              <span class="chip">1 box</span><span class="chip">2 agents</span>
+              <div class="meta-row"><span><span class="dot err"></span><span class="status">1 worker offline</span></span><span>floor memory: 12 facts</span></div>
+            </div>
+          </div>
+          <div class="label" style="margin-top:18px">Org memory (shared base — every persona fetches its own slice)</div>
+          <div class="card" style="margin-top:8px">
+            <span class="chip">company profile</span><span class="chip">product glossary</span><span class="chip">coding standards</span><span class="chip">compliance rules</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 2: FLOOR ============ -->
+  <div class="screen">
+    <h2>Screen 2 — Floor</h2>
+    <p class="note">One team / workflow. Shows the boxes on this floor and the floor orchestrator that passes messages between them. Click a box to open it.</p>
+    <div class="frame">
+      <div class="topbar">
+        <div class="logo">Agent<span>AnyStack</span></div>
+        <div class="crumbs">Morfgage HQ / <b>Engineering floor</b></div>
+        <div class="right"><span class="chip"><span class="dot busy"></span>2 runs active</span><span class="avatar"></span></div>
+      </div>
+      <div class="body">
+        <div class="sidebar">
+          <div class="nav-item">← Office</div>
+          <div class="nav-item active">🏗️ Floor view</div>
+          <div class="nav-item">🧠 Floor memory</div>
+          <div class="nav-item">📡 Floor activity</div>
+          <div class="section-label">Boxes</div>
+          <div class="nav-item">POC website box</div>
+          <div class="nav-item">API box</div>
+          <div class="nav-item">QA box</div>
+        </div>
+        <div class="main">
+          <div class="card" style="margin-bottom:14px; border-style:dashed;">
+            <h3 style="color:var(--purple)">⇄ Floor orchestrator</h3>
+            <div class="desc">Routes messages between boxes · scopes floor memory · no LLM persona of its own</div>
+            <span class="chip">last route: QA box → POC website box · "2 tests failing"</span>
+          </div>
+          <div class="grid cols-3">
+            <div class="card">
+              <h3>POC website box</h3>
+              <div class="desc">Analyst + Developer building the landing page</div>
+              <span class="chip stack-cursor">Cursor</span><span class="chip stack-local">Local · qwen2.5</span>
+              <div class="meta-row"><span><span class="dot busy"></span><span class="status">Developer running</span></span><span>2 agents</span></div>
+            </div>
+            <div class="card">
+              <h3>API box</h3>
+              <div class="desc">Backend endpoints for lead matching</div>
+              <span class="chip stack-cursor">Cursor</span>
+              <div class="meta-row"><span><span class="dot on"></span><span class="status">idle</span></span><span>2 agents</span></div>
+            </div>
+            <div class="card">
+              <h3>QA box</h3>
+              <div class="desc">Tests every change from the other boxes</div>
+              <span class="chip stack-claude">Claude API</span>
+              <div class="meta-row"><span><span class="dot on"></span><span class="status">idle</span></span><span>2 agents</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 3: BOX OF AGENTS (MAIN SCREEN) ============ -->
+  <div class="screen">
+    <h2>Screen 3 — Box of agents (main working screen)</h2>
+    <p class="note">Where users spend most time. Each agent is a desk: identity, stack, model, tools, memory scope, status. Right side = live activity (what ran and why). Bottom = role-grammar chat.</p>
+    <div class="frame">
+      <div class="topbar">
+        <div class="logo">Agent<span>AnyStack</span></div>
+        <div class="crumbs">Morfgage HQ / Engineering floor / <b>POC website box</b></div>
+        <div class="right"><span class="chip">box memory: 17 facts</span><span class="avatar"></span></div>
+      </div>
+      <div class="body">
+        <div class="sidebar">
+          <div class="nav-item">← Floor</div>
+          <div class="nav-item active">👥 Agents</div>
+          <div class="nav-item">🧠 Box memory</div>
+          <div class="nav-item">🧰 Tools &amp; adapters</div>
+          <div class="nav-item">📜 Run history</div>
+          <div class="nav-item">⚙️ Box settings</div>
+          <div class="section-label">Quick actions</div>
+          <div class="nav-item">+ Add agent</div>
+          <div class="nav-item">Reset box</div>
+        </div>
+        <div class="main">
+          <div class="grid cols-2">
+
+            <!-- Agent 1 -->
+            <div class="card agent-card">
+              <div class="agent-head">
+                <div class="agent-ava a">A</div>
+                <div>
+                  <div class="agent-name">Analyst</div>
+                  <div class="agent-role">Research &amp; requirements persona</div>
+                </div>
+                <span style="margin-left:auto"><span class="dot on"></span><span class="status">idle</span></span>
+              </div>
+              <div class="kv">Stack: <span class="chip stack-cursor">Cursor · My Machines worker</span></div>
+              <div class="kv">Model: <b>via Cursor</b> · worker <code>office-analyst</code></div>
+              <div class="label">Tools</div>
+              <div><span class="chip tool">web search</span><span class="chip tool">read repo</span><span class="chip tool">remember:</span></div>
+              <div class="label">Memory scope</div>
+              <div class="mem-scope">
+                <span class="mem-pill active">agent gold</span><span class="mem-pill active">box</span><span class="mem-pill active">floor</span><span class="mem-pill">office</span><span class="mem-pill">org slice</span>
+              </div>
+              <div class="btn-row"><span class="btn primary">Chat</span><span class="btn">Logs</span><span class="btn">Memory</span><span class="btn">Reset</span></div>
+            </div>
+
+            <!-- Agent 2 -->
+            <div class="card agent-card">
+              <div class="agent-head">
+                <div class="agent-ava d">D</div>
+                <div>
+                  <div class="agent-name">Developer</div>
+                  <div class="agent-role">Builds the POC website</div>
+                </div>
+                <span style="margin-left:auto"><span class="dot busy"></span><span class="status">running 2m 10s</span></span>
+              </div>
+              <div class="kv">Stack: <span class="chip stack-local">Local · Ollama</span></div>
+              <div class="kv">Model: <b>qwen2.5-coder:7b</b> · <span class="grade-demo">demo-grade for tools</span></div>
+              <div class="label">Tools</div>
+              <div><span class="chip tool">edit files</span><span class="chip tool">run shell</span><span class="chip tool">git</span><span class="chip tool">remember:</span></div>
+              <div class="label">Memory scope</div>
+              <div class="mem-scope">
+                <span class="mem-pill active">agent gold</span><span class="mem-pill active">box</span><span class="mem-pill">floor</span><span class="mem-pill">office</span><span class="mem-pill">org slice</span>
+              </div>
+              <div class="btn-row"><span class="btn primary">Chat</span><span class="btn">Logs</span><span class="btn">Memory</span><span class="btn">Stop</span></div>
+            </div>
+
+          </div>
+
+          <div class="label" style="margin-top:16px">Tools &amp; adapters available in this box</div>
+          <div class="card" style="margin-top:8px">
+            <span class="chip stack-cursor">Cursor adapter · API key ✓ · 3 workers online</span>
+            <span class="chip stack-local">Ollama · localhost:11434 · 2 models pulled</span>
+            <span class="chip stack-claude">Claude adapter · no key (add in Stacks &amp; models)</span>
+          </div>
+        </div>
+
+        <!-- activity panel -->
+        <div class="activity">
+          <h4>Live activity</h4>
+          <div class="event"><div class="t">18:02:11</div><span class="who">Developer</span> started run <div class="ctx">context: <code>box(17) + gold(5)</code> · tools: edit, shell</div></div>
+          <div class="event"><div class="t">18:01:58</div><span class="who">You</span> → Developer <div class="ctx">"Developer: build hero section…"</div></div>
+          <div class="event"><div class="t">17:58:31</div><span class="who">Analyst</span> saved to gold memory <div class="ctx"><code>remember:</code> commission split 65/35</div></div>
+          <div class="event"><div class="t">17:55:02</div><span class="who">Floor</span> → this box <div class="ctx">QA box: "2 tests failing on form"</div></div>
+        </div>
+      </div>
+      <div class="chatbar">
+        <div class="input">Analyst: &lt;message&gt; · Developer: &lt;message&gt; · Analyst: remember: &lt;fact&gt; · reset Developer</div>
+        <span class="btn primary">Send</span>
+      </div>
+    </div>
+    <p class="legend">Role grammar stays: <code>Analyst:</code> / <code>Developer:</code> prefix routes the message. Memory pills show exactly which levels this agent can read — this is the transparency promise on screen.</p>
+  </div>
+
+  <!-- ============ SCREEN 4: STACKS & MODELS ============ -->
+  <div class="screen">
+    <h2>Screen 4 — Stacks &amp; models (local model catalog)</h2>
+    <p class="note">Where users connect stacks (BYO keys) and pull local models into the Docker volume. Grades set expectations: demo-grade vs can-run-a-Developer.</p>
+    <div class="frame">
+      <div class="topbar">
+        <div class="logo">Agent<span>AnyStack</span></div>
+        <div class="crumbs">Morfgage HQ / <b>Stacks &amp; models</b></div>
+        <div class="right"><span class="avatar"></span></div>
+      </div>
+      <div class="body">
+        <div class="sidebar">
+          <div class="nav-item">← Office</div>
+          <div class="nav-item active">🔌 Stacks &amp; models</div>
+          <div class="section-label">Stacks</div>
+          <div class="nav-item">Cursor ✓</div>
+          <div class="nav-item">Claude (add key)</div>
+          <div class="nav-item">Local (Ollama) ✓</div>
+        </div>
+        <div class="main">
+          <div class="card">
+            <h3>Local models <span class="status">· Ollama · volume 9.2 GB used</span></h3>
+            <div class="model-row"><span class="dot on"></span> qwen2.5-coder:7b <span class="chip">4.7 GB</span><span class="grade grade-dev">✓ agent-grade tools</span></div>
+            <div class="model-row"><span class="dot on"></span> llama3.2:3b <span class="chip">2.0 GB</span><span class="grade grade-demo">demo-grade (chat only)</span></div>
+            <div class="model-row"><span class="dot busy"></span> qwen2.5:14b <span class="bar"><i style="width:62%"></i></span><span class="status">pulling… 62%</span></div>
+            <div class="model-row" style="border-bottom:none"><span style="color:var(--muted)">＋</span><span style="color:var(--accent)">Browse catalog</span><span class="status">curated quantized models only</span></div>
+          </div>
+          <div class="legend">macOS note shown here in-product: Docker on Mac has no GPU — install Ollama natively and set <code>OLLAMA_BASE_URL</code>.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
