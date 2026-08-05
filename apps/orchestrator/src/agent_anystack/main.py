@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 
 from agent_anystack import __version__
+from agent_anystack.api.agents import router as agents_router
 from agent_anystack.api.health import router as health_router
 
 
@@ -13,6 +14,7 @@ def create_app() -> FastAPI:
         version=__version__,
     )
     app.include_router(health_router)
+    app.include_router(agents_router)
     return app
 
 

@@ -4,9 +4,11 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phase 1 (current)
+## Phase 2 (current)
 
-Orchestrator skeleton + health check only. No office desks, Docker, or chat yet.
+Empty `office/` (org only, **no seed agents**) + `GET /agents` → `[]`. Create desks in P3.
+
+Also: `GET /health`, `GET /org`.
 
 ### Prerequisites
 
@@ -34,9 +36,18 @@ uvicorn agent_anystack.main:app --reload --host 0.0.0.0 --port 8787
 ```bash
 curl http://127.0.0.1:8787/health
 # {"status":"ok","version":"0.1.0"}
+
+curl http://127.0.0.1:8787/agents
+# []
+
+curl http://127.0.0.1:8787/org
+# {"id":"default","name":"AgentAnyStack",...}
 ```
 
 `.dockerignore` excludes `venv/`, `.env`, and host `data/` so images stay lean (Docker image wiring in a later phase).
+
+Run uvicorn from the **repo root** so `OFFICE_REPO_PATH=./office` resolves correctly.
+
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).

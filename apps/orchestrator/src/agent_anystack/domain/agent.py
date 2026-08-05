@@ -1,0 +1,64 @@
+"""Agent desk contracts from agent.yaml (AGENT_DEFINITION.md)."""
+
+from enum import Enum
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+    
+class RiskClass(str, Enum):
+    read_draft = "read_draft"
+    system_write = "system_write"
+    external_send = "external_send"
+    money_legal_pii = "money_legal_pii"
+
+
+class PersonaAxes(BaseModel):
+    domain: str = "general"
+    channels: list[str] = Field(default_factory=list)
+    risk_class: RiskClass = RiskClass.read_draft
+
+
+class AgentAutonomy(BaseModel):
+    default: int = Field(default=50, ge=0, le=100)
+    max: int | None = Field(default=None, ge=0, le=100)
+
+
+class Workspace(BaseModel):
+    project_id: str
+    path: str
+
+
+class Registrations(BaseModel):
+    mcp: list[str] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+    apis: list[str] = Field(default_factory=list)
+
+
+class ToolsConfig(BaseModel):
+    mode: Literal["none", "mediated", "worker"] = "none"
+
+
+class AgentConfig(BaseModel):
+    id: str
+    name: str
+    team: str
+    stack: str
+    model: str
+    persona: PersonaAxes = Field(default_factory=PersonaAxes)
+    autonomy: AgentAutonomy = Field(default_factory=AgentAutonomy)
+    workspace: Workspace | None = None
+    system_prompt_file: str = "./AGENT.md"
+    system_prompt: str | None = None
+    registrations: Registrations = Field(default_factory=Registrations)
+    tools: ToolsConfig = Field(default_factory=ToolsConfig)
+
+
+class AgentSummary(BaseModel):
+    """List DTO — desks visible in JSON without full yaml dump."""
+
+    id: str
+    name: str
+    team: str
+    stack: str
+    model: str

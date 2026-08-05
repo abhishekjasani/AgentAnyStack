@@ -1,0 +1,5 @@
+id: default
+name: AgentAnyStack
+max_autonomy: 100
+autonomy:
+  default: 50
