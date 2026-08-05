@@ -12,6 +12,7 @@ flowchart LR
     MAP --> H[06_HITL]
     MAP --> D[07_DOCKER]
     MAP --> S[08_SOLID_KISS]
+    MAP --> U[09_UI]
 ```
 
 | File | Topic |
@@ -24,6 +25,7 @@ flowchart LR
 | [06_HITL.md](./06_HITL.md) | Autonomy + approvals |
 | [07_DOCKER.md](./07_DOCKER.md) | Compose + volumes |
 | [08_SOLID_KISS.md](./08_SOLID_KISS.md) | SOLID / YAGNI |
+| [09_UI.md](./09_UI.md) | Office UI shell |
 
 ```text
 + OK: read these before changing orchestrator code

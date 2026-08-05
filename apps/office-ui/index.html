@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgentAnyStack</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="nav" aria-label="Office navigation">
+      <div class="brand">
+        <span class="brand-name">AgentAnyStack</span>
+        <span class="brand-tag">Any stack. One orchestrator.</span>
+      </div>
+      <nav class="nav-list">
+        <button type="button" class="nav-item is-active" data-view="team">Team</button>
+        <button type="button" class="nav-item" data-view="memory">Memory</button>
+        <button type="button" class="nav-item" data-view="approvals">Approvals</button>
+        <button type="button" class="nav-item" data-view="analytics">Analytics</button>
+        <button type="button" class="nav-item" data-view="connect">Connect</button>
+        <button type="button" class="nav-item" data-view="settings">Settings</button>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <section id="view-team" class="view is-visible" aria-labelledby="team-title">
+        <header class="view-head">
+          <div>
+            <h1 id="team-title">Team</h1>
+            <p class="lede">Desks in this office. Create agents from the UI — none ship pre-built.</p>
+          </div>
+          <button type="button" class="btn primary" id="btn-open-create">Create agent</button>
+        </header>
+        <div id="team-empty" class="empty hidden">
+          <p class="empty-title">No desks yet</p>
+          <p class="empty-body">An empty office. Add an agent to seat the first desk.</p>
+          <button type="button" class="btn primary" id="btn-empty-create">Create agent</button>
+        </div>
+        <ul id="desk-list" class="desk-list" hidden></ul>
+        <p id="team-error" class="error" hidden></p>
+      </section>
+
+      <section id="view-create" class="view" aria-labelledby="create-title" hidden>
+        <header class="view-head">
+          <div>
+            <h1 id="create-title">Create agent</h1>
+            <p class="lede">Writes <code>agent.yaml</code> + <code>AGENT.md</code> under <code>office/teams/…</code>.</p>
+          </div>
+          <button type="button" class="btn ghost" id="btn-back-team">Back to Team</button>
+        </header>
+        <form id="create-form" class="form">
+          <label>Id <input name="id" required pattern="^[a-z][a-z0-9_-]*$" placeholder="ba" /></label>
+          <label>Name <input name="name" required placeholder="Business Analyst" /></label>
+          <label>Team <input name="team" required pattern="^[a-z][a-z0-9_-]*$" placeholder="eng" value="eng" /></label>
+          <label>Stack
+            <select name="stack">
+              <option value="openai-compatible" selected>openai-compatible (Ollama)</option>
+              <option value="cursor">cursor</option>
+              <option value="claude">claude</option>
+            </select>
+          </label>
+          <label>Model <input name="model" required placeholder="llama3.2" value="llama3.2" /></label>
+          <label>Persona (AGENT.md)
+            <textarea name="persona_markdown" rows="8" placeholder="# Name&#10;&#10;## Mission&#10;…"></textarea>
+          </label>
+          <p id="create-error" class="error" hidden></p>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Save desk</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="view-memory" class="view stub" hidden>
+        <h1>Memory</h1>
+        <p class="lede">Fact list coming — gold + team OKF pack later.</p>
+        <p class="stub-note">Stub</p>
+      </section>
+      <section id="view-approvals" class="view stub" hidden>
+        <h1>Approvals</h1>
+        <p class="lede">HITL cards — one path later.</p>
+        <p class="stub-note">Stub</p>
+      </section>
+      <section id="view-analytics" class="view stub" hidden>
+        <h1>Analytics</h1>
+        <p class="lede">Trust / usage from the journal — UI later.</p>
+        <p class="stub-note">Coming</p>
+      </section>
+      <section id="view-connect" class="view stub" hidden>
+        <h1>Connect</h1>
+        <p class="lede">External channels (plugins) hit this orchestrator — API later.</p>
+        <p class="stub-note">Channels API coming</p>
+      </section>
+      <section id="view-settings" class="view stub" hidden>
+        <h1>Settings</h1>
+        <p class="lede">Platform config is env-only in v0 (read-only UI later).</p>
+        <p class="stub-note">Stub</p>
+      </section>
+    </main>
+  </div>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

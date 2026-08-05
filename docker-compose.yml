@@ -14,6 +14,7 @@ services:
       HOST: "0.0.0.0"
       PORT: "8787"
       OFFICE_REPO_PATH: /office
+      OFFICE_UI_PATH: /ui
       DATABASE_URL: sqlite:////data/office.db
       # Compose DNS name — overrides localhost from .env.example
       OLLAMA_BASE_URL: http://ollama:11434

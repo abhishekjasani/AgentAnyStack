@@ -4,11 +4,11 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phase 5 (current)
+## Phase 6 (current)
 
-Architecture knowledge: [`docs/architecture/`](docs/architecture/) (short +/− examples + mermaid).
+Simple office UI shell (Create agent + Team empty + nav stubs): open http://127.0.0.1:8787/
 
-Phases **1–4 done:** health, empty office, create/list/get agents, Docker.
+Phases **1–5 done:** API, empty office, create desks, Docker, architecture docs.
 
 ### Docker
 

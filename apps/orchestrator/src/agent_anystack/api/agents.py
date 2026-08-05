@@ -59,6 +59,18 @@ async def create_agent(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.delete("/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_agent(
+    agent_id: str,
+    repo: OfficeRepository = Depends(get_office_repo),
+) -> None:
+    """Remove desk folder from office git tree."""
+    try:
+        repo.delete_agent(agent_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/org", response_model=OrgConfig)
 async def get_org(repo: OfficeRepository = Depends(get_office_repo)) -> OrgConfig:
     try:

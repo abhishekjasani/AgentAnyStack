@@ -1,6 +1,7 @@
 """Load/write office git tree (org + agent desks). No seed agents — create via API/UI."""
 
 from pathlib import Path
+from shutil import rmtree
 
 import yaml
 
@@ -86,6 +87,15 @@ class OfficeRepository:
             if agent.id == agent_id:
                 return agent
         return None
+
+    def delete_agent(self, agent_id: str) -> None:
+        """Remove desk folder (yaml + AGENT.md + gold/). Raises FileNotFoundError if missing."""
+        agent = self.get_agent(agent_id)
+        if agent is None:
+            raise FileNotFoundError(f"agent not found: {agent_id}")
+        desk = self.agent_dir(agent.team, agent.id)
+        if desk.is_dir():
+            rmtree(desk)
 
     def read_persona(self, agent: AgentConfig) -> str:
         path = self.agent_dir(agent.team, agent.id) / "AGENT.md"

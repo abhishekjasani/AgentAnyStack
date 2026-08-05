@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     office_api_token: str = "change-me"
 
     office_repo_path: str = "./office"
+    office_ui_path: str = "./apps/office-ui"
     database_url: str = "sqlite:///./data/office.db"
 
     ollama_base_url: str = "http://127.0.0.1:11434"
