@@ -4,28 +4,33 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phase 3 (current)
+## Phase 5 (current)
 
-Create desks via API (no seed agents):
+Architecture knowledge: [`docs/architecture/`](docs/architecture/) (short +/− examples + mermaid).
+
+Phases **1–4 done:** health, empty office, create/list/get agents, Docker.
+
+### Docker
 
 ```bash
-curl -X POST http://127.0.0.1:8787/agents -H "Content-Type: application/json" -d "{\"id\":\"ba\",\"name\":\"Business Analyst\",\"team\":\"eng\",\"stack\":\"openai-compatible\",\"model\":\"llama3.2\",\"persona_markdown\":\"# BA\\n\\n## Mission\\nClarify requirements.\\n\"}"
+copy .env.example .env   # optional; compose overrides office/ollama paths
+docker compose up --build -d
 
+curl http://127.0.0.1:8787/health
 curl http://127.0.0.1:8787/agents
-curl http://127.0.0.1:8787/agents/ba
 ```
 
-Writes `office/teams/<team>/agents/<id>/{agent.yaml,AGENT.md,gold/}`.
+Volumes: `./office` → desks; `./data` → SQLite later.
 
-Also: `GET /health`, `GET /org`, `GET /agents` (empty until create).
+Ollama is optional (chat later):
 
-### Prerequisites
+```bash
+docker compose --profile ollama up -d
+```
 
-- **Python 3.12** (stable; e.g. 3.12.10). Repo `requires-python = ">=3.12"`.
+### Run locally (without Docker)
 
-### Run locally
-
-From the **repo root** (venv lives here as `venv/`, gitignored):
+From the **repo root** (`venv/` gitignored, Python 3.12):
 
 ```bash
 # create once — Windows (py launcher) / or full path to python3.12
@@ -51,11 +56,14 @@ curl http://127.0.0.1:8787/agents
 
 curl http://127.0.0.1:8787/org
 # {"id":"default","name":"AgentAnyStack",...}
+
+# create a desk (no seed agents in the image)
+curl -X POST http://127.0.0.1:8787/agents -H "Content-Type: application/json" -d "{\"id\":\"ba\",\"name\":\"Business Analyst\",\"team\":\"eng\",\"stack\":\"openai-compatible\",\"model\":\"llama3.2\"}"
 ```
 
-`.dockerignore` excludes `venv/`, `.env`, and host `data/` so images stay lean (Docker image wiring in a later phase).
+`.dockerignore` excludes `venv/`, `.env`, and host `data/` contents from the build context.
 
-Run uvicorn from the **repo root** so `OFFICE_REPO_PATH=./office` resolves correctly.
+Run local uvicorn from the **repo root** so `OFFICE_REPO_PATH=./office` resolves correctly.
 
 ## License
 

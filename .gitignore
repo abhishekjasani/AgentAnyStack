@@ -19,8 +19,9 @@ build/
 .coverage
 htmlcov/
 
-# runtime data (OKF DB later)
-data/
+# runtime data (OKF DB later) — keep folder, ignore contents
+data/*
+!data/.gitkeep
 *.db
 *.sqlite3
 

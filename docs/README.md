@@ -6,10 +6,11 @@ Start here if you are a **coding agent** or new contributor building the product
 
 1. **[V0_SCOPE.md](./V0_SCOPE.md)** — **what to build now** (core + shell stubs; UI vs mockup; pillars unchanged)  
 2. **[IMPLEMENTATION.md](./IMPLEMENTATION.md)** — Python/FastAPI stack, async, config buckets, slices  
-3. **[PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md)** — pillars, hierarchy, office-as-git  
-4. **[ORCHESTRATOR.md](./ORCHESTRATOR.md)** — HITL, autonomy, MCP, office Q&A  
-5. **[MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md)** — gold(a,u), OKF/DB, packing  
-6. **[AGENT_DEFINITION.md](./AGENT_DEFINITION.md)** — `agent.yaml` + `AGENT.md`, Office Envelope  
+3. **[architecture/](./architecture/)** — coding map: modules, office git, memory, run path (examples + mermaid)  
+4. **[PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md)** — pillars, hierarchy, office-as-git  
+5. **[ORCHESTRATOR.md](./ORCHESTRATOR.md)** — HITL, autonomy, MCP, office Q&A  
+6. **[MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md)** — gold(a,u), OKF/DB, packing  
+7. **[AGENT_DEFINITION.md](./AGENT_DEFINITION.md)** — `agent.yaml` + `AGENT.md`, Office Envelope  
 
 ## Direction (stub in v0, design now)
 

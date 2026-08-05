@@ -1,0 +1,37 @@
+# AgentAnyStack v0 — orchestrator + Ollama
+# Chat wiring comes in a later phase; Ollama is ready on the network.
+
+services:
+  orchestrator:
+    build: .
+    image: agent-anystack-orchestrator:v0
+    ports:
+      - "${PORT:-8787}:8787"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8787"
+      OFFICE_REPO_PATH: /office
+      DATABASE_URL: sqlite:////data/office.db
+      # Compose DNS name — overrides localhost from .env.example
+      OLLAMA_BASE_URL: http://ollama:11434
+    volumes:
+      - ./office:/office
+      - ./data:/data
+    # Ollama optional at boot — chat wiring is a later phase
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles:
+      - ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  ollama_models:
