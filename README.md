@@ -4,11 +4,20 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phase 2 (current)
+## Phase 3 (current)
 
-Empty `office/` (org only, **no seed agents**) + `GET /agents` → `[]`. Create desks in P3.
+Create desks via API (no seed agents):
 
-Also: `GET /health`, `GET /org`.
+```bash
+curl -X POST http://127.0.0.1:8787/agents -H "Content-Type: application/json" -d "{\"id\":\"ba\",\"name\":\"Business Analyst\",\"team\":\"eng\",\"stack\":\"openai-compatible\",\"model\":\"llama3.2\",\"persona_markdown\":\"# BA\\n\\n## Mission\\nClarify requirements.\\n\"}"
+
+curl http://127.0.0.1:8787/agents
+curl http://127.0.0.1:8787/agents/ba
+```
+
+Writes `office/teams/<team>/agents/<id>/{agent.yaml,AGENT.md,gold/}`.
+
+Also: `GET /health`, `GET /org`, `GET /agents` (empty until create).
 
 ### Prerequisites
 

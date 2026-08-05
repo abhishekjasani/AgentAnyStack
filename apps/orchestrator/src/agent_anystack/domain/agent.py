@@ -62,3 +62,18 @@ class AgentSummary(BaseModel):
     team: str
     stack: str
     model: str
+
+
+class CreateAgentRequest(BaseModel):
+    """UI create payload → desk files under office/teams/<team>/agents/<id>/."""
+
+    id: str = Field(..., pattern=r"^[a-z][a-z0-9_-]*$", min_length=1, max_length=64)
+    name: str = Field(..., min_length=1, max_length=128)
+    team: str = Field(..., pattern=r"^[a-z][a-z0-9_-]*$", min_length=1, max_length=64)
+    stack: str = "openai-compatible"
+    model: str = Field(..., min_length=1)
+    persona_markdown: str | None = None
+    persona: PersonaAxes | None = None
+    autonomy: AgentAutonomy | None = None
+    workspace: Workspace | None = None
+    tools_mode: Literal["none", "mediated", "worker"] = "none"

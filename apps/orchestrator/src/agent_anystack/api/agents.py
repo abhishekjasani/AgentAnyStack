@@ -1,13 +1,17 @@
-"""Agent desk HTTP routes (list only in P2 — create in P3)."""
+"""Agent desk HTTP routes — list / get / create (UI path; no seed desks)."""
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from agent_anystack.config import Settings, get_settings
-from agent_anystack.domain.agent import AgentSummary
+from agent_anystack.domain.agent import AgentConfig, AgentSummary, CreateAgentRequest
 from agent_anystack.domain.org import OrgConfig
-from agent_anystack.office import OfficeRepository
+from agent_anystack.office import (
+    AgentExistsError,
+    AutonomyCeilingError,
+    OfficeRepository,
+)
 
 router = APIRouter(tags=["agents"])
 
@@ -20,8 +24,39 @@ def get_office_repo(settings: Settings = Depends(get_settings)) -> OfficeReposit
 async def list_agents(
     repo: OfficeRepository = Depends(get_office_repo),
 ) -> list[AgentSummary]:
-    """Desks from office git. Empty until UI creates agents (P3)."""
+    """Desks from office git. Empty until UI/API creates agents."""
     return repo.list_agent_summaries()
+
+
+@router.get("/agents/{agent_id}", response_model=AgentConfig)
+async def get_agent(
+    agent_id: str,
+    repo: OfficeRepository = Depends(get_office_repo),
+) -> AgentConfig:
+    agent = repo.get_agent(agent_id)
+    if agent is None:
+        raise HTTPException(status_code=404, detail=f"agent not found: {agent_id}")
+    return agent
+
+
+@router.post(
+    "/agents",
+    response_model=AgentConfig,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_agent(
+    body: CreateAgentRequest,
+    repo: OfficeRepository = Depends(get_office_repo),
+) -> AgentConfig:
+    """Write office/teams/<team>/agents/<id>/ (agent.yaml + AGENT.md + gold/)."""
+    try:
+        return repo.create_agent(body)
+    except AgentExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except AutonomyCeilingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/org", response_model=OrgConfig)
