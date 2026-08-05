@@ -1,6 +1,21 @@
 (() => {
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+  const USER_KEY = "aas.user_id";
+
+  function currentUserId() {
+    return $("#user-id")?.value || "anonymous";
+  }
+
+  function apiHeaders(extra = {}) {
+    return { "X-User-Id": currentUserId(), ...extra };
+  }
+
+  async function api(path, options = {}) {
+    const headers = apiHeaders(options.headers || {});
+    const res = await fetch(path, { ...options, headers });
+    return res;
+  }
 
   function showView(name) {
     $$(".view").forEach((el) => {
@@ -19,7 +34,7 @@
     const err = $("#team-error");
     err.hidden = true;
     try {
-      const res = await fetch("/agents");
+      const res = await api("/agents");
       if (!res.ok) throw new Error(`GET /agents ${res.status}`);
       const agents = await res.json();
       list.innerHTML = "";
@@ -74,7 +89,7 @@
     const err = $("#team-error");
     err.hidden = true;
     try {
-      const res = await fetch(`/agents/${encodeURIComponent(id)}`, { method: "DELETE" });
+      const res = await api(`/agents/${encodeURIComponent(id)}`, { method: "DELETE" });
       if (!res.ok && res.status !== 204) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.detail || `DELETE /agents/${id} ${res.status}`);
@@ -84,6 +99,17 @@
       err.textContent = String(e.message || e);
       err.hidden = false;
     }
+  }
+
+  function initUserPicker() {
+    const sel = $("#user-id");
+    const saved = localStorage.getItem(USER_KEY);
+    if (saved && [...sel.options].some((o) => o.value === saved)) {
+      sel.value = saved;
+    }
+    sel.addEventListener("change", () => {
+      localStorage.setItem(USER_KEY, sel.value);
+    });
   }
 
   $$(".nav-item").forEach((btn) => {
@@ -110,7 +136,7 @@
     if (persona) body.persona_markdown = persona;
 
     try {
-      const res = await fetch("/agents", {
+      const res = await api("/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -133,5 +159,6 @@
     }
   });
 
+  initUserPicker();
   showView("team");
 })();

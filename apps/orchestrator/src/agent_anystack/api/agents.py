@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from agent_anystack.api.deps import get_user_id
 from agent_anystack.config import Settings, get_settings
 from agent_anystack.domain.agent import AgentConfig, AgentSummary, CreateAgentRequest
 from agent_anystack.domain.org import OrgConfig
@@ -23,6 +24,7 @@ def get_office_repo(settings: Settings = Depends(get_settings)) -> OfficeReposit
 @router.get("/agents", response_model=list[AgentSummary])
 async def list_agents(
     repo: OfficeRepository = Depends(get_office_repo),
+    _user_id: str = Depends(get_user_id),
 ) -> list[AgentSummary]:
     """Desks from office git. Empty until UI/API creates agents."""
     return repo.list_agent_summaries()
@@ -32,6 +34,7 @@ async def list_agents(
 async def get_agent(
     agent_id: str,
     repo: OfficeRepository = Depends(get_office_repo),
+    _user_id: str = Depends(get_user_id),
 ) -> AgentConfig:
     agent = repo.get_agent(agent_id)
     if agent is None:
@@ -47,6 +50,7 @@ async def get_agent(
 async def create_agent(
     body: CreateAgentRequest,
     repo: OfficeRepository = Depends(get_office_repo),
+    _user_id: str = Depends(get_user_id),
 ) -> AgentConfig:
     """Write office/teams/<team>/agents/<id>/ (agent.yaml + AGENT.md + gold/)."""
     try:
@@ -63,6 +67,7 @@ async def create_agent(
 async def delete_agent(
     agent_id: str,
     repo: OfficeRepository = Depends(get_office_repo),
+    _user_id: str = Depends(get_user_id),
 ) -> None:
     """Remove desk folder from office git tree."""
     try:

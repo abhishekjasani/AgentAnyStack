@@ -54,6 +54,22 @@ body {
   line-height: 1.35;
 }
 
+.user-pick {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--nav-muted);
+}
+.user-pick select {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--nav-ink);
+  background: #292524;
+  border: 1px solid #44403c;
+  border-radius: var(--radius);
+  padding: 0.4rem 0.5rem;
+}
+
 .nav-list { display: flex; flex-direction: column; gap: 0.25rem; }
 .nav-item {
   appearance: none;

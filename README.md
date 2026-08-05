@@ -4,11 +4,11 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phase 6 (current)
+## Phase 7 (current)
 
-Simple office UI shell (Create agent + Team empty + nav stubs): open http://127.0.0.1:8787/
+`X-User-Id` stub — UI user picker + `GET /me`. Two users distinct (gold later).
 
-Phases **1–5 done:** API, empty office, create desks, Docker, architecture docs.
+Phases **1–6 done:** API, desks CRUD, Docker, architecture docs, UI shell.
 
 ### Docker
 

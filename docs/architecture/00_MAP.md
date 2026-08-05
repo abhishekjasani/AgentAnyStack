@@ -13,6 +13,7 @@ flowchart LR
     MAP --> D[07_DOCKER]
     MAP --> S[08_SOLID_KISS]
     MAP --> U[09_UI]
+    MAP --> USR[10_USER]
 ```
 
 | File | Topic |
@@ -26,6 +27,7 @@ flowchart LR
 | [07_DOCKER.md](./07_DOCKER.md) | Compose + volumes |
 | [08_SOLID_KISS.md](./08_SOLID_KISS.md) | SOLID / YAGNI |
 | [09_UI.md](./09_UI.md) | Office UI shell |
+| [10_USER.md](./10_USER.md) | X-User-Id stub |
 
 ```text
 + OK: read these before changing orchestrator code
