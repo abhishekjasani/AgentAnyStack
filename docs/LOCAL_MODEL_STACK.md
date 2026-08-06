@@ -203,7 +203,7 @@ Prior art: Open WebUI ships the same pattern (an `open-webui:ollama` bundled ima
 flowchart LR
     UI[AgentAnyStack frontend\nmodel catalog + progress] -->|"/api/pull (native API)"| OL[Ollama container]
     ORC[Orchestrator] -->|"/v1/chat/completions (OpenAI-compat)"| OL
-    OL --> VOL[(Docker volume\nmodel blobs)]
+    OL --> VOL["./data/ollama"]
 ```
 
 Two API surfaces, on purpose:
@@ -211,15 +211,15 @@ Two API surfaces, on purpose:
 - **Inference:** orchestrator talks OpenAI-compatible only (`http://ollama:11434/v1`) — same adapter later works against vLLM/SGLang/LiteLLM. Ollama is the quick-start default, **not** a hard dependency.
 - **Model management:** pull / list / delete use Ollama's native API, isolated in a small "model manager" module. That is the only Ollama-specific code allowed.
 
-Compose shape: `ollama/ollama` service + named volume on `/root/.ollama`, orchestrator gets `OPENAI_COMPATIBLE_BASE_URL` (alias: `OLLAMA_BASE_URL`).
+Compose shape: `ollama/ollama` service + bind **`./data/ollama` → `/root/.ollama`**, orchestrator gets `OPENAI_COMPATIBLE_BASE_URL` (alias: `OLLAMA_BASE_URL`).
 
 ### Known caveats (document in user-facing quick start)
 
-1. **CPU by default; GPU is opt-in.** Base `docker compose --profile ollama` runs Ollama on **CPU** (always starts). For NVIDIA, add `docker-compose.gpu.yml` (passes GPU devices). If that command fails (no driver / toolkit), drop the override — **CPU fallback**. Same `ollama_models` volume either way. See [architecture/07_DOCKER.md](./architecture/07_DOCKER.md).
+1. **CPU by default; GPU is opt-in.** Base `docker compose --profile ollama` runs Ollama on **CPU** (always starts). For NVIDIA, add `docker-compose.gpu.yml` (passes GPU devices). If that command fails (no driver / toolkit), drop the override — **CPU fallback**. Weights live on the host at **`./data/ollama`** either way. See [architecture/07_DOCKER.md](./architecture/07_DOCKER.md).
 2. **GPU prereqs (NVIDIA + Docker):** current NVIDIA driver; Windows = Docker Desktop + WSL2 + NVIDIA Container Toolkit; Linux = NVIDIA Container Toolkit. Ollama then uses CUDA automatically. AMD/Intel: prefer **native** Ollama on the host.
 3. **macOS + Docker loses the GPU.** Docker on Mac cannot access Apple's Metal GPU, so containerized Ollama is CPU-only there. Workaround (same as Open WebUI): Mac users install Ollama natively and the stack points at `host.docker.internal:11434` via `OLLAMA_BASE_URL`. One env var supports both layouts.
 4. **Model quality expectations.** 3B–7B quantized models are fine for chat/summarize roles but weak at agentic tool calling. Flag catalog entries as "demo-grade" vs "can run a Developer agent" so the product isn't judged by a 3B model failing tool calls.
-5. **Don't bake models into the image.** Weights go to the volume at runtime; the image stays small and models survive container upgrades.
+5. **Don't bake models into the image.** Weights go to **`./data/ollama`** (gitignored) at runtime; the image stays small and models survive container upgrades.
 
 ---
 

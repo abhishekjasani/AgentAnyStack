@@ -32,8 +32,6 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ollama_models:/root/.ollama
+      # Host-visible weights (gitignored via data/*)
+      - ./data/ollama:/root/.ollama
     restart: unless-stopped
-
-volumes:
-  ollama_models:

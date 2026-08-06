@@ -10,7 +10,7 @@ flowchart TB
     end
     VOL_O["./office"]
     VOL_D["./data"]
-    VOL_M["ollama_models"]
+    VOL_M["./data/ollama"]
     ORC --> VOL_O
     ORC --> VOL_D
     OLL --> VOL_M
@@ -32,7 +32,7 @@ Compose **cannot** auto-attach a GPU. Default profile is **CPU**. Opt into GPU w
 # Prefer GPU when NVIDIA + Docker GPU support are installed
 docker compose --profile ollama -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
-# Fallback — CPU only (same volume; models already pulled stay)
+# Fallback — CPU only (same ./data/ollama bind; models already pulled stay)
 docker compose --profile ollama up -d
 ```
 
@@ -41,7 +41,7 @@ docker compose --profile ollama up -d
 | Prereqs (GPU) | NVIDIA driver; Docker Desktop + WSL2 (Windows) or Linux NVIDIA Container Toolkit |
 | Runtime | Ollama uses CUDA when devices are passed; otherwise CPU |
 | macOS + Docker | No Metal in Docker → **CPU** in container. Prefer native Ollama + `OLLAMA_BASE_URL=http://host.docker.internal:11434` |
-| Weights | Named volume `ollama_models` → `/root/.ollama` (shared CPU/GPU layouts) |
+| Weights | Host **`./data/ollama`** → container `/root/.ollama` (gitignored; shared CPU/GPU) |
 
 See also [LOCAL_MODEL_STACK.md](../LOCAL_MODEL_STACK.md) §9 · [17_MODELS.md](./17_MODELS.md).
 
@@ -49,7 +49,7 @@ See also [LOCAL_MODEL_STACK.md](../LOCAL_MODEL_STACK.md) §9 · [17_MODELS.md](.
 | --- | --- | --- |
 | `/office` | `./office` | org + desks + gold |
 | `/data` | `./data` | SQLite + channel history |
-| Ollama volume | named `ollama_models` | model weights |
+| `/root/.ollama` | `./data/ollama` | model weights (Ollama) |
 
 Env inside compose: `OFFICE_REPO_PATH=/office`, `OPENAI_COMPATIBLE_BASE_URL=http://ollama:11434/v1`.
 

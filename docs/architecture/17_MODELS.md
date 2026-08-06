@@ -15,7 +15,7 @@ flowchart LR
 | --- | --- |
 | `GET /models` | engine reachability + curated catalog (`pulled`) + installed |
 | `POST /models/pull` | SSE progress (`meta` / `progress` / `done` / `error`) |
-| `POST /models/delete` | remove curated tag from local volume |
+| `POST /models/delete` | remove curated tag from `./data/ollama` |
 
 **Class:** `OllamaModelManager` in `adapters/ollama_models.py` (only Ollama-specific module).  
 **UI:** nav **Stacks** — Pull / progress / Delete.  

@@ -254,7 +254,7 @@ The **live activity panel** shows every run with the context used (e.g. `team(17
 - **Catalog:** MCP · Skills · API/creds (AWS, git, Firecrawl, custom) — admin sets `hil`: always / never / follow_autonomy (+ optional timer)
 - **Agent desk:** register MCP/skill/API for that agent only (no global catalog in the agent prompt)
 - HIL MCP → agent sees `*_locked` wrapper; Accept on approval card unlocks server-side; **agent** runs MCP under `run_id`
-- **Local model catalog**: curated quantized models, pull with progress into Docker volume
+- **Local model catalog**: curated quantized models, pull with progress into `./data/ollama`
 - Shows the macOS/Docker GPU note in-product
 
 See [ORCHESTRATOR.md](./ORCHESTRATOR.md) §7.

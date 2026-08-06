@@ -448,7 +448,7 @@
       if (!eng.reachable) {
         note.textContent =
           eng.error ||
-          "Start Ollama: docker compose --profile ollama up -d (Mac GPU: native Ollama + OLLAMA_BASE_URL).";
+          "Start Ollama (CPU): docker compose --profile ollama up -d. NVIDIA GPU: add -f docker-compose.gpu.yml (fallback to CPU if that fails). Mac GPU: native Ollama + OLLAMA_BASE_URL.";
         note.hidden = false;
       }
       const sizeByName = Object.fromEntries(

@@ -19,7 +19,7 @@ curl http://127.0.0.1:8787/health
 curl http://127.0.0.1:8787/agents
 ```
 
-Volumes: `./office` → desks; `./data` → SQLite later.
+Volumes: `./office` → desks; `./data` → SQLite + channel; `./data/ollama` → Ollama model weights.
 
 Ollama is optional. **CPU (default)** always works; **NVIDIA GPU** is opt-in:
 
