@@ -56,6 +56,8 @@ apps/orchestrator/src/agent_anystack/
 | `ChatRunService` | Pack → stream → journal → extract hook |
 | `OfficeQaService` | Front-desk Q&A |
 | `ApprovalCard` / `ApprovalService` | HITL board (action tag) |
+| `OpenAICompatibleAdapter` | Chat / complete via `/v1` |
+| `OllamaModelManager` | List / pull / delete via Ollama native `/api/*` only |
 
 ```text
 + OK: from agent_anystack.office import OfficeRepository, AgentExistsError

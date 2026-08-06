@@ -346,6 +346,64 @@ h1 {
   padding: 0.25rem 0.5rem;
 }
 
+.model-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+.model-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem 1rem;
+  align-items: start;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  padding: 0.85rem 1rem;
+}
+.model-row-main {
+  min-width: 0;
+}
+.model-title {
+  font-weight: 600;
+}
+.model-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+.model-grade {
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  padding: 0.2rem 0.4rem;
+  color: var(--muted);
+}
+.model-grade.agent-grade {
+  border-color: #6a8f82;
+  color: #2f5b4c;
+}
+.model-progress {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.35rem;
+}
+.model-progress-bar {
+  height: 0.35rem;
+  background: #e8e4dc;
+  border: 1px solid var(--line);
+}
+.model-progress-bar > i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+}
+
 @media (max-width: 720px) {
   .shell { grid-template-columns: 1fr; }
   .nav { flex-direction: row; flex-wrap: wrap; gap: 1rem; align-items: center; }

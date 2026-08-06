@@ -14,6 +14,7 @@ from agent_anystack.api.chat import router as chat_router
 from agent_anystack.api.gold import router as gold_router
 from agent_anystack.api.health import router as health_router
 from agent_anystack.api.me import router as me_router
+from agent_anystack.api.models import router as models_router
 from agent_anystack.api.office import router as office_router
 from agent_anystack.api.okf import router as okf_router
 from agent_anystack.config import get_settings
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
     app.include_router(approvals_router)
     app.include_router(channel_router)
     app.include_router(chat_router)
+    app.include_router(models_router)
 
     ui_dir = Path(get_settings().office_ui_path).resolve()
     if ui_dir.is_dir():

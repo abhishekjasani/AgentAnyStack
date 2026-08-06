@@ -31,6 +31,7 @@
       loadOkf();
     }
     if (name === "approvals") loadApprovals();
+    if (name === "stacks") loadStacks();
   }
 
   let channelAgents = [];
@@ -419,6 +420,185 @@
     }
   }
 
+  function formatBytes(n) {
+    if (n == null || Number.isNaN(Number(n))) return "";
+    const v = Number(n);
+    if (v < 1024) return `${v} B`;
+    if (v < 1024 ** 2) return `${(v / 1024).toFixed(1)} KB`;
+    if (v < 1024 ** 3) return `${(v / 1024 ** 2).toFixed(1)} MB`;
+    return `${(v / 1024 ** 3).toFixed(1)} GB`;
+  }
+
+  async function loadStacks() {
+    const list = $("#stacks-catalog");
+    const err = $("#stacks-error");
+    const note = $("#stacks-note");
+    const engineEl = $("#stacks-engine");
+    err.hidden = true;
+    note.hidden = true;
+    list.innerHTML = "";
+    try {
+      const res = await api("/models");
+      if (!res.ok) throw new Error(`GET /models ${res.status}`);
+      const data = await res.json();
+      const eng = data.engine || {};
+      engineEl.textContent = eng.reachable
+        ? `Ollama · ${eng.native_base} · reachable`
+        : `Ollama · ${eng.native_base || "?"} · not reachable`;
+      if (!eng.reachable) {
+        note.textContent =
+          eng.error ||
+          "Start Ollama: docker compose --profile ollama up -d (Mac GPU: native Ollama + OLLAMA_BASE_URL).";
+        note.hidden = false;
+      }
+      const sizeByName = Object.fromEntries(
+        (data.installed || []).map((m) => [m.name, m.size])
+      );
+      for (const entry of data.catalog || []) {
+        const li = document.createElement("li");
+        li.className = "model-row";
+        li.dataset.modelId = entry.id;
+        const left = document.createElement("div");
+        left.className = "model-row-main";
+        const title = document.createElement("div");
+        title.className = "model-title";
+        title.textContent = entry.label || entry.id;
+        const meta = document.createElement("div");
+        meta.className = "desk-meta";
+        const grade =
+          entry.grade === "agent" ? "agent-grade" : "demo-grade";
+        const size =
+          sizeByName[entry.id] != null
+            ? formatBytes(sizeByName[entry.id])
+            : entry.size_hint || "";
+        meta.textContent = [
+          entry.note || "",
+          size,
+          entry.pulled ? "pulled" : "not pulled",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const gradeEl = document.createElement("span");
+        gradeEl.className = `model-grade ${grade}`;
+        gradeEl.textContent = entry.grade === "agent" ? "agent" : "demo";
+        left.append(title, meta);
+        const right = document.createElement("div");
+        right.className = "desk-actions model-actions";
+        right.appendChild(gradeEl);
+        const progress = document.createElement("div");
+        progress.className = "model-progress";
+        progress.hidden = true;
+        const bar = document.createElement("div");
+        bar.className = "model-progress-bar";
+        const fill = document.createElement("i");
+        bar.appendChild(fill);
+        const status = document.createElement("span");
+        status.className = "desk-meta";
+        progress.append(bar, status);
+        if (entry.pulled) {
+          const del = document.createElement("button");
+          del.type = "button";
+          del.className = "btn danger";
+          del.textContent = "Delete";
+          del.addEventListener("click", () => deleteModel(entry.id));
+          right.appendChild(del);
+        } else {
+          const pull = document.createElement("button");
+          pull.type = "button";
+          pull.className = "btn primary";
+          pull.textContent = "Pull";
+          pull.addEventListener("click", () =>
+            pullModel(entry.id, { fill, status, progress, pull })
+          );
+          right.appendChild(pull);
+        }
+        li.append(left, right, progress);
+        list.appendChild(li);
+      }
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function pullModel(name, ui) {
+    const err = $("#stacks-error");
+    err.hidden = true;
+    ui.progress.hidden = false;
+    ui.pull.disabled = true;
+    ui.status.textContent = "starting…";
+    ui.fill.style.width = "0%";
+    try {
+      const res = await api("/models/pull", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `pull ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let failed = false;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() || "";
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data:")) continue;
+          const payload = JSON.parse(line.slice(5).trim());
+          if (payload.type === "progress") {
+            const pct = payload.percent;
+            if (pct != null) ui.fill.style.width = `${pct}%`;
+            ui.status.textContent =
+              pct != null
+                ? `${payload.status || "pulling"} · ${pct}%`
+                : payload.status || "pulling…";
+          } else if (payload.type === "error") {
+            failed = true;
+            err.textContent = payload.message || "pull failed";
+            err.hidden = false;
+            ui.status.textContent = "error";
+          } else if (payload.type === "done") {
+            ui.fill.style.width = "100%";
+            ui.status.textContent = "done";
+          }
+        }
+      }
+      if (!failed) await loadStacks();
+      else ui.pull.disabled = false;
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+      ui.pull.disabled = false;
+      ui.status.textContent = "error";
+    }
+  }
+
+  async function deleteModel(name) {
+    const err = $("#stacks-error");
+    err.hidden = true;
+    if (!confirm(`Delete local model ${name}?`)) return;
+    try {
+      const res = await api("/models/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `delete ${res.status}`);
+      await loadStacks();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
   $$(".nav-item").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (btn.dataset.view === "chat") {
@@ -432,6 +612,7 @@
   $("#btn-open-create").addEventListener("click", () => showView("create"));
   $("#btn-empty-create").addEventListener("click", () => showView("create"));
   $("#btn-back-team").addEventListener("click", () => showView("team"));
+  $("#btn-stacks-refresh").addEventListener("click", () => loadStacks());
   $("#gold-agent").addEventListener("change", () => loadGoldForSelected());
   $("#gold-save").addEventListener("click", () => saveGold());
   $("#gold-clear").addEventListener("click", () => clearGold());

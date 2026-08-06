@@ -20,6 +20,7 @@ flowchart LR
     MAP --> A14[14_AUTONOMY_GATE]
     MAP --> E15[15_OKF_EXPORT]
     MAP --> CH16[16_CHANNEL]
+    MAP --> M17[17_MODELS]
 ```
 
 | File | Topic |
@@ -40,12 +41,13 @@ flowchart LR
 | [14_AUTONOMY_GATE.md](./14_AUTONOMY_GATE.md) | Autonomy gate flow: effective → allow/hitl/deny |
 | [15_OKF_EXPORT.md](./15_OKF_EXPORT.md) | OKF export flow: SQLite → office/memory/ |
 | [16_CHANNEL.md](./16_CHANNEL.md) | Unified channel: office + agent + approvals SSE |
+| [17_MODELS.md](./17_MODELS.md) | Stacks: curated Ollama pull / list / delete |
 
 ```text
 + OK: read these before changing orchestrator code
 - BAD: invent a Python Agent subclass package
 ```
 
-**Built now (P1–P15):** health, desks, Docker, UI, chat, gold, team OKF pack/extract, office Q&A, HITL board, autonomy gate, **OKF export**.  
-**Optional later:** shelf ∩ P(p), OKF import, Settings read-only page.  
+**Built now (P1–P16 + P17 models):** health, desks, Docker, UI, chat, gold, team OKF, office Q&A, HITL, autonomy gate, OKF export, unified channel, **Stacks local model pull**.  
+**Optional later:** shelf ∩ P(p), OKF import, Settings read-only page, BYO Cursor/Claude keys UI.  
 **Out of v0 cut:** stream-agent `append_gold` tool (human gold write only); floors / full MCP / Analytics BI.

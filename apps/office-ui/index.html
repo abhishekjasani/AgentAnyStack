@@ -29,6 +29,7 @@
         <button type="button" class="nav-item" data-view="chat">Chat</button>
         <button type="button" class="nav-item" data-view="memory">Memory</button>
         <button type="button" class="nav-item" data-view="approvals">Approvals</button>
+        <button type="button" class="nav-item" data-view="stacks">Stacks</button>
         <button type="button" class="nav-item" data-view="floor">Floor</button>
         <button type="button" class="nav-item" data-view="analytics">Analytics</button>
         <button type="button" class="nav-item" data-view="connect">Connect</button>
@@ -205,6 +206,21 @@
           <button type="button" class="btn ghost" data-appr-filter="">All</button>
         </div>
         <ul id="approvals-list" class="okf-list"></ul>
+      </section>
+      <section id="view-stacks" class="view" hidden>
+        <header class="view-head">
+          <div>
+            <h1>Stacks &amp; models</h1>
+            <p class="lede">
+              Pull curated local models into Ollama. Use the same tag when creating a desk.
+            </p>
+          </div>
+          <button type="button" class="btn ghost" id="btn-stacks-refresh">Refresh</button>
+        </header>
+        <p id="stacks-engine" class="desk-meta"></p>
+        <p id="stacks-error" class="error" hidden></p>
+        <p id="stacks-note" class="stub-note" hidden></p>
+        <ul id="stacks-catalog" class="model-list"></ul>
       </section>
       <section id="view-floor" class="view stub" hidden>
         <h1>Floor</h1>

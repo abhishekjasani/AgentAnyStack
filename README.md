@@ -4,10 +4,10 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phases 1–15 done · P16 unified channel
+## Phases 1–16 done · P17 local models
 
-**P16:** `GET /channel` + `POST /channel/chat` + per-user history; UI Chat = one thread (Office / desks).  
-Desk Chat opens the same channel with the agent selected. Flow: [16_CHANNEL.md](docs/architecture/16_CHANNEL.md).
+**P17:** Stacks UI + `GET/POST /models` — curated Ollama pull with progress.  
+Flow: [17_MODELS.md](docs/architecture/17_MODELS.md). Need Ollama: `docker compose --profile ollama up -d`.
 
 ### Docker
 
