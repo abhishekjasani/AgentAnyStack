@@ -35,7 +35,7 @@ flowchart TD
     REPO["office.OfficeRepository"]
     CRS["runs.ChatRunService"]
     ENV["envelope.build_office_envelope"]
-    AD["adapters.OpenAICompatibleAdapter"]
+    AD["adapters.llm.OpenAICompatibleAdapter"]
     J["runs.RunJournal"]
     OL["Ollama"]
 
@@ -69,7 +69,7 @@ flowchart TD
 | Orchestrate | `runs/service.py` `ChatRunService` | One run: meta → prompt → stream → journal | Choke point — controllability + memory hooks live here |
 | Policy text | `envelope.py` | Thin musts + workspace path | LLM compliance; identity/routing stay in orchestrator |
 | Autonomy | `effective_autonomy` | Org ceiling × agent default/max | Intent line in Envelope; gates own allow/deny |
-| Stack | `adapters/` `StackAdapter` / `OpenAICompatibleAdapter` | Stream via OpenAI `/v1/chat/completions` | One class for Ollama/vLLM/…; URL switches host |
+| Stack | `adapters/llm.py` `OpenAICompatibleAdapter` | Stream via OpenAI `/v1/chat/completions` | One module; URL switches Ollama↔vLLM; other wires = new classes in same file |
 | Errors | `StackError` | Unreachable / model-not-pulled messages | Testable without a model |
 | Ops log | `runs/journal.py` | Append `JournalEntry` (team, project_id, stack, autonomy, …) | Transparency / analytics — not business facts |
 | Domain | `AgentConfig` / `OrgConfig` | Typed desk + org | Contracts for yaml |

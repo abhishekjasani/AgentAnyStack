@@ -33,7 +33,7 @@ apps/orchestrator/src/agent_anystack/
   domain/agent.py      # AgentConfig, CreateAgentRequest, …
   domain/org.py        # OrgConfig
   office/repository.py # load/write office/ tree
-  adapters/            # StackAdapter + OpenAICompatibleAdapter
+  adapters/            # llm.py — StackAdapter + OpenAICompatibleAdapter (+ later wires)
   memory/              # later — gold + OKF + pack
   runs/                # later — run_id + journal
   hitl/                # later — approval cards

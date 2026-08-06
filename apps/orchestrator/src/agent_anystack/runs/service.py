@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 from agent_anystack.adapters import StackError
-from agent_anystack.adapters.openai_compatible import OpenAICompatibleAdapter
+from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.domain.org import OrgConfig
 from agent_anystack.envelope import build_office_envelope
