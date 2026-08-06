@@ -17,6 +17,7 @@ flowchart LR
     MAP --> CH[11_CHAT]
     MAP --> OQ[12_OFFICE_QA]
     MAP --> H13[13_HITL]
+    MAP --> A14[14_AUTONOMY_GATE]
 ```
 
 | File | Topic |
@@ -26,7 +27,7 @@ flowchart LR
 | [03_OFFICE_GIT.md](./03_OFFICE_GIT.md) | Desks on disk |
 | [04_MEMORY.md](./04_MEMORY.md) | Gold vs OKF · seed + pack + extract flows |
 | [05_RUN_PATH.md](./05_RUN_PATH.md) | Chat → pack → stream → journal → extract |
-| [06_HITL.md](./06_HITL.md) | Autonomy formula · points to board flow |
+| [06_HITL.md](./06_HITL.md) | Autonomy formula index → 13 + 14 |
 | [07_DOCKER.md](./07_DOCKER.md) | Compose + volumes |
 | [08_SOLID_KISS.md](./08_SOLID_KISS.md) | SOLID / YAGNI |
 | [09_UI.md](./09_UI.md) | Office UI shell |
@@ -34,12 +35,13 @@ flowchart LR
 | [11_CHAT.md](./11_CHAT.md) | Chat flow: main → router → modules |
 | [12_OFFICE_QA.md](./12_OFFICE_QA.md) | Office Q&A flow: main → classify → journal/OKF |
 | [13_HITL.md](./13_HITL.md) | HITL board flow: propose → decide → journal |
+| [14_AUTONOMY_GATE.md](./14_AUTONOMY_GATE.md) | Autonomy gate flow: effective → allow/hitl/deny |
 
 ```text
 + OK: read these before changing orchestrator code
 - BAD: invent a Python Agent subclass package
 ```
 
-**Built now (P1–P13):** health, desks, Docker, UI, chat, gold, team OKF pack, post-run extract, office Q&A, **one approval card**.  
-**Not yet (rest of v0):** autonomy gate on actions, shelf ∩ P(p), OKF export.  
+**Built now (P1–P14):** health, desks, Docker, UI, chat, gold, team OKF pack, post-run extract, office Q&A, approval board, **autonomy gate on external_send**.  
+**Not yet (rest of v0):** shelf ∩ P(p), OKF export.  
 **Out of v0 cut:** stream-agent `append_gold` tool (human gold write only).

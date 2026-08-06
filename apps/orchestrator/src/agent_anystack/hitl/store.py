@@ -23,11 +23,18 @@ CREATE TABLE IF NOT EXISTS approval_cards (
     decided_at TEXT,
     decided_by TEXT,
     decision TEXT,
-    note TEXT
+    note TEXT,
+    effective_autonomy INTEGER,
+    gate TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_appr_status ON approval_cards(status);
 CREATE INDEX IF NOT EXISTS idx_appr_created ON approval_cards(created_at);
 """
+
+_ALTERS = (
+    "ALTER TABLE approval_cards ADD COLUMN effective_autonomy INTEGER",
+    "ALTER TABLE approval_cards ADD COLUMN gate TEXT",
+)
 
 
 class ApprovalStore:
@@ -45,6 +52,11 @@ class ApprovalStore:
         conn = self._connect()
         try:
             conn.executescript(_SCHEMA)
+            for stmt in _ALTERS:
+                try:
+                    conn.execute(stmt)
+                except sqlite3.OperationalError:
+                    pass  # column already exists
             conn.commit()
         finally:
             conn.close()
@@ -57,8 +69,8 @@ class ApprovalStore:
                 INSERT INTO approval_cards (
                     id, tag, status, run_id, agent_id, user_id, team, project_id,
                     summary, action_type, created_at, decided_at, decided_by,
-                    decision, note
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    decision, note, effective_autonomy, gate
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     tag=excluded.tag,
                     status=excluded.status,
@@ -73,7 +85,9 @@ class ApprovalStore:
                     decided_at=excluded.decided_at,
                     decided_by=excluded.decided_by,
                     decision=excluded.decision,
-                    note=excluded.note
+                    note=excluded.note,
+                    effective_autonomy=excluded.effective_autonomy,
+                    gate=excluded.gate
                 """,
                 (
                     card.id,
@@ -91,6 +105,8 @@ class ApprovalStore:
                     card.decided_by,
                     card.decision.value if card.decision else None,
                     card.note,
+                    card.effective_autonomy,
+                    card.gate,
                 ),
             )
             conn.commit()
@@ -132,6 +148,9 @@ class ApprovalStore:
 
 def _row_to_card(row: sqlite3.Row) -> ApprovalCard:
     decision_raw = row["decision"]
+    keys = row.keys()
+    eff = row["effective_autonomy"] if "effective_autonomy" in keys else None
+    gate = row["gate"] if "gate" in keys else None
     return ApprovalCard(
         id=row["id"],
         tag=row["tag"],
@@ -148,4 +167,6 @@ def _row_to_card(row: sqlite3.Row) -> ApprovalCard:
         decided_by=row["decided_by"],
         decision=ApprovalDecision(decision_raw) if decision_raw else None,
         note=row["note"],
+        effective_autonomy=int(eff) if eff is not None else None,
+        gate=gate,
     )

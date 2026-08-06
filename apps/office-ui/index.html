@@ -184,15 +184,16 @@
           <div>
             <h1>Approvals</h1>
             <p class="lede">
-              One action-card path — propose a gated ask, Accept or Reject
-              (<code>APPROVER_MODE=permissive</code>: requester ∪ <code>ORG_ADMINS</code>).
+              Propose a gated ask. <code>external_send</code> uses effective autonomy:
+              ≤20 deny · 21–79 HITL card · ≥80 auto-allow. Other types → HITL.
+              Decide: requester ∪ <code>ORG_ADMINS</code>.
             </p>
           </div>
         </header>
         <p id="approvals-error" class="error" hidden></p>
         <p id="approvals-ok" class="desk-meta" hidden></p>
 
-        <h2 class="memory-h2">Propose demo card</h2>
+        <h2 class="memory-h2">Propose (gated)</h2>
         <form id="approvals-propose" class="form memory-form">
           <label>
             Agent id
@@ -205,6 +206,10 @@
           <label>
             Action type
             <input id="appr-type" name="action_type" value="external_send" />
+          </label>
+          <label>
+            Autonomy override (optional, tighten only)
+            <input id="appr-override" name="autonomy_override" type="number" min="0" max="100" placeholder="blank = agent default" />
           </label>
           <label>
             Summary

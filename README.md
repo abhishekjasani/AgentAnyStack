@@ -4,12 +4,12 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phases 1–13 done
+## Phases 1–14 done
 
-**P12** office Q&A · **P13** one HITL action card (`POST /approvals` + Approvals nav).  
-Propose → Accept/Reject (permissive) → journal. Flow: [docs/architecture/13_HITL.md](docs/architecture/13_HITL.md).
+**P13** HITL board · **P14** effective autonomy gate on `external_send` (deny / HITL / auto-allow).  
+Flows: [13_HITL.md](docs/architecture/13_HITL.md) · [14_AUTONOMY_GATE.md](docs/architecture/14_AUTONOMY_GATE.md).
 
-**Next (when you say go):** effective autonomy on one gate ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 9).
+**Next (when you say go):** OKF export to `memory/` ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 10).
 
 ### Docker
 

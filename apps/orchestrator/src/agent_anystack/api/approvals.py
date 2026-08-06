@@ -1,4 +1,4 @@
-"""Approval board HTTP — propose / list / decide (one action-card path)."""
+"""Approval board HTTP — propose (gated) / list / decide."""
 
 from pathlib import Path
 
@@ -14,8 +14,14 @@ from agent_anystack.hitl import (
     ApprovalStatus,
     ApprovalStore,
 )
-from agent_anystack.hitl.service import ApprovalForbiddenError, ApprovalNotPendingError
+from agent_anystack.hitl.service import (
+    AgentNotFoundError,
+    ApprovalForbiddenError,
+    ApprovalGateDeniedError,
+    ApprovalNotPendingError,
+)
 from agent_anystack.memory import sqlite_path_from_database_url
+from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import RunJournal
 from agent_anystack.runs.service import journal_path_from_database_url
 
@@ -26,9 +32,11 @@ class ProposeApprovalRequest(BaseModel):
     agent_id: str = Field(..., pattern=r"^[a-z][a-z0-9_-]*$", max_length=64)
     summary: str = Field(..., min_length=1, max_length=4000)
     team: str = Field(default="eng", pattern=r"^[a-z][a-z0-9_-]*$")
-    action_type: str = Field(default="demo", max_length=64)
+    action_type: str = Field(default="external_send", max_length=64)
     run_id: str | None = Field(default=None, max_length=64)
     project_id: str | None = Field(default=None, max_length=128)
+    # Optional tighten-only override (clamped to effective_max)
+    autonomy_override: int | None = Field(default=None, ge=0, le=100)
 
 
 class DecideApprovalRequest(BaseModel):
@@ -52,6 +60,8 @@ class ApprovalCardOut(BaseModel):
     decided_by: str | None
     decision: ApprovalDecision | None
     note: str | None
+    effective_autonomy: int | None = None
+    gate: str | None = None
 
     @classmethod
     def from_card(cls, card: ApprovalCard) -> "ApprovalCardOut":
@@ -71,6 +81,8 @@ class ApprovalCardOut(BaseModel):
             decided_by=card.decided_by,
             decision=card.decision,
             note=card.note,
+            effective_autonomy=card.effective_autonomy,
+            gate=card.gate,
         )
 
 
@@ -81,9 +93,14 @@ def get_approval_service(
     journal = RunJournal(
         journal_path_from_database_url(settings.database_url, Path("./data"))
     )
+    repo = OfficeRepository(
+        Path(settings.office_repo_path),
+        gold_max_chars=settings.gold_max_chars,
+    )
     return ApprovalService(
         ApprovalStore(db),
         journal,
+        repo,
         approver_mode=settings.approver_mode,
         org_admins=settings.org_admins,
     )
@@ -112,17 +129,30 @@ async def propose_approval(
     user_id: str = Depends(get_user_id),
     svc: ApprovalService = Depends(get_approval_service),
 ) -> ApprovalCardOut:
-    """Create a pending action card (demo / later agent gate)."""
-    card = svc.propose(
-        requester=user_id,
-        agent_id=body.agent_id,
-        team=body.team,
-        summary=body.summary,
-        action_type=body.action_type,
-        run_id=body.run_id,
-        project_id=body.project_id,
-    )
-    return ApprovalCardOut.from_card(card)
+    """Propose action — external_send gated by effective autonomy (allow|hitl|deny)."""
+    try:
+        result = svc.propose(
+            requester=user_id,
+            agent_id=body.agent_id,
+            team=body.team,
+            summary=body.summary,
+            action_type=body.action_type,
+            run_id=body.run_id,
+            project_id=body.project_id,
+            user_override=body.autonomy_override,
+        )
+    except AgentNotFoundError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except ApprovalGateDeniedError as e:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail={
+                "message": str(e),
+                "gate": e.gate.value,
+                "effective_autonomy": e.effective,
+            },
+        ) from e
+    return ApprovalCardOut.from_card(result.card)
 
 
 @router.post("/approvals/{approval_id}/decide", response_model=ApprovalCardOut)

@@ -1,4 +1,4 @@
-"""Approval card model — action tag only in P13."""
+"""Approval card model — action tag; gate fields from P14."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ class ApprovalStatus(str, Enum):
     pending_human = "pending_human"
     accepted = "accepted"
     rejected = "rejected"
+    denied = "denied"  # gate denied before human (no pending)
 
 
 class ApprovalDecision(str, Enum):
@@ -41,3 +42,5 @@ class ApprovalCard:
     decided_by: str | None = None
     decision: ApprovalDecision | None = None
     note: str | None = None
+    effective_autonomy: int | None = None
+    gate: str | None = None  # allow | hitl | deny

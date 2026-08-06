@@ -5,20 +5,13 @@ from pathlib import Path
 
 from agent_anystack.adapters import StackError
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
-from agent_anystack.domain.agent import AgentConfig
-from agent_anystack.domain.org import OrgConfig
 from agent_anystack.envelope import build_office_envelope
+from agent_anystack.hitl.autonomy import compute_effective
 from agent_anystack.memory import ExtractJob, OkfStore, pack_memory_sections
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
 
 SUPPORTED_STACKS = frozenset({"openai-compatible"})
-
-
-def effective_autonomy(org: OrgConfig, agent: AgentConfig) -> int:
-    agent_max = agent.autonomy.max if agent.autonomy.max is not None else 100
-    effective_max = min(org.max_autonomy, agent_max)
-    return max(0, min(agent.autonomy.default, effective_max))
 
 
 class ChatRunService:
@@ -65,7 +58,7 @@ class ChatRunService:
         org = self.repo.load_org()
         run_id = new_run_id()
         started = utc_now()
-        eff = effective_autonomy(org, agent)
+        eff = compute_effective(org, agent)
 
         yield {
             "type": "meta",

@@ -3,7 +3,9 @@
 One **action** card path — propose → board → Accept/Reject → journal.  
 Orchestrator **gates**; it does **not** execute Slack/send/etc. on Accept (agent execute / MCP grant = later).
 
-Product intent: [ORCHESTRATOR.md](../ORCHESTRATOR.md) §6.0 · autonomy formula: [06_HITL.md](./06_HITL.md).
+**P14:** `external_send` propose is gated by effective autonomy — see **[14_AUTONOMY_GATE.md](./14_AUTONOMY_GATE.md)**. This file is the human board path (HITL mid-band + decide).
+
+Product intent: [ORCHESTRATOR.md](../ORCHESTRATOR.md) §6.0 · formula index: [06_HITL.md](./06_HITL.md).
 
 ```mermaid
 sequenceDiagram
@@ -310,11 +312,11 @@ Already decided / missing id → **404** (`ApprovalNotPendingError`).
 
 | Later | Why deferred |
 | --- | --- |
-| Effective autonomy opens/skips card | **P14** / slice 9 |
+| Effective autonomy opens/skips card | **P14** — [14_AUTONOMY_GATE.md](./14_AUTONOMY_GATE.md) |
 | Pause chat run mid-stream | Needs tool loop |
 | Deliver grant → agent ACK | MCP `_locked` |
 | Memory HITL cards | Async pipeline |
 | Community “single user only” switch | Edition flag on top of this plumbing |
 
-**Status (P13):** one action card + Approvals UI + permissive decide → journal = done.  
-**Next:** [06_HITL.md](./06_HITL.md) autonomy formula wired to **one gate** (slice 9).
+**Status:** P13 board + **P14 gate** = done. See [14_AUTONOMY_GATE.md](./14_AUTONOMY_GATE.md) for allow/hitl/deny bands.  
+**Next:** OKF export to `memory/` (slice 10).

@@ -19,6 +19,7 @@ Full call chain: main → router → classes. See [V0_SCOPE.md](../V0_SCOPE.md) 
 | Background extract after run | **Built** (P11 — BackgroundTasks) |
 | Thin office Q&A | **Built** (P12 — `POST /office/ask`) |
 | One HITL card | **Built** (P13 — Approvals board) |
+| Autonomy on one gate | **Built** (P14 — `external_send`) |
 
 ### Explicitly not v0 (design only below)
 

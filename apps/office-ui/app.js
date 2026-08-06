@@ -319,7 +319,13 @@
         body.textContent = `[${c.agent_id}] ${c.summary}`;
         const meta = document.createElement("div");
         meta.className = "desk-meta";
-        meta.textContent = `run=${c.run_id}${c.decided_by ? ` · decided by ${c.decided_by}` : ""}`;
+        const gateBits = [
+          c.gate ? `gate=${c.gate}` : null,
+          c.effective_autonomy != null ? `eff=${c.effective_autonomy}` : null,
+          `run=${c.run_id}`,
+          c.decided_by ? `decided by ${c.decided_by}` : null,
+        ].filter(Boolean);
+        meta.textContent = gateBits.join(" · ");
         li.append(id, body, meta);
         if (c.status === "pending_human") {
           const actions = document.createElement("div");
@@ -377,33 +383,47 @@
     ok.hidden = true;
     const summary = ($("#appr-summary").value || "").trim();
     if (!summary) return;
+    const overrideRaw = ($("#appr-override").value || "").trim();
+    const body = {
+      agent_id: ($("#appr-agent").value || "").trim(),
+      team: ($("#appr-team").value || "eng").trim(),
+      action_type: ($("#appr-type").value || "external_send").trim(),
+      summary,
+    };
+    if (overrideRaw !== "") {
+      body.autonomy_override = Number(overrideRaw);
+    }
     try {
       const res = await api("/approvals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agent_id: ($("#appr-agent").value || "").trim(),
-          team: ($("#appr-team").value || "eng").trim(),
-          action_type: ($("#appr-type").value || "demo").trim(),
-          summary,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const detail = data.detail;
-        const msg = Array.isArray(detail)
-          ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
-          : detail || `POST approvals ${res.status}`;
+        let msg;
+        if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+          msg = detail.message || JSON.stringify(detail);
+        } else if (Array.isArray(detail)) {
+          msg = detail.map((d) => d.msg || JSON.stringify(d)).join("; ");
+        } else {
+          msg = detail || `POST approvals ${res.status}`;
+        }
         throw new Error(msg);
       }
       $("#appr-summary").value = "";
-      ok.textContent = `Proposed ${data.id}`;
+      ok.textContent =
+        data.gate === "allow"
+          ? `Auto-allow ${data.id} (eff=${data.effective_autonomy}) → journal`
+          : `Proposed ${data.id} gate=${data.gate} eff=${data.effective_autonomy}`;
       ok.hidden = false;
-      approvalsFilter = "pending_human";
+      approvalsFilter = data.status === "pending_human" ? "pending_human" : "";
       await loadApprovals();
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
+      await loadApprovals();
     }
   });
 
