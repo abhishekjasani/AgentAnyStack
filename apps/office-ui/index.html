@@ -105,11 +105,13 @@
           <div>
             <h1>Memory</h1>
             <p class="lede">
-              Gold notepad per desk and user (<code>gold/&lt;user_id&gt;.md</code>).
-              Alice and Bob do not share notes. Team OKF comes later.
+              Gold = per-user notepad. Team OKF = shared SQLite facts packed into chat
+              (<code>C ≈ gold ∪ mem(team)</code>). Extract pipeline later — add facts here for now.
             </p>
           </div>
         </header>
+
+        <h2 class="memory-h2">Gold (per user)</h2>
         <div class="form memory-form">
           <label>
             Desk
@@ -118,7 +120,7 @@
           <p id="gold-meta" class="desk-meta"></p>
           <label>
             Gold (markdown)
-            <textarea id="gold-content" rows="14" placeholder="Scratch notes for this desk + current user…"></textarea>
+            <textarea id="gold-content" rows="10" placeholder="Scratch notes for this desk + current user…"></textarea>
           </label>
           <p id="gold-error" class="error" hidden></p>
           <p id="gold-ok" class="desk-meta" hidden></p>
@@ -126,6 +128,25 @@
             <button type="button" class="btn primary" id="gold-save">Save gold</button>
             <button type="button" class="btn ghost" id="gold-clear">Clear</button>
           </div>
+        </div>
+
+        <h2 class="memory-h2">Team OKF (shared)</h2>
+        <div class="form memory-form">
+          <label>
+            Team
+            <input id="okf-team" type="text" value="eng" pattern="[a-z][a-z0-9_-]*" />
+          </label>
+          <label>
+            New fact
+            <textarea id="okf-body" rows="3" placeholder="One atomic shared fact for the team…"></textarea>
+          </label>
+          <p id="okf-error" class="error" hidden></p>
+          <p id="okf-ok" class="desk-meta" hidden></p>
+          <div class="form-actions memory-actions">
+            <button type="button" class="btn primary" id="okf-add">Add fact</button>
+            <button type="button" class="btn ghost" id="okf-refresh">Refresh</button>
+          </div>
+          <ul id="okf-list" class="okf-list"></ul>
         </div>
       </section>
       <section id="view-approvals" class="view stub" hidden>

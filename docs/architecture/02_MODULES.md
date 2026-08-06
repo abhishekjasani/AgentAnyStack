@@ -34,7 +34,7 @@ apps/orchestrator/src/agent_anystack/
   domain/org.py        # OrgConfig
   office/repository.py # load/write office/ tree
   adapters/            # llm.py — StackAdapter + OpenAICompatibleAdapter (+ later wires)
-  memory/              # later — gold + OKF + pack
+  memory/              # OkfStore + pack (team OKF); gold under office/
   runs/                # later — run_id + journal
   hitl/                # later — approval cards
 ```

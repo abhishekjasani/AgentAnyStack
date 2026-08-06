@@ -15,7 +15,7 @@ Full call chain: main → router → classes. See [V0_SCOPE.md](../V0_SCOPE.md) 
 | One OpenAI-compatible adapter (`adapters/llm.py`); switch host via URL | **Built** |
 | Journal row per run (team, project_id, stack, autonomy, …) | **Built** |
 | Human gold CRUD: `GET/PUT/DELETE /agents/{id}/gold` + Memory UI (**only** write path) | **Built** |
-| Pack formula grows to `C(a,p,u)` = gold ∪ team OKF ∪ … | **v0 — not built yet** |
+| Pack formula grows to `C(a,p,u)` ≈ gold ∪ team OKF | **Built** (shelf ∩ P(p) later) |
 | Background extract after run; thin office Q&A; one HITL card | **v0 — not built yet** |
 
 ### Explicitly not v0 (design only below)
@@ -159,10 +159,12 @@ flowchart TD
 5. build_office_envelope   → system rules
 6. repo.read_persona       → AGENT.md
 7. repo.read_gold(a,u)     → gold/<user_id>.md (if any)
-8. system = envelope + persona + labeled gold
-9. adapter.stream_chat     → yield tokens / StackError
-10. journal.append         → journal.jsonl
-11. yield done
+8. okf.list_team_facts     → SQLite mem(team)
+9. pack_memory_sections    → gold + team OKF markdown (budget)
+10. system = envelope + persona + memory
+11. adapter.stream_chat     → yield tokens / StackError
+12. journal.append         → journal.jsonl
+13. yield done
 ```
 
 ## Backwards journey: LLM stream → UI (today)

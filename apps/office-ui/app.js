@@ -25,7 +25,10 @@
       btn.classList.toggle("is-active", btn.dataset.view === name);
     });
     if (name === "team") loadTeam();
-    if (name === "memory") loadMemory();
+    if (name === "memory") {
+      loadMemory();
+      loadOkf();
+    }
   }
 
   async function loadTeam() {
@@ -174,7 +177,12 @@
       if (prev && [...sel.options].some((o) => o.value === prev)) {
         sel.value = prev;
       }
+      const chosen = agents.find((a) => a.id === sel.value) || agents[0];
+      if (chosen && $("#okf-team")) {
+        $("#okf-team").value = chosen.team || "eng";
+      }
       await loadGoldForSelected();
+      await loadOkf();
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
@@ -274,6 +282,97 @@
   $("#gold-agent").addEventListener("change", () => loadGoldForSelected());
   $("#gold-save").addEventListener("click", () => saveGold());
   $("#gold-clear").addEventListener("click", () => clearGold());
+  $("#okf-add").addEventListener("click", () => addOkfFact());
+  $("#okf-refresh").addEventListener("click", () => loadOkf());
+
+  async function loadOkf() {
+    const team = ($("#okf-team").value || "eng").trim();
+    const list = $("#okf-list");
+    const err = $("#okf-error");
+    err.hidden = true;
+    try {
+      const res = await api(`/okf/facts?team=${encodeURIComponent(team)}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `GET okf ${res.status}`);
+      }
+      const facts = await res.json();
+      list.innerHTML = "";
+      if (!facts.length) {
+        list.innerHTML = "<li class=\"desk-meta\">No team facts yet.</li>";
+        return;
+      }
+      for (const f of facts) {
+        const li = document.createElement("li");
+        const id = document.createElement("span");
+        id.className = "okf-id";
+        id.textContent = `${f.id} · ${f.type} · by ${f.created_by_user}`;
+        const body = document.createElement("div");
+        body.textContent = f.body;
+        const arch = document.createElement("button");
+        arch.type = "button";
+        arch.className = "btn ghost";
+        arch.textContent = "Archive";
+        arch.addEventListener("click", () => archiveOkf(f.id));
+        li.append(id, body, arch);
+        list.appendChild(li);
+      }
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function addOkfFact() {
+    const team = ($("#okf-team").value || "eng").trim();
+    const body = ($("#okf-body").value || "").trim();
+    const err = $("#okf-error");
+    const ok = $("#okf-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    if (!body) return;
+    try {
+      const res = await api("/okf/facts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team, body }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = data.detail;
+        const msg = Array.isArray(detail)
+          ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
+          : detail || `POST okf ${res.status}`;
+        throw new Error(msg);
+      }
+      $("#okf-body").value = "";
+      ok.textContent = `Added ${data.id}`;
+      ok.hidden = false;
+      await loadOkf();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function archiveOkf(factId) {
+    if (!window.confirm(`Archive ${factId}?`)) return;
+    const err = $("#okf-error");
+    err.hidden = true;
+    try {
+      const res = await api(`/okf/facts/${encodeURIComponent(factId)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `DELETE okf ${res.status}`);
+      }
+      await loadOkf();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
 
   $("#create-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();

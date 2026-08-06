@@ -4,15 +4,14 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phases 1–9 done
+## Phases 1–10 done
 
-**P8 — Chat:** orchestrator → OpenAI-compatible SSE; Envelope + autonomy intent; journal; `adapters/llm.py`.  
-**P9 — Gold(a,u):** human `GET/PUT/DELETE /agents/{id}/gold` → `gold/<user_id>.md`; pack into chat; Memory UI.  
-**v0 gold write = human only** (no `append_gold` tool this cut). See [docs/architecture/11_CHAT.md](docs/architecture/11_CHAT.md).
+**P8 — Chat** · **P9 — Gold(a,u)** · **P10 — SQLite team OKF pack**  
+`C ≈ gold ∪ mem(team)` into chat. Seed facts via Memory UI / `POST /okf/facts`. Extract pipeline next.
 
 **Pull a model first** (`ollama pull llama3.2`) for a real reply. Open a desk → **Chat** / **Memory** in the UI.
 
-**Next (when you say go):** SQLite OKF pack `C(a,p,u)` ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 5).
+**Next (when you say go):** background extract after run ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 6).
 
 ### Docker
 

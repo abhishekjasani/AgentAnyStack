@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from agent_anystack.api.agents import get_office_repo
 from agent_anystack.api.deps import get_user_id
 from agent_anystack.config import Settings, get_settings
+from agent_anystack.memory import OkfStore, sqlite_path_from_database_url
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import RunJournal
 from agent_anystack.runs.service import ChatRunService, journal_path_from_database_url
@@ -33,6 +34,8 @@ def get_chat_service(
         repo,
         RunJournal(journal_file),
         settings.openai_compatible_base_url,
+        OkfStore(sqlite_path_from_database_url(settings.database_url)),
+        pack_token_budget=settings.pack_token_budget,
     )
 
 

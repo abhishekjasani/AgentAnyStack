@@ -38,4 +38,4 @@ sequenceDiagram
 - BAD: invent company facts in office Q&A with no citations
 ```
 
-**Status:** Envelope + OpenAI-compatible adapter + journal + **gold(a,u)** = done. OKF pack still stubbed empty.
+**Status:** Envelope + adapter + journal + gold + **team OKF pack** = done. Extract / shelf still later.

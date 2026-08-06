@@ -242,7 +242,36 @@ h1 {
 .form textarea { resize: vertical; min-height: 8rem; }
 .form-actions { margin-top: 0.5rem; }
 .memory-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.memory-form #gold-content { min-height: 16rem; }
+.memory-form #gold-content { min-height: 12rem; }
+.memory-h2 {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  margin: 1.75rem 0 0.75rem;
+}
+.okf-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.okf-list li {
+  background: #fff;
+  border: 1px solid var(--line);
+  padding: 0.65rem 0.75rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.okf-list .okf-id {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+.okf-list .btn {
+  margin-top: 0.4rem;
+}
+
 
 .error { color: var(--danger); margin: 0.5rem 0 0; font-size: 0.9rem; }
 .stub-note {

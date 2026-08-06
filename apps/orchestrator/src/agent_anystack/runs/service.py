@@ -1,4 +1,4 @@
-"""Chat run orchestration — pack stub, envelope, adapter, journal."""
+"""Chat run orchestration — pack, envelope, adapter, journal."""
 
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -8,6 +8,7 @@ from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.domain.org import OrgConfig
 from agent_anystack.envelope import build_office_envelope
+from agent_anystack.memory import OkfStore, pack_memory_sections
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
 
@@ -26,10 +27,14 @@ class ChatRunService:
         repo: OfficeRepository,
         journal: RunJournal,
         openai_compatible_base_url: str,
+        okf: OkfStore,
+        pack_token_budget: int = 8000,
     ) -> None:
         self.repo = repo
         self.journal = journal
         self.adapter = OpenAICompatibleAdapter(openai_compatible_base_url)
+        self.okf = okf
+        self.pack_token_budget = pack_token_budget
 
     async def stream_agent_chat(
         self,
@@ -75,14 +80,15 @@ class ChatRunService:
         )
         persona = self.repo.read_persona(agent)
         gold = self.repo.read_gold(agent, user_id)
-        parts = [envelope, persona]
-        if gold.strip():
-            parts.append(
-                f"## Gold notepad (user: {user_id})\n\n"
-                "Personal scratch for this desk and user only — not shared OKF.\n\n"
-                f"{gold.strip()}"
-            )
-        # OKF pack C(a,p,u) later — gold(a,u) only for now
+        team_facts = self.okf.list_team_facts(agent.team)
+        memory_sections = pack_memory_sections(
+            user_id=user_id,
+            gold=gold,
+            team_facts=team_facts,
+            pack_token_budget=self.pack_token_budget,
+        )
+        # C(a,p,u) v0 = gold ∪ mem(team); shelf ∩ P(p) later
+        parts = [envelope, persona, *memory_sections]
         system = "\n\n---\n\n".join(parts)
         messages = [
             {"role": "system", "content": system},
@@ -130,7 +136,6 @@ def journal_path_from_database_url(database_url: str, data_fallback: Path) -> Pa
     """Prefer data/ next to sqlite file; else data_fallback/journal.jsonl."""
     if database_url.startswith("sqlite:///"):
         raw = database_url.removeprefix("sqlite:///")
-        # sqlite:////data/office.db → /data/office.db
         if raw.startswith("/") and not raw.startswith("///"):
             db = Path(raw)
         else:
