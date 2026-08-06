@@ -32,6 +32,7 @@
     }
     if (name === "approvals") loadApprovals();
     if (name === "stacks") loadStacks();
+    if (name === "create") loadCreateModels();
   }
 
   let channelAgents = [];
@@ -427,6 +428,47 @@
     if (v < 1024 ** 2) return `${(v / 1024).toFixed(1)} KB`;
     if (v < 1024 ** 3) return `${(v / 1024 ** 2).toFixed(1)} MB`;
     return `${(v / 1024 ** 3).toFixed(1)} GB`;
+  }
+
+  async function loadCreateModels() {
+    const sel = $("#create-model");
+    const hint = $("#create-model-hint");
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = "";
+    hint.textContent = "";
+    try {
+      const res = await api("/models");
+      if (!res.ok) throw new Error(`GET /models ${res.status}`);
+      const data = await res.json();
+      const names = [
+        ...new Set((data.installed || []).map((m) => m.name).filter(Boolean)),
+      ].sort();
+      if (!names.length) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "No models pulled — open Stacks first";
+        sel.appendChild(opt);
+        hint.textContent =
+          "Pull a model under Stacks, then return here to create a desk.";
+        return;
+      }
+      for (const name of names) {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        sel.appendChild(opt);
+      }
+      if (prev && names.includes(prev)) sel.value = prev;
+      else sel.value = names[0];
+      hint.textContent = `${names.length} pulled model(s) available`;
+    } catch (e) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "Could not load models";
+      sel.appendChild(opt);
+      hint.textContent = String(e.message || e);
+    }
   }
 
   async function loadStacks() {
@@ -914,7 +956,7 @@
       }
       ev.target.reset();
       ev.target.team.value = "eng";
-      ev.target.model.value = "llama3.2";
+      await loadCreateModels();
       showView("team");
     } catch (e) {
       err.textContent = String(e.message || e);

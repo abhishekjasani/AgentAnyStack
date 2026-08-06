@@ -96,7 +96,12 @@
               <option value="claude">claude</option>
             </select>
           </label>
-          <label>Model <input name="model" required placeholder="llama3.2" value="llama3.2" /></label>
+          <label>Model
+            <select name="model" id="create-model" required aria-label="Pulled local model">
+              <option value="">Loading models…</option>
+            </select>
+          </label>
+          <p id="create-model-hint" class="desk-meta"></p>
           <label>Persona (AGENT.md)
             <textarea name="persona_markdown" rows="8" placeholder="# Name&#10;&#10;## Mission&#10;…"></textarea>
           </label>

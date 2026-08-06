@@ -33,14 +33,8 @@ def _sse(payload: dict[str, Any]) -> str:
 
 
 def _is_pulled(catalog_id: str, installed_names: set[str]) -> bool:
-    if catalog_id in installed_names or f"{catalog_id}:latest" in installed_names:
-        return True
-    for n in installed_names:
-        if n == catalog_id or n.startswith(catalog_id + ":"):
-            return True
-        if ":" not in catalog_id and n.split(":")[0] == catalog_id:
-            return True
-    return False
+    """Exact tag match only — llama3.2 must not match llama3.2:3b."""
+    return catalog_id in installed_names or f"{catalog_id}:latest" in installed_names
 
 
 @router.get("/models")
