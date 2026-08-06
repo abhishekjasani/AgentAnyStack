@@ -217,6 +217,57 @@ h1 {
   resize: vertical;
 }
 
+.channel-agents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+.channel-agent-btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.channel-agent-btn.is-selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.channel-approvals {
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+.channel-approvals .appr-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--line);
+}
+.chat-bubble.office {
+  background: #f0ebe3;
+  border: 1px solid var(--line);
+  align-self: flex-start;
+  max-width: 95%;
+}
+.chat-bubble .bubble-tag {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+
 .form {
   display: grid;
   gap: 0.9rem;

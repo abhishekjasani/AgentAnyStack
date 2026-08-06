@@ -4,11 +4,10 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phases 1–15 done
+## Phases 1–15 done · P16 unified channel
 
-**P15** OKF export → `office/memory/` (leave-path). Flow: [15_OKF_EXPORT.md](docs/architecture/15_OKF_EXPORT.md).
-
-Core IMPLEMENTATION slices 1–10 complete. Optional: shelf ∩ P(p), OKF import, Settings page.
+**P16:** `GET /channel` + `POST /channel/chat` + per-user history; UI Chat = one thread (Office / desks).  
+Desk Chat opens the same channel with the agent selected. Flow: [16_CHANNEL.md](docs/architecture/16_CHANNEL.md).
 
 ### Docker
 

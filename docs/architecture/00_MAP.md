@@ -19,6 +19,7 @@ flowchart LR
     MAP --> H13[13_HITL]
     MAP --> A14[14_AUTONOMY_GATE]
     MAP --> E15[15_OKF_EXPORT]
+    MAP --> CH16[16_CHANNEL]
 ```
 
 | File | Topic |
@@ -38,6 +39,7 @@ flowchart LR
 | [13_HITL.md](./13_HITL.md) | HITL board flow: propose → decide → journal |
 | [14_AUTONOMY_GATE.md](./14_AUTONOMY_GATE.md) | Autonomy gate flow: effective → allow/hitl/deny |
 | [15_OKF_EXPORT.md](./15_OKF_EXPORT.md) | OKF export flow: SQLite → office/memory/ |
+| [16_CHANNEL.md](./16_CHANNEL.md) | Unified channel: office + agent + approvals SSE |
 
 ```text
 + OK: read these before changing orchestrator code

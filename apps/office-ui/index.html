@@ -26,7 +26,7 @@
       </label>
       <nav class="nav-list">
         <button type="button" class="nav-item is-active" data-view="team">Team</button>
-        <button type="button" class="nav-item" data-view="office">Office</button>
+        <button type="button" class="nav-item" data-view="chat">Chat</button>
         <button type="button" class="nav-item" data-view="memory">Memory</button>
         <button type="button" class="nav-item" data-view="approvals">Approvals</button>
         <button type="button" class="nav-item" data-view="analytics">Analytics</button>
@@ -57,16 +57,20 @@
         <header class="view-head">
           <div>
             <h1 id="chat-title">Chat</h1>
-            <p class="lede" id="chat-lede">Talk through the orchestrator → Ollama. Pull the model first if missing.</p>
+            <p class="lede">
+              One orchestrator channel per user — pick Office or a desk; history stays in this thread.
+            </p>
           </div>
-          <button type="button" class="btn ghost" id="btn-back-team-chat">Back to Team</button>
         </header>
+        <div id="channel-agents" class="channel-agents" aria-label="Route"></div>
+        <div id="channel-approvals" class="channel-approvals" hidden></div>
         <div id="chat-log" class="chat-log" aria-live="polite"></div>
         <p id="chat-meta" class="desk-meta"></p>
         <p id="chat-error" class="error" hidden></p>
         <form id="chat-form" class="chat-form">
           <input type="hidden" id="chat-agent-id" value="" />
-          <textarea id="chat-input" rows="3" required placeholder="Message this desk…"></textarea>
+          <input type="hidden" id="chat-team" value="eng" />
+          <textarea id="chat-input" rows="3" required placeholder="Message the office or selected desk…"></textarea>
           <button type="submit" class="btn primary" id="chat-send">Send</button>
         </form>
       </section>
@@ -99,35 +103,6 @@
             <button type="submit" class="btn primary">Save desk</button>
           </div>
         </form>
-      </section>
-
-      <section id="view-office" class="view" hidden>
-        <header class="view-head">
-          <div>
-            <h1>Office</h1>
-            <p class="lede">
-              Front desk — status from the journal, knowledge from team OKF with citations.
-              No desk agent. For build/send work, use Team → Chat.
-            </p>
-          </div>
-        </header>
-        <form id="office-form" class="form memory-form">
-          <label>
-            Team
-            <input id="office-team" type="text" value="eng" pattern="[a-z][a-z0-9_-]*" />
-          </label>
-          <label>
-            Ask the office
-            <textarea id="office-input" rows="3" required placeholder="What’s running? What’s our retail commission?"></textarea>
-          </label>
-          <p id="office-error" class="error" hidden></p>
-          <div class="form-actions">
-            <button type="submit" class="btn primary" id="office-send">Ask</button>
-          </div>
-        </form>
-        <p id="office-kind" class="desk-meta"></p>
-        <pre id="office-answer" class="office-answer" hidden></pre>
-        <p id="office-cites" class="desk-meta"></p>
       </section>
 
       <section id="view-memory" class="view" hidden>

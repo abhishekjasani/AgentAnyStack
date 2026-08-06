@@ -25,12 +25,16 @@
       btn.classList.toggle("is-active", btn.dataset.view === name);
     });
     if (name === "team") loadTeam();
+    if (name === "chat") loadChannel({ keepRoute: true });
     if (name === "memory") {
       loadMemory();
       loadOkf();
     }
     if (name === "approvals") loadApprovals();
   }
+
+  let channelAgents = [];
+  let selectedAgentId = ""; // "" = office front desk
 
   async function loadTeam() {
     const list = $("#desk-list");
@@ -56,7 +60,7 @@
         nameBtn.type = "button";
         nameBtn.className = "desk-name-btn";
         nameBtn.textContent = a.name;
-        nameBtn.addEventListener("click", () => openChat(a));
+        nameBtn.addEventListener("click", () => openChannelChat(a));
         const sub = document.createElement("div");
         sub.className = "desk-meta";
         sub.textContent = `${a.id} · team ${a.team}`;
@@ -70,7 +74,7 @@
         chatBtn.type = "button";
         chatBtn.className = "btn ghost";
         chatBtn.textContent = "Chat";
-        chatBtn.addEventListener("click", () => openChat(a));
+        chatBtn.addEventListener("click", () => openChannelChat(a));
         const remove = document.createElement("button");
         remove.type = "button";
         remove.className = "btn danger";
@@ -96,23 +100,161 @@
       .replaceAll('"', "&quot;");
   }
 
-  function openChat(agent) {
-    $("#chat-agent-id").value = agent.id;
-    $("#chat-title").textContent = agent.name;
-    $("#chat-lede").textContent =
-      `${agent.id} · ${agent.model} · user ${currentUserId()} — via orchestrator → Ollama`;
-    $("#chat-log").innerHTML = "";
-    $("#chat-meta").textContent = "";
-    $("#chat-error").hidden = true;
-    $("#chat-input").value = "";
+  function openChannelChat(agent) {
+    selectedAgentId = agent?.id || "";
+    if (agent?.team) $("#chat-team").value = agent.team;
     showView("chat");
   }
 
-  function appendBubble(role, text) {
+  function openOfficeChannel() {
+    selectedAgentId = "";
+    showView("chat");
+  }
+
+  function renderAgentChips() {
+    const wrap = $("#channel-agents");
+    wrap.innerHTML = "";
+    const officeBtn = document.createElement("button");
+    officeBtn.type = "button";
+    officeBtn.className =
+      "channel-agent-btn" + (selectedAgentId === "" ? " is-selected" : "");
+    officeBtn.textContent = "Office";
+    officeBtn.addEventListener("click", () => {
+      selectedAgentId = "";
+      $("#chat-agent-id").value = "";
+      renderAgentChips();
+      $("#chat-meta").textContent = "Route: Office front desk";
+    });
+    wrap.appendChild(officeBtn);
+    for (const a of channelAgents) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className =
+        "channel-agent-btn" + (selectedAgentId === a.id ? " is-selected" : "");
+      btn.textContent = a.name || a.id;
+      btn.title = a.id;
+      btn.addEventListener("click", () => {
+        selectedAgentId = a.id;
+        $("#chat-agent-id").value = a.id;
+        if (a.team) $("#chat-team").value = a.team;
+        renderAgentChips();
+        $("#chat-meta").textContent = `Route: desk ${a.id}`;
+      });
+      wrap.appendChild(btn);
+    }
+    $("#chat-agent-id").value = selectedAgentId;
+  }
+
+  function renderHistory(messages) {
+    const log = $("#chat-log");
+    log.innerHTML = "";
+    for (const m of messages || []) {
+      const role =
+        m.role === "user"
+          ? "user"
+          : m.role === "office"
+            ? "office"
+            : "assistant";
+      const div = appendBubble(role, m.text, {
+        tag:
+          m.mode === "agent" && m.agent_id
+            ? `desk ${m.agent_id}`
+            : m.mode === "office"
+              ? "office"
+              : null,
+      });
+      void div;
+    }
+  }
+
+  function renderChannelApprovals(cards) {
+    const box = $("#channel-approvals");
+    if (!cards || !cards.length) {
+      box.hidden = true;
+      box.innerHTML = "";
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = "<strong>Pending approvals</strong>";
+    for (const c of cards) {
+      const row = document.createElement("div");
+      row.className = "appr-row";
+      const label = document.createElement("span");
+      label.textContent = `[${c.agent_id}] ${c.summary}`;
+      const accept = document.createElement("button");
+      accept.type = "button";
+      accept.className = "btn primary";
+      accept.textContent = "Accept";
+      accept.addEventListener("click", () => decideFromChannel(c.id, "accept"));
+      const reject = document.createElement("button");
+      reject.type = "button";
+      reject.className = "btn danger";
+      reject.textContent = "Reject";
+      reject.addEventListener("click", () => decideFromChannel(c.id, "reject"));
+      row.append(label, accept, reject);
+      box.appendChild(row);
+    }
+  }
+
+  async function decideFromChannel(id, decision) {
+    const err = $("#chat-error");
+    err.hidden = true;
+    try {
+      const res = await api(`/approvals/${encodeURIComponent(id)}/decide`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `decide ${res.status}`);
+      await loadChannel({ keepRoute: true });
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function loadChannel(opts = {}) {
+    const err = $("#chat-error");
+    err.hidden = true;
+    try {
+      const res = await api("/channel");
+      if (!res.ok) throw new Error(`GET /channel ${res.status}`);
+      const data = await res.json();
+      channelAgents = data.agents || [];
+      if (!opts.keepRoute) selectedAgentId = "";
+      if (
+        selectedAgentId &&
+        !channelAgents.some((a) => a.id === selectedAgentId)
+      ) {
+        selectedAgentId = "";
+      }
+      renderAgentChips();
+      renderHistory(data.messages || []);
+      renderChannelApprovals(data.pending_approvals || []);
+      $("#chat-meta").textContent = selectedAgentId
+        ? `Route: desk ${selectedAgentId} · user ${data.user_id}`
+        : `Route: Office · user ${data.user_id}`;
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  function appendBubble(role, text, opts = {}) {
     const log = $("#chat-log");
     const div = document.createElement("div");
     div.className = `chat-bubble ${role}`;
-    div.textContent = text;
+    if (opts.tag) {
+      const tag = document.createElement("span");
+      tag.className = "bubble-tag";
+      tag.textContent = opts.tag;
+      div.appendChild(tag);
+    }
+    const body = document.createElement("span");
+    body.className = "bubble-text";
+    body.textContent = text;
+    div.appendChild(body);
     log.appendChild(div);
     log.scrollTop = log.scrollHeight;
     return div;
@@ -148,6 +290,8 @@
       localStorage.setItem(USER_KEY, sel.value);
       const mem = $("#view-memory");
       if (mem && !mem.hidden) loadGoldForSelected();
+      const chat = $("#view-chat");
+      if (chat && !chat.hidden) loadChannel({ keepRoute: true });
     });
   }
 
@@ -276,13 +420,18 @@
   }
 
   $$(".nav-item").forEach((btn) => {
-    btn.addEventListener("click", () => showView(btn.dataset.view));
+    btn.addEventListener("click", () => {
+      if (btn.dataset.view === "chat") {
+        openOfficeChannel();
+        return;
+      }
+      showView(btn.dataset.view);
+    });
   });
 
   $("#btn-open-create").addEventListener("click", () => showView("create"));
   $("#btn-empty-create").addEventListener("click", () => showView("create"));
   $("#btn-back-team").addEventListener("click", () => showView("team"));
-  $("#btn-back-team-chat").addEventListener("click", () => showView("team"));
   $("#gold-agent").addEventListener("change", () => loadGoldForSelected());
   $("#gold-save").addEventListener("click", () => saveGold());
   $("#gold-clear").addEventListener("click", () => clearGold());
@@ -464,46 +613,6 @@
     });
   });
 
-  $("#office-form").addEventListener("submit", async (ev) => {
-    ev.preventDefault();
-    const err = $("#office-error");
-    const answer = $("#office-answer");
-    const kind = $("#office-kind");
-    const cites = $("#office-cites");
-    const send = $("#office-send");
-    err.hidden = true;
-    answer.hidden = true;
-    kind.textContent = "";
-    cites.textContent = "";
-    const message = ($("#office-input").value || "").trim();
-    const team = ($("#office-team").value || "eng").trim();
-    if (!message) return;
-    send.disabled = true;
-    try {
-      const res = await api("/office/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, team }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.detail || `office ask ${res.status}`);
-      }
-      kind.textContent = `kind=${data.kind} · team=${data.team}`;
-      answer.textContent = data.answer || "";
-      answer.hidden = false;
-      const bits = (data.citations || [])
-        .map((c) => c.fact_id || c.run_id)
-        .filter(Boolean);
-      cites.textContent = bits.length ? `citations: ${bits.join(", ")}` : "";
-    } catch (e) {
-      err.textContent = String(e.message || e);
-      err.hidden = false;
-    } finally {
-      send.disabled = false;
-    }
-  });
-
   async function loadOkf() {
     const team = ($("#okf-team").value || "eng").trim();
     const list = $("#okf-list");
@@ -634,27 +743,34 @@
 
   $("#chat-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
-    const agentId = $("#chat-agent-id").value;
+    const agentId = ($("#chat-agent-id").value || "").trim() || null;
+    const team = ($("#chat-team").value || "eng").trim();
     const message = $("#chat-input").value.trim();
     const err = $("#chat-error");
     const send = $("#chat-send");
     err.hidden = true;
-    if (!agentId || !message) return;
+    if (!message) return;
 
-    appendBubble("user", message);
+    const routeTag = agentId ? `desk ${agentId}` : "office";
+    appendBubble("user", message, { tag: routeTag });
     $("#chat-input").value = "";
-    const assistant = appendBubble("assistant", "…");
+    const reply = appendBubble(agentId ? "assistant" : "office", "…", {
+      tag: routeTag,
+    });
+    const replyText = reply.querySelector(".bubble-text") || reply;
     send.disabled = true;
 
     try {
-      const res = await api(`/agents/${encodeURIComponent(agentId)}/chat`, {
+      const body = { message, team };
+      if (agentId) body.agent_id = agentId;
+      const res = await api("/channel/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || `chat ${res.status}`);
+        throw new Error(data.detail || `channel chat ${res.status}`);
       }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -671,24 +787,33 @@
           if (!line.startsWith("data:")) continue;
           const payload = JSON.parse(line.slice(5).trim());
           if (payload.type === "meta") {
-            $("#chat-meta").textContent =
-              `run ${payload.run_id} · user ${payload.user_id} · ${payload.model}`;
+            $("#chat-meta").textContent = payload.mode === "office"
+              ? `Office · user ${payload.user_id}`
+              : `run ${payload.run_id || "…"} · ${payload.agent_id} · ${payload.model || ""}`;
           } else if (payload.type === "token") {
-            if (text === "" && assistant.textContent === "…") assistant.textContent = "";
+            if (text === "" && replyText.textContent === "…") replyText.textContent = "";
             text += payload.text;
-            assistant.textContent = text;
+            replyText.textContent = text;
             $("#chat-log").scrollTop = $("#chat-log").scrollHeight;
+          } else if (payload.type === "answer") {
+            text = payload.text || "";
+            replyText.textContent = text;
+            if (payload.kind) {
+              $("#chat-meta").textContent = `office kind=${payload.kind}`;
+            }
+          } else if (payload.type === "approvals") {
+            renderChannelApprovals(payload.cards || []);
           } else if (payload.type === "error") {
             err.textContent = payload.message || "chat error";
             err.hidden = false;
-            if (!text) assistant.textContent = "(error)";
+            if (!text) replyText.textContent = "(error)";
           }
         }
       }
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
-      if (assistant.textContent === "…") assistant.textContent = "(error)";
+      if (replyText.textContent === "…") replyText.textContent = "(error)";
     } finally {
       send.disabled = false;
     }

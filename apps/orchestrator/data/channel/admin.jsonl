@@ -1,0 +1,2 @@
+{"id": "msg-afd56360951841fd", "role": "user", "text": "what's running?", "created_at": "2026-08-06T14:32:34.954283+00:00", "mode": "office", "agent_id": null, "kind": null, "run_id": null}
+{"id": "msg-d0f0c65715054cef", "role": "office", "text": "No recent runs in the journal for this team.", "created_at": "2026-08-06T14:32:34.968084+00:00", "mode": "office", "agent_id": null, "kind": "empty", "run_id": null}

@@ -1,0 +1,18 @@
+id: ba
+name: ba
+team: eng
+stack: openai-compatible
+model: llama3.2
+persona:
+  domain: general
+  channels: []
+  risk_class: read_draft
+autonomy:
+  default: 50
+system_prompt_file: ./AGENT.md
+registrations:
+  mcp: []
+  skills: []
+  apis: []
+tools:
+  mode: none
