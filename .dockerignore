@@ -24,9 +24,11 @@ build
 htmlcov
 
 # Runtime host mounts (compose mounts these; do not bake in)
-data
+data/*
+!data/.gitkeep
 *.db
 *.sqlite3
+**/journal.jsonl
 
 # Docs / mockups not needed at runtime
 docs/mockups

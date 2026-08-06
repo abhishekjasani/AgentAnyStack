@@ -161,6 +161,62 @@ h1 {
 }
 .btn.danger:hover { background: #fff1f2; }
 
+.desk-name-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+}
+.desk-name-btn:hover { text-decoration: underline; }
+
+.chat-log {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  min-height: 14rem;
+  max-height: 28rem;
+  overflow-y: auto;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.chat-bubble {
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius);
+  white-space: pre-wrap;
+  line-height: 1.45;
+  font-size: 0.95rem;
+}
+.chat-bubble.user {
+  background: #fff;
+  border: 1px solid var(--line);
+  align-self: flex-end;
+  max-width: 90%;
+}
+.chat-bubble.assistant {
+  background: #e7f0ed;
+  border: 1px solid #b7cfc7;
+  align-self: flex-start;
+  max-width: 95%;
+}
+.chat-form {
+  display: grid;
+  gap: 0.6rem;
+}
+.chat-form textarea {
+  font: inherit;
+  border: 1px solid var(--line);
+  padding: 0.6rem;
+  border-radius: var(--radius);
+  resize: vertical;
+}
+
 .form {
   display: grid;
   gap: 0.9rem;

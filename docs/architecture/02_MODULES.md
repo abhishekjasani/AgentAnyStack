@@ -33,7 +33,7 @@ apps/orchestrator/src/agent_anystack/
   domain/agent.py      # AgentConfig, CreateAgentRequest, …
   domain/org.py        # OrgConfig
   office/repository.py # load/write office/ tree
-  adapters/            # later — StackAdapter / Ollama
+  adapters/            # StackAdapter + OpenAICompatibleAdapter
   memory/              # later — gold + OKF + pack
   runs/                # later — run_id + journal
   hitl/                # later — approval cards
@@ -63,7 +63,7 @@ apps/orchestrator/src/agent_anystack/
 
 | Name | Role |
 | --- | --- |
-| `StackAdapter` | `stream_chat(...)` — Ollama first |
+| `StackAdapter` | `stream_chat(...)` — OpenAI-compatible first (Ollama/vLLM via URL) |
 | `GoldStore` / `OkfStore` / `Packer` | Memory read/write |
 | `RunService` | `run_id`, journal, envelope |
 | `ApprovalCard` | HITL queue |

@@ -52,6 +52,24 @@
         <p id="team-error" class="error" hidden></p>
       </section>
 
+      <section id="view-chat" class="view" aria-labelledby="chat-title" hidden>
+        <header class="view-head">
+          <div>
+            <h1 id="chat-title">Chat</h1>
+            <p class="lede" id="chat-lede">Talk through the orchestrator → Ollama. Pull the model first if missing.</p>
+          </div>
+          <button type="button" class="btn ghost" id="btn-back-team-chat">Back to Team</button>
+        </header>
+        <div id="chat-log" class="chat-log" aria-live="polite"></div>
+        <p id="chat-meta" class="desk-meta"></p>
+        <p id="chat-error" class="error" hidden></p>
+        <form id="chat-form" class="chat-form">
+          <input type="hidden" id="chat-agent-id" value="" />
+          <textarea id="chat-input" rows="3" required placeholder="Message this desk…"></textarea>
+          <button type="submit" class="btn primary" id="chat-send">Send</button>
+        </form>
+      </section>
+
       <section id="view-create" class="view" aria-labelledby="create-title" hidden>
         <header class="view-head">
           <div>

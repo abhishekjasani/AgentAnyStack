@@ -211,7 +211,7 @@ Two API surfaces, on purpose:
 - **Inference:** orchestrator talks OpenAI-compatible only (`http://ollama:11434/v1`) — same adapter later works against vLLM/SGLang/LiteLLM. Ollama is the quick-start default, **not** a hard dependency.
 - **Model management:** pull / list / delete use Ollama's native API, isolated in a small "model manager" module. That is the only Ollama-specific code allowed.
 
-Compose shape: `ollama/ollama` service + named volume on `/root/.ollama`, orchestrator gets `OLLAMA_BASE_URL`.
+Compose shape: `ollama/ollama` service + named volume on `/root/.ollama`, orchestrator gets `OPENAI_COMPATIBLE_BASE_URL` (alias: `OLLAMA_BASE_URL`).
 
 ### Known caveats (document in user-facing quick start)
 

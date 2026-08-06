@@ -4,11 +4,12 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phase 7 (current)
+## Phase 8 (current)
 
-`X-User-Id` stub — UI user picker + `GET /me`. Two users distinct (gold later).
+Chat via orchestrator → OpenAI-compatible (`POST /agents/{id}/chat` SSE). Default host = Ollama `/v1`.  
+**Pull a model first** (`ollama pull llama3.2`) for a real reply; server alone tests error handling.
 
-Phases **1–6 done:** API, desks CRUD, Docker, architecture docs, UI shell.
+Phases **1–7 done.** Open a desk → **Chat** in the UI.
 
 ### Docker
 

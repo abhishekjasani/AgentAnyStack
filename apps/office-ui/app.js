@@ -13,8 +13,7 @@
 
   async function api(path, options = {}) {
     const headers = apiHeaders(options.headers || {});
-    const res = await fetch(path, { ...options, headers });
-    return res;
+    return fetch(path, { ...options, headers });
   }
 
   function showView(name) {
@@ -48,20 +47,31 @@
       for (const a of agents) {
         const li = document.createElement("li");
         const meta = document.createElement("div");
-        meta.innerHTML =
-          `<div class="desk-name">${escapeHtml(a.name)}</div>` +
-          `<div class="desk-meta">${escapeHtml(a.id)} · team ${escapeHtml(a.team)}</div>`;
+        const nameBtn = document.createElement("button");
+        nameBtn.type = "button";
+        nameBtn.className = "desk-name-btn";
+        nameBtn.textContent = a.name;
+        nameBtn.addEventListener("click", () => openChat(a));
+        const sub = document.createElement("div");
+        sub.className = "desk-meta";
+        sub.textContent = `${a.id} · team ${a.team}`;
+        meta.append(nameBtn, sub);
         const right = document.createElement("div");
         right.className = "desk-actions";
         const stack = document.createElement("div");
         stack.className = "desk-meta";
         stack.textContent = `${a.stack} / ${a.model}`;
+        const chatBtn = document.createElement("button");
+        chatBtn.type = "button";
+        chatBtn.className = "btn ghost";
+        chatBtn.textContent = "Chat";
+        chatBtn.addEventListener("click", () => openChat(a));
         const remove = document.createElement("button");
         remove.type = "button";
         remove.className = "btn danger";
         remove.textContent = "Remove";
         remove.addEventListener("click", () => removeAgent(a.id, a.name));
-        right.append(stack, remove);
+        right.append(stack, chatBtn, remove);
         li.append(meta, right);
         list.appendChild(li);
       }
@@ -79,6 +89,28 @@
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;");
+  }
+
+  function openChat(agent) {
+    $("#chat-agent-id").value = agent.id;
+    $("#chat-title").textContent = agent.name;
+    $("#chat-lede").textContent =
+      `${agent.id} · ${agent.model} · user ${currentUserId()} — via orchestrator → Ollama`;
+    $("#chat-log").innerHTML = "";
+    $("#chat-meta").textContent = "";
+    $("#chat-error").hidden = true;
+    $("#chat-input").value = "";
+    showView("chat");
+  }
+
+  function appendBubble(role, text) {
+    const log = $("#chat-log");
+    const div = document.createElement("div");
+    div.className = `chat-bubble ${role}`;
+    div.textContent = text;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    return div;
   }
 
   async function removeAgent(id, name) {
@@ -119,6 +151,7 @@
   $("#btn-open-create").addEventListener("click", () => showView("create"));
   $("#btn-empty-create").addEventListener("click", () => showView("create"));
   $("#btn-back-team").addEventListener("click", () => showView("team"));
+  $("#btn-back-team-chat").addEventListener("click", () => showView("team"));
 
   $("#create-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -156,6 +189,68 @@
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
+    }
+  });
+
+  $("#chat-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const agentId = $("#chat-agent-id").value;
+    const message = $("#chat-input").value.trim();
+    const err = $("#chat-error");
+    const send = $("#chat-send");
+    err.hidden = true;
+    if (!agentId || !message) return;
+
+    appendBubble("user", message);
+    $("#chat-input").value = "";
+    const assistant = appendBubble("assistant", "…");
+    send.disabled = true;
+
+    try {
+      const res = await api(`/agents/${encodeURIComponent(agentId)}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `chat ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let text = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() || "";
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data:")) continue;
+          const payload = JSON.parse(line.slice(5).trim());
+          if (payload.type === "meta") {
+            $("#chat-meta").textContent =
+              `run ${payload.run_id} · user ${payload.user_id} · ${payload.model}`;
+          } else if (payload.type === "token") {
+            if (text === "" && assistant.textContent === "…") assistant.textContent = "";
+            text += payload.text;
+            assistant.textContent = text;
+            $("#chat-log").scrollTop = $("#chat-log").scrollHeight;
+          } else if (payload.type === "error") {
+            err.textContent = payload.message || "chat error";
+            err.hidden = false;
+            if (!text) assistant.textContent = "(error)";
+          }
+        }
+      }
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+      if (assistant.textContent === "…") assistant.textContent = "(error)";
+    } finally {
+      send.disabled = false;
     }
   });
 

@@ -16,8 +16,8 @@ services:
       OFFICE_REPO_PATH: /office
       OFFICE_UI_PATH: /ui
       DATABASE_URL: sqlite:////data/office.db
-      # Compose DNS name — overrides localhost from .env.example
-      OLLAMA_BASE_URL: http://ollama:11434
+      # OpenAI-compatible /v1 (Ollama default). Same adapter works for vLLM etc.
+      OPENAI_COMPATIBLE_BASE_URL: http://ollama:11434/v1
     volumes:
       - ./office:/office
       - ./data:/data

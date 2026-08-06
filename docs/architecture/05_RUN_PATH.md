@@ -31,11 +31,11 @@ sequenceDiagram
 ```
 
 ```text
-+ OK: Envelope says agents do not outrank orchestrator
++ OK: Envelope = musts + workspace + autonomy intent; persona = role; gold pack = user scope
 - BAD: persona says ignore approvals / read all office files
 
 + OK: channel=office_ui on journal
 - BAD: invent company facts in office Q&A with no citations
 ```
 
-**Status:** Envelope + Ollama adapter + journal = later phases. Desks + create exist now.
+**Status:** Envelope + Ollama adapter + journal = **P8 done**. Gold/OKF pack still stubbed empty.

@@ -6,7 +6,7 @@ How we keep the backbone thin.
 flowchart LR
     R[Router thin] --> Svc[Repository or RunService]
     Svc --> Proto[Protocol adapter store]
-    Proto --> Impl[Ollama SQLite files]
+    Proto --> Impl[OpenAI-compatible + SQLite files]
 ```
 
 | Letter | Here |
@@ -14,7 +14,7 @@ flowchart LR
 | S | `OfficeRepository` owns desk files; routers stay thin |
 | O | New stack = new `StackAdapter`, not `if stack ==` sprawl |
 | I/D | Depend on small protocols; wire in `main.py` |
-| KISS | Empty office; one create path; one Ollama adapter later |
+| KISS | Empty office; one create path; one OpenAI-compatible adapter |
 | YAGNI | No seed agents, no Celery, no floors UI, no MCP matrix in v0 |
 
 ```text

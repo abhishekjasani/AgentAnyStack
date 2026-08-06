@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,7 +22,15 @@ class Settings(BaseSettings):
     office_ui_path: str = "./apps/office-ui"
     database_url: str = "sqlite:///./data/office.db"
 
-    ollama_base_url: str = "http://127.0.0.1:11434"
+    # Default local engine = Ollama OpenAI /v1. Point at vLLM etc. via same env.
+    # OLLAMA_BASE_URL still accepted (host or …/v1); adapter normalizes to …/v1.
+    openai_compatible_base_url: str = Field(
+        default="http://127.0.0.1:11434/v1",
+        validation_alias=AliasChoices(
+            "OPENAI_COMPATIBLE_BASE_URL",
+            "OLLAMA_BASE_URL",
+        ),
+    )
 
     pack_token_budget: int = 8000
     approver_mode: str = "permissive"

@@ -14,6 +14,7 @@ flowchart LR
     MAP --> S[08_SOLID_KISS]
     MAP --> U[09_UI]
     MAP --> USR[10_USER]
+    MAP --> CH[11_CHAT]
 ```
 
 | File | Topic |
@@ -28,11 +29,12 @@ flowchart LR
 | [08_SOLID_KISS.md](./08_SOLID_KISS.md) | SOLID / YAGNI |
 | [09_UI.md](./09_UI.md) | Office UI shell |
 | [10_USER.md](./10_USER.md) | X-User-Id stub |
+| [11_CHAT.md](./11_CHAT.md) | Chat flow: main → router → modules |
 
 ```text
 + OK: read these before changing orchestrator code
 - BAD: invent a Python Agent subclass package
 ```
 
-**Built now (P1–P4):** health, empty office, create/list/get agents, Docker.  
-**Later:** chat, gold write path, OKF, HITL UI, office Q&A.
+**Built now (P1–P8):** health, empty office, desks CRUD, Docker, UI, `X-User-Id`, chat via Ollama (Envelope + journal).  
+**Later:** gold write path, OKF pack/extract, HITL UI, office Q&A.

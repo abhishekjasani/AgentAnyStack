@@ -28,7 +28,7 @@ docker compose --profile ollama up -d     # + Ollama
 | `/data` | `./data` | SQLite later |
 | Ollama volume | named `ollama_models` | model weights |
 
-Env inside compose: `OFFICE_REPO_PATH=/office`, `OLLAMA_BASE_URL=http://ollama:11434`.
+Env inside compose: `OFFICE_REPO_PATH=/office`, `OPENAI_COMPATIBLE_BASE_URL=http://ollama:11434/v1`.
 
 ```text
 + OK: create agent via API → files appear under host ./office
