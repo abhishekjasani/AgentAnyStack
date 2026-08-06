@@ -1,4 +1,4 @@
-"""Chat run orchestration — pack, envelope, adapter, journal."""
+"""Chat run orchestration — pack, envelope, adapter, journal, extract hook."""
 
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -8,7 +8,7 @@ from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.domain.org import OrgConfig
 from agent_anystack.envelope import build_office_envelope
-from agent_anystack.memory import OkfStore, pack_memory_sections
+from agent_anystack.memory import ExtractJob, OkfStore, pack_memory_sections
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
 
@@ -29,12 +29,14 @@ class ChatRunService:
         openai_compatible_base_url: str,
         okf: OkfStore,
         pack_token_budget: int = 8000,
+        okf_extract_enabled: bool = True,
     ) -> None:
         self.repo = repo
         self.journal = journal
         self.adapter = OpenAICompatibleAdapter(openai_compatible_base_url)
         self.okf = okf
         self.pack_token_budget = pack_token_budget
+        self.okf_extract_enabled = okf_extract_enabled
 
     async def stream_agent_chat(
         self,
@@ -87,7 +89,6 @@ class ChatRunService:
             team_facts=team_facts,
             pack_token_budget=self.pack_token_budget,
         )
-        # C(a,p,u) v0 = gold ∪ mem(team); shelf ∩ P(p) later
         parts = [envelope, persona, *memory_sections]
         system = "\n\n---\n\n".join(parts)
         messages = [
@@ -97,11 +98,13 @@ class ChatRunService:
 
         status = "ok"
         error: str | None = None
+        assistant_parts: list[str] = []
         try:
             async for token in self.adapter.stream_chat(
                 model=agent.model,
                 messages=messages,
             ):
+                assistant_parts.append(token)
                 yield {"type": "token", "text": token}
         except StackError as exc:
             status = "error"
@@ -129,7 +132,24 @@ class ChatRunService:
                 error=error,
             )
         )
-        yield {"type": "done", "run_id": run_id, "status": status}
+
+        done: dict = {"type": "done", "run_id": run_id, "status": status}
+        if (
+            self.okf_extract_enabled
+            and status == "ok"
+            and ("".join(assistant_parts).strip() or message.strip())
+        ):
+            done["extract"] = ExtractJob(
+                run_id=run_id,
+                agent_id=agent.id,
+                user_id=user_id,
+                team=agent.team,
+                model=agent.model,
+                user_message=message,
+                assistant_text="".join(assistant_parts),
+                project_id=agent.workspace.project_id if agent.workspace else None,
+            )
+        yield done
 
 
 def journal_path_from_database_url(database_url: str, data_fallback: Path) -> Path:

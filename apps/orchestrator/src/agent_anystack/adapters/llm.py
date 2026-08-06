@@ -95,6 +95,57 @@ class OpenAICompatibleAdapter:
                 code="openai_compatible_timeout",
             ) from exc
 
+    async def complete_chat(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, str]],
+        temperature: float = 0.0,
+    ) -> str:
+        """Non-streaming completion (extractor). Returns assistant text."""
+        url = f"{self.base_url}/chat/completions"
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "temperature": temperature,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.post(url, json=payload)
+                if resp.status_code >= 400:
+                    raise StackError(
+                        _friendly_http_error(
+                            resp.status_code,
+                            resp.text,
+                            model,
+                            self.base_url,
+                        ),
+                        code="openai_compatible_http",
+                    )
+                data = resp.json()
+                if err := data.get("error"):
+                    msg = err if isinstance(err, str) else err.get("message", str(err))
+                    raise StackError(
+                        _friendly_http_error(200, str(msg), model, self.base_url),
+                        code="openai_compatible_model",
+                    )
+                choices = data.get("choices") or []
+                if not choices:
+                    return ""
+                message = choices[0].get("message") or {}
+                return (message.get("content") or "").strip()
+        except httpx.ConnectError as exc:
+            raise StackError(
+                f"Cannot reach OpenAI-compatible server at {self.base_url}.",
+                code="openai_compatible_unreachable",
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise StackError(
+                f"OpenAI-compatible server timed out at {self.base_url}.",
+                code="openai_compatible_timeout",
+            ) from exc
+
 
 def _normalize_base_url(base_url: str) -> str:
     """Accept host-only (…:11434) or …/v1 — always end with /v1 for chat path."""

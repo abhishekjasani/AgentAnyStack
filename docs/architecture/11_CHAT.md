@@ -16,7 +16,8 @@ Full call chain: main → router → classes. See [V0_SCOPE.md](../V0_SCOPE.md) 
 | Journal row per run (team, project_id, stack, autonomy, …) | **Built** |
 | Human gold CRUD: `GET/PUT/DELETE /agents/{id}/gold` + Memory UI (**only** write path) | **Built** |
 | Pack formula grows to `C(a,p,u)` ≈ gold ∪ team OKF | **Built** (shelf ∩ P(p) later) |
-| Background extract after run; thin office Q&A; one HITL card | **v0 — not built yet** |
+| Background extract after run | **Built** (P11 — BackgroundTasks) |
+| Thin office Q&A; one HITL card | **v0 — not built yet** |
 
 ### Explicitly not v0 (design only below)
 
@@ -164,7 +165,8 @@ flowchart TD
 10. system = envelope + persona + memory
 11. adapter.stream_chat     → yield tokens / StackError
 12. journal.append         → journal.jsonl
-13. yield done
+13. yield done (+ ExtractJob if enabled)
+14. api/chat BackgroundTasks → run_okf_extract (after SSE)
 ```
 
 ## Backwards journey: LLM stream → UI (today)

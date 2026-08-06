@@ -49,8 +49,12 @@ class OkfStore:
         return conn
 
     def _init_schema(self) -> None:
-        with self._connect() as conn:
+        conn = self._connect()
+        try:
             conn.executescript(_SCHEMA)
+            conn.commit()
+        finally:
+            conn.close()
 
     def upsert(self, fact: OkfFact) -> OkfFact:
         with self._connect() as conn:

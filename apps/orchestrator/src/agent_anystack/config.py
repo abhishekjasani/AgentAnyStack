@@ -34,6 +34,7 @@ class Settings(BaseSettings):
 
     pack_token_budget: int = 8000
     gold_max_chars: int = Field(default=64_000, ge=1, le=1_000_000)
+    okf_extract_enabled: bool = True
     approver_mode: str = "permissive"
 
 

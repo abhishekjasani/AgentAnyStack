@@ -4,14 +4,12 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phases 1–10 done
+## Phases 1–11 done
 
-**P8 — Chat** · **P9 — Gold(a,u)** · **P10 — SQLite team OKF pack**  
-`C ≈ gold ∪ mem(team)` into chat. Seed facts via Memory UI / `POST /okf/facts`. Extract pipeline next.
+**P8 Chat** · **P9 Gold** · **P10 OKF pack** · **P11 post-run extract**  
+Extract runs in `BackgroundTasks` after SSE (does not block chat). Toggle `OKF_EXTRACT_ENABLED`.
 
-**Pull a model first** (`ollama pull llama3.2`) for a real reply. Open a desk → **Chat** / **Memory** in the UI.
-
-**Next (when you say go):** background extract after run ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 6).
+**Next (when you say go):** thin office Q&A ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 7).
 
 ### Docker
 

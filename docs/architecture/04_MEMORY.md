@@ -40,8 +40,9 @@ Shelf / floor / org ∩ `P(p)` not packed yet. Team facts are **not** filtered b
 | Fact model | `memory/fact.py` |
 | SQLite store | `memory/store.py` |
 | Pack markdown | `memory/pack.py` |
+| Extract | `memory/extract.py` — post-run BackgroundTasks |
 | HTTP | `api/okf.py` — `GET/POST /okf/facts`, `DELETE` archive |
-| Chat | `ChatRunService` packs gold + team OKF into system prompt |
+| Chat | `ChatRunService` packs gold + team OKF; schedules extract on `done` |
 
 `FactType` is only a **category** on a row (`decision`, `fact`, …). The knowledge the model uses is the free-text **`body`** (plus id for citations).
 
@@ -131,9 +132,77 @@ sequenceDiagram
 | Prompt glue | `memory/pack` + `envelope` |
 | Model | `adapters/llm.OpenAICompatibleAdapter` |
 
-Chat run path detail: [11_CHAT.md](./11_CHAT.md).
+## Post-run extract (P11)
 
-## Who writes gold
+After a successful chat stream, `api/chat` schedules `BackgroundTasks` → `memory/extract.run_okf_extract`. Chat SSE is **not** blocked.
+
+### Example
+
+```http
+POST /agents/ba/chat
+X-User-Id: alice
+{"message":"remember: Retail commission is 8%.\nWhat else should I know?"}
+```
+
+Stream returns tokens as usual. After `done`, extract runs in the background and may upsert team OKF (visible on next Memory refresh / next chat pack).
+
+```mermaid
+sequenceDiagram
+    participant UI as Chat UI
+    participant Chat as api/chat.chat
+    participant CRS as ChatRunService
+    participant LLM as stream_chat
+    participant BT as BackgroundTasks
+    participant Ext as memory.extract
+    participant Comp as complete_chat
+    participant DB as OkfStore
+
+    UI->>Chat: POST /agents/ba/chat
+    Chat->>CRS: stream_agent_chat(ba, alice, message)
+    CRS->>LLM: stream tokens
+    LLM-->>CRS: token…
+    CRS-->>UI: SSE meta / token…
+    Note over CRS: accumulate assistant_text
+    CRS->>CRS: journal.append
+    CRS-->>Chat: done + ExtractJob (popped before SSE)
+    Chat->>BT: add_task(run_okf_extract)
+    Chat-->>UI: SSE done
+    Note over UI,BT: stream finished — client already has reply
+    BT->>Ext: ExtractJob(run_id, team, user, texts…)
+    Ext->>Ext: remember: lines (deterministic)
+    Ext->>Comp: JSON extract prompt (optional LLM)
+    Comp-->>Ext: {"facts":[…]} or error→log
+    Ext->>DB: upsert OkfFact(scope=team:eng, source_run, created_by_user)
+```
+
+### Who fills what on extract
+
+| Field | Set by |
+| --- | --- |
+| `body`, proposed `type` | Extractor (LLM JSON) and/or `remember:` line |
+| `scope` | Orchestrator → `team:{agent.team}` |
+| `created_by_user` | Orchestrator → run `user_id` |
+| `source_run` | Orchestrator → `run_id` |
+| `id`, `created` | Orchestrator defaults |
+| `projects` | Orchestrator → desk `workspace.project_id` if any |
+
+Desk LLM does **not** INSERT into SQLite mid-stream.
+
+### Steps (short)
+
+1. Collect user message + full assistant text during the stream.
+2. Deterministic: lines matching `remember: …` in the user message.
+3. Soft: one non-streaming LLM call (`complete_chat`) — extract only, no invent.
+4. Stamp trusted metadata → `OkfStore.upsert`.
+
+Toggle: `OKF_EXTRACT_ENABLED` (default true). Failures are logged; they do not fail the chat response.
+
+```text
++ OK: extract after SSE completes via BackgroundTasks
+- BAD: await long extract inside the token stream
++ OK: remember: line still works if LLM extract fails
+- BAD: desk agent INSERT into okf_facts mid-run
+```
 
 **v0 decision:** gold write is **human-only**. Do not build `append_gold` for the stream agent in this cut.
 
@@ -144,11 +213,11 @@ Chat run path detail: [11_CHAT.md](./11_CHAT.md).
 + OK (v0): human seeds team OKF; chat packs mem(team)
 - BAD: desk LLM INSERT into okf_facts
 
-+ OK: extract after run via BackgroundTasks (next)
++ OK: extract after run via BackgroundTasks
 - BAD: await long extract inside chat response
 
 + OK: pack all teammates’ room facts (created_by_user = audit only)
 - BAD: filter shared OKF by user_id on pack (v0)
 ```
 
-**Status (P10):** gold + **SQLite team OKF pack** done. Extract / shelf / export still later.
+**Status (P11):** gold + team OKF pack + **post-run extract** (BackgroundTasks). Desk LLM still does not write OKF directly. Shelf / export / office Q&A later.

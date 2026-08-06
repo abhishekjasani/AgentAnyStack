@@ -22,8 +22,8 @@ flowchart LR
 | [01_PILLARS.md](./01_PILLARS.md) | Four pillars |
 | [02_MODULES.md](./02_MODULES.md) | Packages / classes |
 | [03_OFFICE_GIT.md](./03_OFFICE_GIT.md) | Desks on disk |
-| [04_MEMORY.md](./04_MEMORY.md) | Gold vs OKF · seed + pack example flow |
-| [05_RUN_PATH.md](./05_RUN_PATH.md) | Chat → model → extract |
+| [04_MEMORY.md](./04_MEMORY.md) | Gold vs OKF · seed + pack + extract flows |
+| [05_RUN_PATH.md](./05_RUN_PATH.md) | Chat → pack → stream → journal → extract |
 | [06_HITL.md](./06_HITL.md) | Autonomy + approvals |
 | [07_DOCKER.md](./07_DOCKER.md) | Compose + volumes |
 | [08_SOLID_KISS.md](./08_SOLID_KISS.md) | SOLID / YAGNI |
@@ -36,6 +36,6 @@ flowchart LR
 - BAD: invent a Python Agent subclass package
 ```
 
-**Built now (P1–P10):** health, office desks, Docker, UI, `X-User-Id`, chat, gold(a,u), **SQLite team OKF pack** into chat.  
-**Not yet (rest of v0):** OKF extract pipeline, HITL board, office Q&A, shelf ∩ P(p), OKF export.  
+**Built now (P1–P11):** health, desks, Docker, UI, chat, gold, team OKF pack, **post-run OKF extract**.  
+**Not yet (rest of v0):** office Q&A, HITL board, shelf ∩ P(p), OKF export.  
 **Out of v0 cut:** stream-agent `append_gold` tool (human gold write only).
