@@ -7,7 +7,7 @@ Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; revie
 ## Phases 1–13 done
 
 **P12** office Q&A · **P13** one HITL action card (`POST /approvals` + Approvals nav).  
-Propose → Accept/Reject (permissive) → journal. No run-pause / MCP grant yet.
+Propose → Accept/Reject (permissive) → journal. Flow: [docs/architecture/13_HITL.md](docs/architecture/13_HITL.md).
 
 **Next (when you say go):** effective autonomy on one gate ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 9).
 

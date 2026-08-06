@@ -16,6 +16,7 @@ flowchart LR
     MAP --> USR[10_USER]
     MAP --> CH[11_CHAT]
     MAP --> OQ[12_OFFICE_QA]
+    MAP --> H13[13_HITL]
 ```
 
 | File | Topic |
@@ -25,13 +26,14 @@ flowchart LR
 | [03_OFFICE_GIT.md](./03_OFFICE_GIT.md) | Desks on disk |
 | [04_MEMORY.md](./04_MEMORY.md) | Gold vs OKF · seed + pack + extract flows |
 | [05_RUN_PATH.md](./05_RUN_PATH.md) | Chat → pack → stream → journal → extract |
-| [06_HITL.md](./06_HITL.md) | HITL flow: propose → decide → journal |
+| [06_HITL.md](./06_HITL.md) | Autonomy formula · points to board flow |
 | [07_DOCKER.md](./07_DOCKER.md) | Compose + volumes |
 | [08_SOLID_KISS.md](./08_SOLID_KISS.md) | SOLID / YAGNI |
 | [09_UI.md](./09_UI.md) | Office UI shell |
-| [10_USER.md](./10_USER.md) | X-User-Id stub |
+| [10_USER.md](./10_USER.md) | Community admin · multi-user header |
 | [11_CHAT.md](./11_CHAT.md) | Chat flow: main → router → modules |
 | [12_OFFICE_QA.md](./12_OFFICE_QA.md) | Office Q&A flow: main → classify → journal/OKF |
+| [13_HITL.md](./13_HITL.md) | HITL board flow: propose → decide → journal |
 
 ```text
 + OK: read these before changing orchestrator code
