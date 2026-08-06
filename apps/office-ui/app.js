@@ -25,6 +25,7 @@
       btn.classList.toggle("is-active", btn.dataset.view === name);
     });
     if (name === "team") loadTeam();
+    if (name === "memory") loadMemory();
   }
 
   async function loadTeam() {
@@ -141,7 +142,125 @@
     }
     sel.addEventListener("change", () => {
       localStorage.setItem(USER_KEY, sel.value);
+      const mem = $("#view-memory");
+      if (mem && !mem.hidden) loadGoldForSelected();
     });
+  }
+
+  async function loadMemory() {
+    const sel = $("#gold-agent");
+    const err = $("#gold-error");
+    const ok = $("#gold-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    const prev = sel.value;
+    try {
+      const res = await api("/agents");
+      if (!res.ok) throw new Error(`GET /agents ${res.status}`);
+      const agents = await res.json();
+      sel.innerHTML = "";
+      if (!agents.length) {
+        sel.innerHTML = '<option value="">No desks yet</option>';
+        $("#gold-content").value = "";
+        $("#gold-meta").textContent = "Create a desk on Team first.";
+        return;
+      }
+      for (const a of agents) {
+        const opt = document.createElement("option");
+        opt.value = a.id;
+        opt.textContent = `${a.name} (${a.id})`;
+        sel.appendChild(opt);
+      }
+      if (prev && [...sel.options].some((o) => o.value === prev)) {
+        sel.value = prev;
+      }
+      await loadGoldForSelected();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function loadGoldForSelected() {
+    const agentId = $("#gold-agent").value;
+    const err = $("#gold-error");
+    const ok = $("#gold-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    if (!agentId) {
+      $("#gold-content").value = "";
+      return;
+    }
+    try {
+      const res = await api(`/agents/${encodeURIComponent(agentId)}/gold`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `GET gold ${res.status}`);
+      }
+      const data = await res.json();
+      $("#gold-content").value = data.content || "";
+      $("#gold-meta").textContent =
+        `User ${data.user_id} · path gold/${data.user_id}.md`;
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function saveGold() {
+    const agentId = $("#gold-agent").value;
+    const err = $("#gold-error");
+    const ok = $("#gold-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    if (!agentId) return;
+    try {
+      const res = await api(`/agents/${encodeURIComponent(agentId)}/gold`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: $("#gold-content").value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || `PUT gold ${res.status}`);
+      }
+      $("#gold-content").value = data.content || "";
+      ok.textContent = "Saved.";
+      ok.hidden = false;
+      await loadGoldForSelected();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function clearGold() {
+    const agentId = $("#gold-agent").value;
+    if (!agentId) return;
+    const okConfirm = window.confirm(
+      `Clear gold for user ${currentUserId()} on desk ${agentId}?`
+    );
+    if (!okConfirm) return;
+    const err = $("#gold-error");
+    const ok = $("#gold-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    try {
+      const res = await api(`/agents/${encodeURIComponent(agentId)}/gold`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `DELETE gold ${res.status}`);
+      }
+      $("#gold-content").value = "";
+      ok.textContent = "Cleared.";
+      ok.hidden = false;
+      await loadGoldForSelected();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
   }
 
   $$(".nav-item").forEach((btn) => {
@@ -152,6 +271,9 @@
   $("#btn-empty-create").addEventListener("click", () => showView("create"));
   $("#btn-back-team").addEventListener("click", () => showView("team"));
   $("#btn-back-team-chat").addEventListener("click", () => showView("team"));
+  $("#gold-agent").addEventListener("change", () => loadGoldForSelected());
+  $("#gold-save").addEventListener("click", () => saveGold());
+  $("#gold-clear").addEventListener("click", () => clearGold());
 
   $("#create-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();

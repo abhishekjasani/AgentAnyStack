@@ -4,12 +4,15 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phase 8 (current)
+## Phases 1–8 done · gold(a,u) done
 
 Chat via orchestrator → OpenAI-compatible (`POST /agents/{id}/chat` SSE). Default host = Ollama `/v1`.  
-**Pull a model first** (`ollama pull llama3.2`) for a real reply; server alone tests error handling.
+Envelope (musts + workspace + autonomy intent) · rich journal · desks via UI/API only.  
+**Gold:** `GET/PUT/DELETE /agents/{id}/gold` → `gold/<user_id>.md`; packed into chat; Memory UI.
 
-Phases **1–7 done.** Open a desk → **Chat** in the UI.
+**Pull a model first** (`ollama pull llama3.2`) for a real reply. Open a desk → **Chat** / **Memory** in the UI.
+
+**Next (when you say go):** SQLite OKF pack `C(a,p,u)` ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 5).
 
 ### Docker
 

@@ -30,8 +30,9 @@ class AutonomyCeilingError(Exception):
 class OfficeRepository:
     """Desks live at office/teams/<team>/agents/<id>/ (git data, not Python classes)."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, gold_max_chars: int = 64_000) -> None:
         self.root = root.resolve()
+        self.gold_max_chars = gold_max_chars
 
     @property
     def org_path(self) -> Path:
@@ -153,6 +154,35 @@ class OfficeRepository:
         (desk / "AGENT.md").write_text(persona_md, encoding="utf-8")
 
         return config
+
+    def gold_path(self, agent: AgentConfig, user_id: str) -> Path:
+        return self.agent_dir(agent.team, agent.id) / "gold" / f"{user_id}.md"
+
+    def read_gold(self, agent: AgentConfig, user_id: str) -> str:
+        """Per-user notepad gold(a,u). Missing file → empty string."""
+        path = self.gold_path(agent, user_id)
+        if not path.is_file():
+            return ""
+        return path.read_text(encoding="utf-8")
+
+    def write_gold(self, agent: AgentConfig, user_id: str, content: str) -> None:
+        """Replace gold(a,u). Empty content deletes the file (reset)."""
+        if len(content) > self.gold_max_chars:
+            raise GoldTooLargeError(
+                f"gold exceeds {self.gold_max_chars} characters ({len(content)})"
+            )
+        gold_dir = self.agent_dir(agent.team, agent.id) / "gold"
+        gold_dir.mkdir(parents=True, exist_ok=True)
+        path = self.gold_path(agent, user_id)
+        if not content.strip():
+            if path.is_file():
+                path.unlink()
+            return
+        path.write_text(content, encoding="utf-8", newline="\n")
+
+
+class GoldTooLargeError(Exception):
+    """Gold notepad over size cap."""
 
 
 def _default_persona_markdown(name: str) -> str:

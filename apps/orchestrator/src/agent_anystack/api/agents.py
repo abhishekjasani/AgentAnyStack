@@ -18,7 +18,10 @@ router = APIRouter(tags=["agents"])
 
 
 def get_office_repo(settings: Settings = Depends(get_settings)) -> OfficeRepository:
-    return OfficeRepository(Path(settings.office_repo_path))
+    return OfficeRepository(
+        Path(settings.office_repo_path),
+        gold_max_chars=settings.gold_max_chars,
+    )
 
 
 @router.get("/agents", response_model=list[AgentSummary])

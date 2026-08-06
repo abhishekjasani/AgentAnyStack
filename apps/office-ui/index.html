@@ -100,10 +100,33 @@
         </form>
       </section>
 
-      <section id="view-memory" class="view stub" hidden>
-        <h1>Memory</h1>
-        <p class="lede">Fact list coming — gold + team OKF pack later.</p>
-        <p class="stub-note">Stub</p>
+      <section id="view-memory" class="view" hidden>
+        <header class="view-head">
+          <div>
+            <h1>Memory</h1>
+            <p class="lede">
+              Gold notepad per desk and user (<code>gold/&lt;user_id&gt;.md</code>).
+              Alice and Bob do not share notes. Team OKF comes later.
+            </p>
+          </div>
+        </header>
+        <div class="form memory-form">
+          <label>
+            Desk
+            <select id="gold-agent" aria-label="Desk for gold notepad"></select>
+          </label>
+          <p id="gold-meta" class="desk-meta"></p>
+          <label>
+            Gold (markdown)
+            <textarea id="gold-content" rows="14" placeholder="Scratch notes for this desk + current user…"></textarea>
+          </label>
+          <p id="gold-error" class="error" hidden></p>
+          <p id="gold-ok" class="desk-meta" hidden></p>
+          <div class="form-actions memory-actions">
+            <button type="button" class="btn primary" id="gold-save">Save gold</button>
+            <button type="button" class="btn ghost" id="gold-clear">Clear</button>
+          </div>
+        </div>
       </section>
       <section id="view-approvals" class="view stub" hidden>
         <h1>Approvals</h1>

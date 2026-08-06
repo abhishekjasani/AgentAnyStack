@@ -34,8 +34,8 @@ sequenceDiagram
 + OK: Envelope = musts + workspace + autonomy intent; persona = role; gold pack = user scope
 - BAD: persona says ignore approvals / read all office files
 
-+ OK: channel=office_ui on journal
++ OK: channel=office_ui on journal; gold(a,u) packed labeled by user_id
 - BAD: invent company facts in office Q&A with no citations
 ```
 
-**Status:** Envelope + Ollama adapter + journal = **P8 done**. Gold/OKF pack still stubbed empty.
+**Status:** Envelope + OpenAI-compatible adapter + journal + **gold(a,u)** = done. OKF pack still stubbed empty.

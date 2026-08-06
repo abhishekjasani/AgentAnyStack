@@ -241,6 +241,8 @@ h1 {
 }
 .form textarea { resize: vertical; min-height: 8rem; }
 .form-actions { margin-top: 0.5rem; }
+.memory-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.memory-form #gold-content { min-height: 16rem; }
 
 .error { color: var(--danger); margin: 0.5rem 0 0; font-size: 0.9rem; }
 .stub-note {

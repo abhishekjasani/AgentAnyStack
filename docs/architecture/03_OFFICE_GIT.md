@@ -21,7 +21,7 @@ office/
         <id>/
           agent.yaml       # machine contract
           AGENT.md         # persona markdown
-          gold/            # per-user notepad later
+          gold/            # gold/<user_id>.md per-user notepad
 ```
 
 **Ship empty:** no seed analysts/developers. Create via API/UI only.

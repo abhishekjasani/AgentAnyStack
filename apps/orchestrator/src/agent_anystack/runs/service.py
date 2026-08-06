@@ -74,8 +74,16 @@ class ChatRunService:
             effective_autonomy=eff,
         )
         persona = self.repo.read_persona(agent)
-        # Memory pack C(a,p,u) later — empty stub for P8
-        system = envelope + "\n\n---\n\n" + persona
+        gold = self.repo.read_gold(agent, user_id)
+        parts = [envelope, persona]
+        if gold.strip():
+            parts.append(
+                f"## Gold notepad (user: {user_id})\n\n"
+                "Personal scratch for this desk and user only — not shared OKF.\n\n"
+                f"{gold.strip()}"
+            )
+        # OKF pack C(a,p,u) later — gold(a,u) only for now
+        system = "\n\n---\n\n".join(parts)
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": message},

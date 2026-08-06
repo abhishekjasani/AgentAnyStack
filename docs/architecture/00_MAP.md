@@ -36,5 +36,6 @@ flowchart LR
 - BAD: invent a Python Agent subclass package
 ```
 
-**Built now (P1–P8):** health, empty office, desks CRUD, Docker, UI, `X-User-Id`, chat via Ollama (Envelope + journal).  
+**Built now (P1–P8 + gold):** health, empty office, desks CRUD, Docker, UI, `X-User-Id`, chat via OpenAI-compatible adapter (Envelope + journal), **gold(a,u)** read/write + pack.  
+**Not yet:** OKF, HITL board, office Q&A.
 **Later:** gold write path, OKF pack/extract, HITL UI, office Q&A.
