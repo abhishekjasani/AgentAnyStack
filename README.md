@@ -4,12 +4,12 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phases 1–12 done
+## Phases 1–13 done
 
-**P11 extract** · **P12 office Q&A** (`POST /office/ask` + Office nav).  
-Status from journal; knowledge from OKF with citations; work → use a desk.
+**P12** office Q&A · **P13** one HITL action card (`POST /approvals` + Approvals nav).  
+Propose → Accept/Reject (permissive) → journal. No run-pause / MCP grant yet.
 
-**Next (when you say go):** one HITL approval card ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 8).
+**Next (when you say go):** effective autonomy on one gate ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 9).
 
 ### Docker
 

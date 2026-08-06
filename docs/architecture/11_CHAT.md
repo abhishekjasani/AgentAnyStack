@@ -18,7 +18,7 @@ Full call chain: main → router → classes. See [V0_SCOPE.md](../V0_SCOPE.md) 
 | Pack formula grows to `C(a,p,u)` ≈ gold ∪ team OKF | **Built** (shelf ∩ P(p) later) |
 | Background extract after run | **Built** (P11 — BackgroundTasks) |
 | Thin office Q&A | **Built** (P12 — `POST /office/ask`) |
-| One HITL card | **v0 — not built yet** |
+| One HITL card | **Built** (P13 — Approvals board) |
 
 ### Explicitly not v0 (design only below)
 

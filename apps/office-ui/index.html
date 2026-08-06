@@ -19,9 +19,9 @@
       <label class="user-pick">
         <span>User (stub)</span>
         <select id="user-id" aria-label="Current user id">
+          <option value="admin" selected>admin</option>
           <option value="alice">alice</option>
           <option value="bob">bob</option>
-          <option value="anonymous">anonymous</option>
         </select>
       </label>
       <nav class="nav-list">
@@ -179,10 +179,49 @@
           <ul id="okf-list" class="okf-list"></ul>
         </div>
       </section>
-      <section id="view-approvals" class="view stub" hidden>
-        <h1>Approvals</h1>
-        <p class="lede">HITL cards — one path later.</p>
-        <p class="stub-note">Stub</p>
+      <section id="view-approvals" class="view" hidden>
+        <header class="view-head">
+          <div>
+            <h1>Approvals</h1>
+            <p class="lede">
+              One action-card path — propose a gated ask, Accept or Reject
+              (<code>APPROVER_MODE=permissive</code>: requester ∪ <code>ORG_ADMINS</code>).
+            </p>
+          </div>
+        </header>
+        <p id="approvals-error" class="error" hidden></p>
+        <p id="approvals-ok" class="desk-meta" hidden></p>
+
+        <h2 class="memory-h2">Propose demo card</h2>
+        <form id="approvals-propose" class="form memory-form">
+          <label>
+            Agent id
+            <input id="appr-agent" name="agent_id" value="ba" required pattern="[a-z][a-z0-9_-]*" />
+          </label>
+          <label>
+            Team
+            <input id="appr-team" name="team" value="eng" required pattern="[a-z][a-z0-9_-]*" />
+          </label>
+          <label>
+            Action type
+            <input id="appr-type" name="action_type" value="external_send" />
+          </label>
+          <label>
+            Summary
+            <textarea id="appr-summary" name="summary" rows="3" required placeholder="Send Slack to #sales: Q3 numbers ready"></textarea>
+          </label>
+          <div class="form-actions memory-actions">
+            <button type="submit" class="btn primary" id="appr-propose">Propose</button>
+            <button type="button" class="btn ghost" id="appr-refresh">Refresh</button>
+          </div>
+        </form>
+
+        <h2 class="memory-h2">Board</h2>
+        <div class="memory-actions" style="margin-bottom: 0.75rem">
+          <button type="button" class="btn ghost" data-appr-filter="pending_human">Pending</button>
+          <button type="button" class="btn ghost" data-appr-filter="">All</button>
+        </div>
+        <ul id="approvals-list" class="okf-list"></ul>
       </section>
       <section id="view-analytics" class="view stub" hidden>
         <h1>Analytics</h1>

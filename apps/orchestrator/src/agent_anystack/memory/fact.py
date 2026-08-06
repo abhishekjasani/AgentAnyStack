@@ -48,7 +48,7 @@ class OkfFact(BaseModel):
     body: str = Field(..., min_length=1, max_length=8000)
     tags: list[str] = Field(default_factory=list)
     domain: str = "general"
-    created_by_user: str = "anonymous"
+    created_by_user: str = "admin"
     created: str = Field(default_factory=utc_now_iso)
     pinned: bool = False
     archived: bool = False

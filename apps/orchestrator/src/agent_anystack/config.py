@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     office_qa_llm: bool = False
     office_qa_model: str = "llama3.2"
     approver_mode: str = "permissive"
+    # Community: sole admin. Enterprise: expand list / RBAC; edition switch later.
+    org_admins: str = Field(
+        default="admin",
+        validation_alias=AliasChoices("ORG_ADMINS"),
+    )
 
 
 @lru_cache

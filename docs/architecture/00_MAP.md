@@ -25,7 +25,7 @@ flowchart LR
 | [03_OFFICE_GIT.md](./03_OFFICE_GIT.md) | Desks on disk |
 | [04_MEMORY.md](./04_MEMORY.md) | Gold vs OKF · seed + pack + extract flows |
 | [05_RUN_PATH.md](./05_RUN_PATH.md) | Chat → pack → stream → journal → extract |
-| [06_HITL.md](./06_HITL.md) | Autonomy + approvals |
+| [06_HITL.md](./06_HITL.md) | HITL flow: propose → decide → journal |
 | [07_DOCKER.md](./07_DOCKER.md) | Compose + volumes |
 | [08_SOLID_KISS.md](./08_SOLID_KISS.md) | SOLID / YAGNI |
 | [09_UI.md](./09_UI.md) | Office UI shell |
@@ -38,6 +38,6 @@ flowchart LR
 - BAD: invent a Python Agent subclass package
 ```
 
-**Built now (P1–P12):** health, desks, Docker, UI, chat, gold, team OKF pack, post-run extract, **office Q&A**.  
-**Not yet (rest of v0):** HITL board, autonomy gate, shelf ∩ P(p), OKF export.  
+**Built now (P1–P13):** health, desks, Docker, UI, chat, gold, team OKF pack, post-run extract, office Q&A, **one approval card**.  
+**Not yet (rest of v0):** autonomy gate on actions, shelf ∩ P(p), OKF export.  
 **Out of v0 cut:** stream-agent `append_gold` tool (human gold write only).

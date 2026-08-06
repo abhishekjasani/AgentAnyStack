@@ -28,6 +28,10 @@ class JournalEntry:
     started_at: str
     ended_at: str | None = None
     error: str | None = None
+    # HITL decide audit (optional — run rows leave these null)
+    approval_id: str | None = None
+    decision: str | None = None
+    decided_by: str | None = None
 
 
 class RunJournal:
@@ -65,6 +69,9 @@ class RunJournal:
                         started_at=str(data.get("started_at") or ""),
                         ended_at=data.get("ended_at"),
                         error=data.get("error"),
+                        approval_id=data.get("approval_id"),
+                        decision=data.get("decision"),
+                        decided_by=data.get("decided_by"),
                     )
                 except (json.JSONDecodeError, TypeError, ValueError):
                     continue

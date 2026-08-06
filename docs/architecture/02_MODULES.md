@@ -11,7 +11,7 @@ flowchart TB
     AD[adapters later]
     MEM[memory later]
     RUN[runs later]
-    HITL[hitl later]
+    HITL[hitl ApprovalService]
 
     API --> OFF
     API --> DOM
@@ -19,7 +19,8 @@ flowchart TB
     API --> CFG
     RUN --> AD
     RUN --> MEM
-    RUN --> HITL
+    API --> HITL
+    HITL --> RUN
 ```
 
 ## Package layout
@@ -35,21 +36,26 @@ apps/orchestrator/src/agent_anystack/
   office/repository.py # load/write office/ tree
   adapters/            # llm.py — StackAdapter + OpenAICompatibleAdapter (+ later wires)
   memory/              # OkfStore + pack (team OKF); gold under office/
-  runs/                # later — run_id + journal
-  hitl/                # later — approval cards
+  runs/                # ChatRunService + journal
+  hitl/                # ApprovalCard store + permissive decide
+  office_qa.py         # Front-desk status / knowledge
 ```
 
 ## Major types (now)
 
 | Name | Role |
 | --- | --- |
-| `Settings` | Platform env (`OFFICE_REPO_PATH`, DB, Ollama URL) |
+| `Settings` | Platform env (`OFFICE_REPO_PATH`, DB, Ollama URL, `APPROVER_MODE`) |
 | `OrgConfig` | `office/org.yaml` |
 | `AgentConfig` | One desk’s `agent.yaml` |
 | `CreateAgentRequest` | UI/API create payload |
 | `OfficeRepository` | Read/write desks on disk |
 | `AgentExistsError` | Duplicate agent id |
 | `AutonomyCeilingError` | Agent autonomy > org max |
+| `OkfStore` / `OkfFact` | Team shared facts |
+| `ChatRunService` | Pack → stream → journal → extract hook |
+| `OfficeQaService` | Front-desk Q&A |
+| `ApprovalCard` / `ApprovalService` | HITL board (action tag) |
 
 ```text
 + OK: from agent_anystack.office import OfficeRepository, AgentExistsError
@@ -63,7 +69,6 @@ apps/orchestrator/src/agent_anystack/
 
 | Name | Role |
 | --- | --- |
-| `StackAdapter` | `stream_chat(...)` — OpenAI-compatible first (Ollama/vLLM via URL) |
-| `GoldStore` / `OkfStore` / `Packer` | Memory read/write |
-| `RunService` | `run_id`, journal, envelope |
-| `ApprovalCard` | HITL queue |
+| Autonomy gate on catalog `hil` | Slice 9 — effective autonomy decides allow vs card |
+| Memory HITL cards | Async review queue |
+| MCP `_locked` + grant | After Accept, agent executes |

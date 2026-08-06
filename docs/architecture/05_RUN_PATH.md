@@ -49,4 +49,4 @@ Extract is **not** in the prompt path. It runs after SSE completes — see [04_M
 - BAD: block token stream on extract LLM
 ```
 
-**Status:** Envelope + adapter + journal + gold + team OKF pack + **post-run extract** = done. Office Q&A = [12_OFFICE_QA.md](./12_OFFICE_QA.md). HITL later.
+**Status:** Envelope + adapter + journal + gold + team OKF pack + post-run extract + office Q&A + **HITL board** = done. Autonomy-on-gate later.

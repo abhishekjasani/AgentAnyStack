@@ -4,7 +4,7 @@
   const USER_KEY = "aas.user_id";
 
   function currentUserId() {
-    return $("#user-id")?.value || "anonymous";
+    return $("#user-id")?.value || "admin";
   }
 
   function apiHeaders(extra = {}) {
@@ -29,6 +29,7 @@
       loadMemory();
       loadOkf();
     }
+    if (name === "approvals") loadApprovals();
   }
 
   async function loadTeam() {
@@ -287,6 +288,132 @@
   $("#gold-clear").addEventListener("click", () => clearGold());
   $("#okf-add").addEventListener("click", () => addOkfFact());
   $("#okf-refresh").addEventListener("click", () => loadOkf());
+
+  let approvalsFilter = "pending_human";
+
+  async function loadApprovals() {
+    const list = $("#approvals-list");
+    const err = $("#approvals-error");
+    err.hidden = true;
+    try {
+      const q = approvalsFilter
+        ? `?status=${encodeURIComponent(approvalsFilter)}`
+        : "";
+      const res = await api(`/approvals${q}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `GET approvals ${res.status}`);
+      }
+      const cards = await res.json();
+      list.innerHTML = "";
+      if (!cards.length) {
+        list.innerHTML = "<li class=\"desk-meta\">No cards.</li>";
+        return;
+      }
+      for (const c of cards) {
+        const li = document.createElement("li");
+        const id = document.createElement("span");
+        id.className = "okf-id";
+        id.textContent = `${c.id} · ${c.status} · ${c.action_type} · by ${c.user_id}`;
+        const body = document.createElement("div");
+        body.textContent = `[${c.agent_id}] ${c.summary}`;
+        const meta = document.createElement("div");
+        meta.className = "desk-meta";
+        meta.textContent = `run=${c.run_id}${c.decided_by ? ` · decided by ${c.decided_by}` : ""}`;
+        li.append(id, body, meta);
+        if (c.status === "pending_human") {
+          const actions = document.createElement("div");
+          actions.className = "memory-actions";
+          const accept = document.createElement("button");
+          accept.type = "button";
+          accept.className = "btn primary";
+          accept.textContent = "Accept";
+          accept.addEventListener("click", () => decideApproval(c.id, "accept"));
+          const reject = document.createElement("button");
+          reject.type = "button";
+          reject.className = "btn danger";
+          reject.textContent = "Reject";
+          reject.addEventListener("click", () => decideApproval(c.id, "reject"));
+          actions.append(accept, reject);
+          li.append(actions);
+        }
+        list.appendChild(li);
+      }
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function decideApproval(id, decision) {
+    const err = $("#approvals-error");
+    const ok = $("#approvals-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    try {
+      const res = await api(`/approvals/${encodeURIComponent(id)}/decide`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || `decide ${res.status}`);
+      }
+      ok.textContent = `${decision} ${data.id} → journal`;
+      ok.hidden = false;
+      await loadApprovals();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  $("#approvals-propose").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const err = $("#approvals-error");
+    const ok = $("#approvals-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    const summary = ($("#appr-summary").value || "").trim();
+    if (!summary) return;
+    try {
+      const res = await api("/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agent_id: ($("#appr-agent").value || "").trim(),
+          team: ($("#appr-team").value || "eng").trim(),
+          action_type: ($("#appr-type").value || "demo").trim(),
+          summary,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = data.detail;
+        const msg = Array.isArray(detail)
+          ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
+          : detail || `POST approvals ${res.status}`;
+        throw new Error(msg);
+      }
+      $("#appr-summary").value = "";
+      ok.textContent = `Proposed ${data.id}`;
+      ok.hidden = false;
+      approvalsFilter = "pending_human";
+      await loadApprovals();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  });
+
+  $("#appr-refresh").addEventListener("click", () => loadApprovals());
+  $$("[data-appr-filter]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      approvalsFilter = btn.dataset.apprFilter || "";
+      loadApprovals();
+    });
+  });
 
   $("#office-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();

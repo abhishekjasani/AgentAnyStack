@@ -14,5 +14,5 @@ class MeResponse(BaseModel):
 
 @router.get("/me", response_model=MeResponse)
 async def me(user_id: str = Depends(get_user_id)) -> MeResponse:
-    """Who this request is — stub identity for multi-user desks."""
+    """Who this request is — community default admin; multi-user via header."""
     return MeResponse(user_id=user_id)

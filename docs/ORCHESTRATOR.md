@@ -316,6 +316,8 @@ Not “every seat in the org” by default — those three roles. Bind Accept to
 
 Memory cards without an MCP/cred: requester ∪ org admin (cred owner N/A).
 
+**Built (P13):** one **action** card board — `POST /approvals`, `POST /approvals/{id}/decide`, Accept → journal. Module flow: [architecture/06_HITL.md](./architecture/06_HITL.md). No run-pause / MCP grant / autonomy gate yet.
+
 ---
 
 ## 6.1 MEMORY HITL — validations discovered so far
