@@ -215,9 +215,11 @@ Compose shape: `ollama/ollama` service + named volume on `/root/.ollama`, orches
 
 ### Known caveats (document in user-facing quick start)
 
-1. **macOS + Docker loses the GPU.** Docker on Mac cannot access Apple's Metal GPU, so containerized Ollama is CPU-only there. Workaround (same as Open WebUI): Mac users install Ollama natively and the stack points at `host.docker.internal:11434` via `OLLAMA_BASE_URL`. One env var supports both layouts.
-2. **Model quality expectations.** 3B–7B quantized models are fine for chat/summarize roles but weak at agentic tool calling. Flag catalog entries as "demo-grade" vs "can run a Developer agent" so the product isn't judged by a 3B model failing tool calls.
-3. **Don't bake models into the image.** Weights go to the volume at runtime; the image stays small and models survive container upgrades.
+1. **CPU by default; GPU is opt-in.** Base `docker compose --profile ollama` runs Ollama on **CPU** (always starts). For NVIDIA, add `docker-compose.gpu.yml` (passes GPU devices). If that command fails (no driver / toolkit), drop the override — **CPU fallback**. Same `ollama_models` volume either way. See [architecture/07_DOCKER.md](./architecture/07_DOCKER.md).
+2. **GPU prereqs (NVIDIA + Docker):** current NVIDIA driver; Windows = Docker Desktop + WSL2 + NVIDIA Container Toolkit; Linux = NVIDIA Container Toolkit. Ollama then uses CUDA automatically. AMD/Intel: prefer **native** Ollama on the host.
+3. **macOS + Docker loses the GPU.** Docker on Mac cannot access Apple's Metal GPU, so containerized Ollama is CPU-only there. Workaround (same as Open WebUI): Mac users install Ollama natively and the stack points at `host.docker.internal:11434` via `OLLAMA_BASE_URL`. One env var supports both layouts.
+4. **Model quality expectations.** 3B–7B quantized models are fine for chat/summarize roles but weak at agentic tool calling. Flag catalog entries as "demo-grade" vs "can run a Developer agent" so the product isn't judged by a 3B model failing tool calls.
+5. **Don't bake models into the image.** Weights go to the volume at runtime; the image stays small and models survive container upgrades.
 
 ---
 

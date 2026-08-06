@@ -19,11 +19,24 @@ flowchart LR
 
 **Class:** `OllamaModelManager` in `adapters/ollama_models.py` (only Ollama-specific module).  
 **UI:** nav **Stacks** — Pull / progress / Delete.  
-**Prereq:** `docker compose --profile ollama up -d`
+
+**Prereq (CPU — default):**
+
+```bash
+docker compose --profile ollama up -d
+```
+
+**NVIDIA GPU (optional):** same stack + `docker-compose.gpu.yml`. If start fails, use the CPU command (fallback). Details: [07_DOCKER.md](./07_DOCKER.md).
+
+```bash
+docker compose --profile ollama -f docker-compose.yml -f docker-compose.gpu.yml up -d
+```
 
 ```text
 + OK: pull allowlisted curated tags only
 - BAD: expose arbitrary registry pull from UI
 + OK: chat via /v1; pull via /api/pull
 - BAD: bake weights into the image
++ OK: CPU default; GPU opt-in override
+- BAD: hard-require NVIDIA in base compose
 ```

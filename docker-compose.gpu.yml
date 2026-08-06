@@ -1,0 +1,24 @@
+# Optional NVIDIA GPU override for the ollama service.
+# Default `docker-compose.yml` ollama profile is CPU-only (always starts).
+# Ollama uses the GPU when devices are passed in; without this file it stays on CPU.
+#
+# Usage (Windows PowerShell / bash):
+#   docker compose --profile ollama -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+# Prereqs: NVIDIA driver + Docker GPU support (Windows: Docker Desktop + WSL2 + NVIDIA Container Toolkit).
+# If this fails to start (no GPU / no toolkit), drop the gpu file and use CPU:
+#   docker compose --profile ollama up -d
+
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      # Hint for operators; Ollama auto-detects CUDA when devices are present
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility

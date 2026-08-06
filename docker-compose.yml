@@ -25,6 +25,7 @@ services:
     restart: unless-stopped
 
   ollama:
+    # Default: CPU. For NVIDIA GPU, also pass docker-compose.gpu.yml (see docs/architecture/07_DOCKER.md).
     image: ollama/ollama:latest
     profiles:
       - ollama

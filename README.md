@@ -21,11 +21,15 @@ curl http://127.0.0.1:8787/agents
 
 Volumes: `./office` → desks; `./data` → SQLite later.
 
-Ollama is optional (chat later):
+Ollama is optional. **CPU (default)** always works; **NVIDIA GPU** is opt-in:
 
 ```bash
 docker compose --profile ollama up -d
+# GPU when NVIDIA + Docker GPU support exist; else use the line above (CPU fallback)
+docker compose --profile ollama -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ```
+
+Details: [docs/architecture/07_DOCKER.md](docs/architecture/07_DOCKER.md).
 
 ### Run locally (without Docker)
 
