@@ -1,73 +1,177 @@
 # AgentAnyStack
 
-**Any stack. One orchestrator.** — An office where agents work (desks, scoped memory, HITL), not a single chatbot.
+**Tagline:** Any stack. One orchestrator.  
+**License:** Apache-2.0 · **Release:** v0 (early)
 
-Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
+## What it is
 
-## Phases 1–16 done · P17 local models
+**AgentAnyStack** is a **control plane for AI agents** — an agent office.
 
-**P17:** Stacks UI + `GET/POST /models` — curated Ollama pull with progress.  
-Flow: [17_MODELS.md](docs/architecture/17_MODELS.md). Need Ollama: `docker compose --profile ollama up -d`.
+Operators seat agents (eng, sales, support, legal, …) at desks, put them on teams, and run them through one orchestrator. Agents can use different runtimes (local Ollama today; Cursor / Claude adapters planned). Shared knowledge is scoped (team room vs org/floor shelf × project). Side effects go through autonomy policy and human approvals. Office definitions and per-user gold memory live in git; shared facts use OKF in a database you own.
 
-### Docker
+It is the workplace and policy layer for agents across stacks and roles — not another coding-agent product or a single-purpose chat app.
 
-```bash
-copy .env.example .env   # optional; compose overrides office/ollama paths
-docker compose up --build -d
-
-curl http://127.0.0.1:8787/health
-curl http://127.0.0.1:8787/agents
+```text
+Org → Floor (optional) → Team → Agent
+         × Project (git / launch folder)
 ```
 
-Volumes: `./office` → desks; `./data` → SQLite + channel; `./data/ollama` → Ollama model weights.
+Reach the same desks from the office UI or from high-traffic work surfaces — **IDE / VS Code**, **Slack / Teams**, **CRM**, **customer-support chat on your website**, **GitHub** — via Connect. Analytics covers runs, API/MCP usage, approvals, and the knowledge graph. One backbone for company AI work, with **zero lock-in**.
 
-Ollama is optional. **CPU (default)** always works; **NVIDIA GPU** is opt-in:
+## Problem
 
-```bash
-docker compose --profile ollama up -d
-# GPU when NVIDIA + Docker GPU support exist; else use the line above (CPU fallback)
-docker compose --profile ollama -f docker-compose.yml -f docker-compose.gpu.yml up -d
+Teams already run agents in Cursor, Claude, scripts, and SaaS tools. Each tool works alone. There is no shared workplace: no common roles, memory boundaries, approvals, or run audit across stacks and business personas.
+
+## Pillars
+
+| # | Pillar | Product meaning |
+| --- | --- | --- |
+| 1 | **Agent office** | Desks, teams, floors, activity — operators manage agents like an org chart |
+| 2 | **Controllability** | Autonomy 0–100 enforced by gates + HITL (not prompt instructions alone) |
+| 3 | **Scoped memory** | Gold (per agent×user) + OKF at team / floor / org, filtered by project |
+| 4 | **Zero lock-in** | BYO models and keys; office config in git; portable OKF; you keep your data and stacks |
+
+---
+
+## Product capabilities
+
+Full product surface. Markers: **Available** · **In progress** · **Planned**
+
+### Office & organization
+
+| Capability | Status |
+| --- | --- |
+| Agent desks and role-based chat | Available |
+| Multi-user concurrent desks; per-user gold | Available |
+| Git-native agent definitions (`agent.yaml` + `AGENT.md`) | Available |
+| Office system envelope on every run | Available |
+| Org → floor → team → agent hierarchy | In progress (team live; floors next) |
+| Floor connect lines (gated cross-team memory share) | Planned |
+| Domain × channel × risk personas | Available / expanding |
+| Live activity and desk presence | In progress |
+
+### Memory & knowledge
+
+| Capability | Status |
+| --- | --- |
+| Team room shared OKF (pipeline writes only) | Available |
+| Deterministic pack: gold ∪ team ∪ project-filtered shelf | Available |
+| Async extract from agent reports | Available |
+| Office Q&A (status/knowledge without an agent) | Available |
+| OKF export / import | In progress |
+| Knowledge graph (facts + links) | Planned |
+| Memory health, prune, earned agnosticism | Planned |
+| Postgres at scale | Planned |
+
+### Controllability & trust
+
+| Capability | Status |
+| --- | --- |
+| Human approval board | Available |
+| Effective autonomy (ceiling; user may tighten only) | In progress |
+| Hard floors (external send, money, PII, prod, legal) | Planned |
+| Run journal (`run_id`, `agent_id`, `user_id`, `channel`) | Available |
+| Analytics: run explorer, API/MCP usage, HITL stats | Planned |
+| Cost / tokens by agent and project | Planned |
+
+### Any stack & tools
+
+| Capability | Status |
+| --- | --- |
+| Ollama / OpenAI-compatible local models | Available |
+| Cursor adapter | Planned |
+| Claude API adapter | Planned |
+| Org catalog: MCP · Skills · API/creds | Planned |
+| Gated MCP (`_locked`) after human approve | Planned |
+| Workspace / project path isolation | In progress |
+
+### Connect — agents in the tools people already search for
+
+| Capability | Status |
+| --- | --- |
+| Office UI | Available |
+| Connect API (channel → same agent, memory, HITL) | Planned |
+| Customer support widget on company website → support agent | Planned |
+| Slack / Microsoft Teams → routed desks | Planned |
+| IDE / VS Code extension → developer agent | Planned |
+| CRM (e.g. Salesforce-class workflows) → sales / success agents | Planned |
+| GitHub → eng / reviewer agents | Planned |
+
+External apps call the orchestrator; AgentAnyStack does not embed those products.
+
+### Platform
+
+| Capability | Status |
+| --- | --- |
+| Open-source core | Available |
+| Enterprise edition (SSO, audit, seats, branding, advanced policy) | Planned |
+
+---
+
+## Architecture
+
+```text
+office/                            # desks = git data
+  teams/<team>/agents/<id>/
+    agent.yaml · AGENT.md · gold/<user>.md
+
+apps/orchestrator/                 # FastAPI — route · pack · gate · adapt
+apps/office-ui/                    # Team · Memory · Approvals · Analytics · Connect · Settings
 ```
 
-Details: [docs/architecture/07_DOCKER.md](docs/architecture/07_DOCKER.md).
-
-### Run locally (without Docker)
-
-From the **repo root** (`venv/` gitignored, Python 3.12):
-
-```bash
-# create once — Windows (py launcher) / or full path to python3.12
-py -3.12 -m venv venv
-# Unix: python3.12 -m venv venv
-
-# activate
-# Windows PowerShell: .\venv\Scripts\Activate.ps1
-# Unix:               source venv/bin/activate
-
-pip install -e "./apps/orchestrator[dev]"
-copy .env.example .env   # Unix: cp .env.example .env
-
-uvicorn agent_anystack.main:app --reload --host 0.0.0.0 --port 8787
+```mermaid
+flowchart LR
+    UI[Office UI]
+    CH[Slack · IDE · Web support · CRM · GitHub]
+    UI --> ORC[Orchestrator]
+    CH --> ORC
+    ORC --> MEM[(OKF + gold)]
+    ORC --> ADP[Stack adapters]
+    ADP --> S1[Ollama]
+    ADP --> S2[Cursor]
+    ADP --> S3[Claude]
 ```
 
+---
+
+## Quick start
+
+Requires Python 3.12+ and Ollama (or another OpenAI-compatible endpoint).
+
 ```bash
-curl http://127.0.0.1:8787/health
-# {"status":"ok","version":"0.1.0"}
+git clone <repo-url>
+cd AgentAnyStack
+cp .env.example .env
 
-curl http://127.0.0.1:8787/agents
-# []
-
-curl http://127.0.0.1:8787/org
-# {"id":"default","name":"AgentAnyStack",...}
-
-# create a desk (no seed agents in the image)
-curl -X POST http://127.0.0.1:8787/agents -H "Content-Type: application/json" -d "{\"id\":\"ba\",\"name\":\"Business Analyst\",\"team\":\"eng\",\"stack\":\"openai-compatible\",\"model\":\"llama3.2\"}"
+cd apps/orchestrator
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e .
+uvicorn agent_anystack.main:app --reload --port 8787
 ```
 
-`.dockerignore` excludes `venv/`, `.env`, and host `data/` contents from the build context.
+API: `http://127.0.0.1:8787/docs`  
+Set `OFFICE_REPO_PATH`, `DATABASE_URL`, and `OLLAMA_BASE_URL` in `.env`.
 
-Run local uvicorn from the **repo root** so `OFFICE_REPO_PATH=./office` resolves correctly.
+---
+
+## Documentation
+
+| Doc | Contents |
+| --- | --- |
+| [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) | Product definition |
+| [V0_SCOPE.md](./V0_SCOPE.md) | Current release boundaries |
+| [IMPLEMENTATION.md](./IMPLEMENTATION.md) | Engineering notes |
+| [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) | Agent file format |
+| [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) | Memory model |
+| [ORCHESTRATOR.md](./ORCHESTRATOR.md) | Control plane |
+| [ANALYTICS.md](./ANALYTICS.md) | Analytics |
+| [CONNECT.md](./CONNECT.md) | External channels |
+| [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md) | Scenarios |
+| [mockups/](./mockups/) | UI vision |
+
+---
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE).
+Apache License 2.0. See `LICENSE` at repository root.
