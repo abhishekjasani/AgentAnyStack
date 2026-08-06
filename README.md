@@ -4,11 +4,11 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phases 1–8 done · gold(a,u) done
+## Phases 1–9 done
 
-Chat via orchestrator → OpenAI-compatible (`POST /agents/{id}/chat` SSE). Default host = Ollama `/v1`.  
-Envelope (musts + workspace + autonomy intent) · rich journal · desks via UI/API only.  
-**Gold:** `GET/PUT/DELETE /agents/{id}/gold` → `gold/<user_id>.md`; packed into chat; Memory UI.
+**P8 — Chat:** orchestrator → OpenAI-compatible SSE; Envelope + autonomy intent; journal; `adapters/llm.py`.  
+**P9 — Gold(a,u):** human `GET/PUT/DELETE /agents/{id}/gold` → `gold/<user_id>.md`; pack into chat; Memory UI.  
+**v0 gold write = human only** (no `append_gold` tool this cut). See [docs/architecture/11_CHAT.md](docs/architecture/11_CHAT.md).
 
 **Pull a model first** (`ollama pull llama3.2`) for a real reply. Open a desk → **Chat** / **Memory** in the UI.
 

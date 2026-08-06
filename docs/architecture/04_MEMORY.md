@@ -69,4 +69,4 @@ flowchart LR
 - BAD: filter shared OKF by user_id on pack (v0)
 ```
 
-**Status:** gold(a,u) **human** read/write + pack into chat = done. Agent gold tool = **out of v0**. Team/shelf OKF still later.
+**Status (P9):** gold(a,u) **human** read/write + pack into chat = done. Agent gold tool = **out of v0**. Team/shelf OKF still later.

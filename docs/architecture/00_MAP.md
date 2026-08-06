@@ -36,6 +36,6 @@ flowchart LR
 - BAD: invent a Python Agent subclass package
 ```
 
-**Built now (P1–P8 + gold):** health, empty office, desks CRUD, Docker, UI, `X-User-Id`, chat via OpenAI-compatible adapter (Envelope + journal), **gold(a,u)** read/write + pack.  
-**Not yet:** OKF, HITL board, office Q&A.
-**Later:** gold write path, OKF pack/extract, HITL UI, office Q&A.
+**Built now (P1–P9):** health, empty office, desks CRUD, Docker, UI, `X-User-Id`, chat (OpenAI-compatible + Envelope + journal), **gold(a,u)** human write + pack into chat.  
+**Not yet (rest of v0):** OKF pack/extract, HITL board, office Q&A.  
+**Out of v0 cut:** stream-agent `append_gold` tool (human gold write only).

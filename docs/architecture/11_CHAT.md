@@ -1,4 +1,4 @@
-# Chat run path (P8+)
+# Chat run path (P8) · gold pack (P9)
 
 UI → orchestrator → OpenAI-compatible server (default Ollama `/v1`). Pull model separately.  
 Full call chain: main → router → classes. See [V0_SCOPE.md](../V0_SCOPE.md) for product cut.
