@@ -121,6 +121,13 @@ class OkfStore:
             rows = conn.execute(sql, params).fetchall()
         return [_row_to_fact(r) for r in rows]
 
+    def list_scopes(self) -> list[str]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT scope FROM okf_facts ORDER BY scope"
+            ).fetchall()
+        return [str(r["scope"]) for r in rows]
+
     def archive(self, fact_id: str) -> bool:
         with self._connect() as conn:
             cur = conn.execute(

@@ -35,7 +35,7 @@ apps/orchestrator/src/agent_anystack/
   domain/org.py        # OrgConfig
   office/repository.py # load/write office/ tree
   adapters/            # llm.py — StackAdapter + OpenAICompatibleAdapter (+ later wires)
-  memory/              # OkfStore + pack (team OKF); gold under office/
+  memory/              # OkfStore + pack + extract + export → office/memory/
   runs/                # ChatRunService + journal
   hitl/                # ApprovalCard store + permissive decide
   office_qa.py         # Front-desk status / knowledge

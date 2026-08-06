@@ -1,6 +1,10 @@
-"""Team OKF HTTP — list / create / archive (seed path until extract pipeline)."""
+"""Team OKF HTTP — list / create / archive / export leave-path."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import re
+from pathlib import Path
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from agent_anystack.api.deps import get_user_id
 from agent_anystack.config import Settings, get_settings
@@ -8,14 +12,33 @@ from agent_anystack.memory import (
     CreateOkfFactRequest,
     OkfFact,
     OkfStore,
+    export_okf_to_memory,
     sqlite_path_from_database_url,
 )
 
 router = APIRouter(tags=["okf"])
 
+_TEAM_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
+
 
 def get_okf_store(settings: Settings = Depends(get_settings)) -> OkfStore:
     return OkfStore(sqlite_path_from_database_url(settings.database_url))
+
+
+class ExportOkfRequest(BaseModel):
+    team: str | None = Field(
+        default=None,
+        description="Export one team; omit to export all scopes in DB",
+    )
+    include_archived: bool = True
+
+
+class ExportOkfResponse(BaseModel):
+    root: str
+    teams: list[str]
+    fact_count: int
+    archived_count: int
+    exported_at: str
 
 
 @router.get("/okf/facts", response_model=list[OkfFact])
@@ -37,7 +60,7 @@ async def create_fact(
     user_id: str = Depends(get_user_id),
     store: OkfStore = Depends(get_okf_store),
 ) -> OkfFact:
-    """Manual team fact until background extract exists — not a desk-LLM write."""
+    """Manual team fact — not a desk-LLM write."""
     fact = OkfFact(
         type=body.type,
         scope=f"team:{body.team}",
@@ -60,3 +83,31 @@ async def archive_fact(
 ) -> None:
     if not store.archive(fact_id):
         raise HTTPException(status_code=404, detail=f"fact not found: {fact_id}")
+
+
+@router.post("/okf/export", response_model=ExportOkfResponse)
+async def export_okf(
+    body: ExportOkfRequest = Body(default_factory=ExportOkfRequest),
+    store: OkfStore = Depends(get_okf_store),
+    settings: Settings = Depends(get_settings),
+    _user_id: str = Depends(get_user_id),
+) -> ExportOkfResponse:
+    """Write SQLite OKF → office/memory/ (portable leave-path; not hot pack)."""
+    if body.team is not None and not _TEAM_RE.fullmatch(body.team):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="team must match ^[a-z][a-z0-9_-]*$",
+        )
+    result = export_okf_to_memory(
+        store,
+        Path(settings.office_repo_path),
+        team=body.team,
+        include_archived=body.include_archived,
+    )
+    return ExportOkfResponse(
+        root=result.root,
+        teams=result.teams,
+        fact_count=result.fact_count,
+        archived_count=result.archived_count,
+        exported_at=result.exported_at,
+    )

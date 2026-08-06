@@ -18,6 +18,7 @@ flowchart LR
     MAP --> OQ[12_OFFICE_QA]
     MAP --> H13[13_HITL]
     MAP --> A14[14_AUTONOMY_GATE]
+    MAP --> E15[15_OKF_EXPORT]
 ```
 
 | File | Topic |
@@ -36,12 +37,13 @@ flowchart LR
 | [12_OFFICE_QA.md](./12_OFFICE_QA.md) | Office Q&A flow: main → classify → journal/OKF |
 | [13_HITL.md](./13_HITL.md) | HITL board flow: propose → decide → journal |
 | [14_AUTONOMY_GATE.md](./14_AUTONOMY_GATE.md) | Autonomy gate flow: effective → allow/hitl/deny |
+| [15_OKF_EXPORT.md](./15_OKF_EXPORT.md) | OKF export flow: SQLite → office/memory/ |
 
 ```text
 + OK: read these before changing orchestrator code
 - BAD: invent a Python Agent subclass package
 ```
 
-**Built now (P1–P14):** health, desks, Docker, UI, chat, gold, team OKF pack, post-run extract, office Q&A, approval board, **autonomy gate on external_send**.  
-**Not yet (rest of v0):** shelf ∩ P(p), OKF export.  
-**Out of v0 cut:** stream-agent `append_gold` tool (human gold write only).
+**Built now (P1–P15):** health, desks, Docker, UI, chat, gold, team OKF pack/extract, office Q&A, HITL board, autonomy gate, **OKF export**.  
+**Optional later:** shelf ∩ P(p), OKF import, Settings read-only page.  
+**Out of v0 cut:** stream-agent `append_gold` tool (human gold write only); floors / full MCP / Analytics BI.

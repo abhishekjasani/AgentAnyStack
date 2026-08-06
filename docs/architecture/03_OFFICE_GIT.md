@@ -15,6 +15,9 @@ flowchart LR
 ```text
 office/
   org.yaml                 # org max_autonomy, defaults
+  memory/                  # OKF export snapshot (P15) — not hot pack
+    index.md
+    teams/<team>/…
   teams/
     <team>/
       agents/

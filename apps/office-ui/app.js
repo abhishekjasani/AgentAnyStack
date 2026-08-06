@@ -288,6 +288,35 @@
   $("#gold-clear").addEventListener("click", () => clearGold());
   $("#okf-add").addEventListener("click", () => addOkfFact());
   $("#okf-refresh").addEventListener("click", () => loadOkf());
+  $("#okf-export").addEventListener("click", () => exportOkf());
+
+  async function exportOkf() {
+    const team = ($("#okf-team").value || "eng").trim();
+    const err = $("#okf-error");
+    const ok = $("#okf-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    try {
+      const res = await api("/okf/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team, include_archived: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = data.detail;
+        throw new Error(
+          typeof detail === "string" ? detail : detail?.message || `export ${res.status}`
+        );
+      }
+      ok.textContent =
+        `Exported ${data.fact_count} active + ${data.archived_count} archived → ${data.root}`;
+      ok.hidden = false;
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
 
   let approvalsFilter = "pending_human";
 

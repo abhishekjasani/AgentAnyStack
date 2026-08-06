@@ -256,4 +256,4 @@ sequenceDiagram
 | User override on chat Envelope | Optional; chat uses agent default today |
 
 **Status (P14):** one gate on propose = done.  
-**Next:** OKF export to `memory/` (slice 10).
+**Core v0:** also [15_OKF_EXPORT.md](./15_OKF_EXPORT.md). Optional: shelf / import.

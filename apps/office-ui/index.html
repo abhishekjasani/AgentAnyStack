@@ -136,7 +136,8 @@
             <h1>Memory</h1>
             <p class="lede">
               Gold = per-user notepad. Team OKF = shared SQLite facts packed into chat
-              (<code>C ≈ gold ∪ mem(team)</code>). Extract pipeline later — add facts here for now.
+              (<code>C ≈ gold ∪ mem(team)</code>). Export writes a portable snapshot under
+              <code>office/memory/</code> (leave-path).
             </p>
           </div>
         </header>
@@ -175,6 +176,7 @@
           <div class="form-actions memory-actions">
             <button type="button" class="btn primary" id="okf-add">Add fact</button>
             <button type="button" class="btn ghost" id="okf-refresh">Refresh</button>
+            <button type="button" class="btn ghost" id="okf-export" title="Write SQLite OKF to office/memory/">Export OKF</button>
           </div>
           <ul id="okf-list" class="okf-list"></ul>
         </div>

@@ -220,4 +220,4 @@ Toggle: `OKF_EXTRACT_ENABLED` (default true). Failures are logged; they do not f
 - BAD: filter shared OKF by user_id on pack (v0)
 ```
 
-**Status (P11–P12):** gold + team OKF pack + **post-run extract** (BackgroundTasks). Desk LLM still does not write OKF directly. Office Q&A reads OKF/journal — [12_OFFICE_QA.md](./12_OFFICE_QA.md). Shelf / export later.
+**Status (P11–P15):** gold + team OKF pack + extract + office Q&A + **OKF export** ([15_OKF_EXPORT.md](./15_OKF_EXPORT.md)). Shelf ∩ P(p) / import later.

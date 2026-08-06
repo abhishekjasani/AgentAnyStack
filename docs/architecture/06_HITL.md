@@ -47,4 +47,4 @@ Ceiling on **agent create** (`AutonomyCeilingError`). Runtime: `hitl/autonomy.co
 
 Full sequences + module map: **[14_AUTONOMY_GATE.md](./14_AUTONOMY_GATE.md)**.
 
-**Next v0:** OKF export to `memory/` (slice 10).
+**Next v0 (optional):** shelf ∩ P(p), OKF import, Settings read-only page.

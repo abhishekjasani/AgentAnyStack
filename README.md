@@ -4,12 +4,11 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phases 1–14 done
+## Phases 1–15 done
 
-**P13** HITL board · **P14** effective autonomy gate on `external_send` (deny / HITL / auto-allow).  
-Flows: [13_HITL.md](docs/architecture/13_HITL.md) · [14_AUTONOMY_GATE.md](docs/architecture/14_AUTONOMY_GATE.md).
+**P15** OKF export → `office/memory/` (leave-path). Flow: [15_OKF_EXPORT.md](docs/architecture/15_OKF_EXPORT.md).
 
-**Next (when you say go):** OKF export to `memory/` ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 10).
+Core IMPLEMENTATION slices 1–10 complete. Optional: shelf ∩ P(p), OKF import, Settings page.
 
 ### Docker
 

@@ -318,5 +318,5 @@ Already decided / missing id → **404** (`ApprovalNotPendingError`).
 | Memory HITL cards | Async pipeline |
 | Community “single user only” switch | Edition flag on top of this plumbing |
 
-**Status:** P13 board + **P14 gate** = done. See [14_AUTONOMY_GATE.md](./14_AUTONOMY_GATE.md) for allow/hitl/deny bands.  
-**Next:** OKF export to `memory/` (slice 10).
+**Status:** P13 board + P14 gate + **P15 OKF export** = core slices done.  
+**Optional:** shelf ∩ P(p), OKF import.
