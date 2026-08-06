@@ -26,6 +26,7 @@
       </label>
       <nav class="nav-list">
         <button type="button" class="nav-item is-active" data-view="team">Team</button>
+        <button type="button" class="nav-item" data-view="office">Office</button>
         <button type="button" class="nav-item" data-view="memory">Memory</button>
         <button type="button" class="nav-item" data-view="approvals">Approvals</button>
         <button type="button" class="nav-item" data-view="analytics">Analytics</button>
@@ -98,6 +99,35 @@
             <button type="submit" class="btn primary">Save desk</button>
           </div>
         </form>
+      </section>
+
+      <section id="view-office" class="view" hidden>
+        <header class="view-head">
+          <div>
+            <h1>Office</h1>
+            <p class="lede">
+              Front desk — status from the journal, knowledge from team OKF with citations.
+              No desk agent. For build/send work, use Team → Chat.
+            </p>
+          </div>
+        </header>
+        <form id="office-form" class="form memory-form">
+          <label>
+            Team
+            <input id="office-team" type="text" value="eng" pattern="[a-z][a-z0-9_-]*" />
+          </label>
+          <label>
+            Ask the office
+            <textarea id="office-input" rows="3" required placeholder="What’s running? What’s our retail commission?"></textarea>
+          </label>
+          <p id="office-error" class="error" hidden></p>
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="office-send">Ask</button>
+          </div>
+        </form>
+        <p id="office-kind" class="desk-meta"></p>
+        <pre id="office-answer" class="office-answer" hidden></pre>
+        <p id="office-cites" class="desk-meta"></p>
       </section>
 
       <section id="view-memory" class="view" hidden>

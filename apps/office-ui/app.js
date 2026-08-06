@@ -181,6 +181,9 @@
       if (chosen && $("#okf-team")) {
         $("#okf-team").value = chosen.team || "eng";
       }
+      if (chosen && $("#office-team")) {
+        $("#office-team").value = chosen.team || "eng";
+      }
       await loadGoldForSelected();
       await loadOkf();
     } catch (e) {
@@ -284,6 +287,46 @@
   $("#gold-clear").addEventListener("click", () => clearGold());
   $("#okf-add").addEventListener("click", () => addOkfFact());
   $("#okf-refresh").addEventListener("click", () => loadOkf());
+
+  $("#office-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const err = $("#office-error");
+    const answer = $("#office-answer");
+    const kind = $("#office-kind");
+    const cites = $("#office-cites");
+    const send = $("#office-send");
+    err.hidden = true;
+    answer.hidden = true;
+    kind.textContent = "";
+    cites.textContent = "";
+    const message = ($("#office-input").value || "").trim();
+    const team = ($("#office-team").value || "eng").trim();
+    if (!message) return;
+    send.disabled = true;
+    try {
+      const res = await api("/office/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, team }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || `office ask ${res.status}`);
+      }
+      kind.textContent = `kind=${data.kind} · team=${data.team}`;
+      answer.textContent = data.answer || "";
+      answer.hidden = false;
+      const bits = (data.citations || [])
+        .map((c) => c.fact_id || c.run_id)
+        .filter(Boolean);
+      cites.textContent = bits.length ? `citations: ${bits.join(", ")}` : "";
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    } finally {
+      send.disabled = false;
+    }
+  });
 
   async function loadOkf() {
     const team = ($("#okf-team").value || "eng").trim();

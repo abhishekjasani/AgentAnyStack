@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     pack_token_budget: int = 8000
     gold_max_chars: int = Field(default=64_000, ge=1, le=1_000_000)
     okf_extract_enabled: bool = True
+    office_qa_llm: bool = False
+    office_qa_model: str = "llama3.2"
     approver_mode: str = "permissive"
 
 

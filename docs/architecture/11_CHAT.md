@@ -17,7 +17,8 @@ Full call chain: main → router → classes. See [V0_SCOPE.md](../V0_SCOPE.md) 
 | Human gold CRUD: `GET/PUT/DELETE /agents/{id}/gold` + Memory UI (**only** write path) | **Built** |
 | Pack formula grows to `C(a,p,u)` ≈ gold ∪ team OKF | **Built** (shelf ∩ P(p) later) |
 | Background extract after run | **Built** (P11 — BackgroundTasks) |
-| Thin office Q&A; one HITL card | **v0 — not built yet** |
+| Thin office Q&A | **Built** (P12 — `POST /office/ask`) |
+| One HITL card | **v0 — not built yet** |
 
 ### Explicitly not v0 (design only below)
 

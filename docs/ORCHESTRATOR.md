@@ -101,6 +101,8 @@ Users may talk to the **office** without targeting an agent (`Office:` or defaul
 
 **Latency:** status/knowledge retrieval stays on the request path (budgeted). Full memory **extract/upsert** after agent runs stays **async** (`create_task` / BackgroundTasks / later arq) — never block chat on long extract.
 
+**Built (P12):** `POST /office/ask` — module flow + examples: [architecture/12_OFFICE_QA.md](./architecture/12_OFFICE_QA.md).
+
 ### Explicit non-responsibilities
 
 - No free-roaming LLM persona that invents business facts

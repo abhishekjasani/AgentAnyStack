@@ -4,12 +4,12 @@
 
 Product truth: [`docs/`](docs/). Build phases: pair with the coding agent; review and commit each phase.
 
-## Phases 1–11 done
+## Phases 1–12 done
 
-**P8 Chat** · **P9 Gold** · **P10 OKF pack** · **P11 post-run extract**  
-Extract runs in `BackgroundTasks` after SSE (does not block chat). Toggle `OKF_EXTRACT_ENABLED`.
+**P11 extract** · **P12 office Q&A** (`POST /office/ask` + Office nav).  
+Status from journal; knowledge from OKF with citations; work → use a desk.
 
-**Next (when you say go):** thin office Q&A ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 7).
+**Next (when you say go):** one HITL approval card ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) slice 8).
 
 ### Docker
 

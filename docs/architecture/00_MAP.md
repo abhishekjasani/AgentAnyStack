@@ -15,6 +15,7 @@ flowchart LR
     MAP --> U[09_UI]
     MAP --> USR[10_USER]
     MAP --> CH[11_CHAT]
+    MAP --> OQ[12_OFFICE_QA]
 ```
 
 | File | Topic |
@@ -30,12 +31,13 @@ flowchart LR
 | [09_UI.md](./09_UI.md) | Office UI shell |
 | [10_USER.md](./10_USER.md) | X-User-Id stub |
 | [11_CHAT.md](./11_CHAT.md) | Chat flow: main → router → modules |
+| [12_OFFICE_QA.md](./12_OFFICE_QA.md) | Office Q&A flow: main → classify → journal/OKF |
 
 ```text
 + OK: read these before changing orchestrator code
 - BAD: invent a Python Agent subclass package
 ```
 
-**Built now (P1–P11):** health, desks, Docker, UI, chat, gold, team OKF pack, **post-run OKF extract**.  
-**Not yet (rest of v0):** office Q&A, HITL board, shelf ∩ P(p), OKF export.  
+**Built now (P1–P12):** health, desks, Docker, UI, chat, gold, team OKF pack, post-run extract, **office Q&A**.  
+**Not yet (rest of v0):** HITL board, autonomy gate, shelf ∩ P(p), OKF export.  
 **Out of v0 cut:** stream-agent `append_gold` tool (human gold write only).
