@@ -42,6 +42,7 @@ docker compose --profile ollama up -d
 | Runtime | Ollama uses CUDA when devices are passed; otherwise CPU |
 | macOS + Docker | No Metal in Docker → **CPU** in container. Prefer native Ollama + `OLLAMA_BASE_URL=http://host.docker.internal:11434` |
 | Weights | Host **`./data/ollama`** → container `/root/.ollama` (gitignored; shared CPU/GPU) |
+| GPU health | Stacks **Check GPU** → `GET /models/health` (on-demand). GPU compose also attaches devices to **orchestrator** so `nvidia-smi` works without docker.sock |
 
 See also [LOCAL_MODEL_STACK.md](../LOCAL_MODEL_STACK.md) §9 · [17_MODELS.md](./17_MODELS.md).
 

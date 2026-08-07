@@ -471,6 +471,78 @@
     }
   }
 
+  function runTagLabel(tag) {
+    const map = {
+      running_gpu: "running · GPU",
+      running_cpu: "running · CPU",
+      running_split: "running · split",
+      running_unknown: "running",
+      likely_gpu: "likely GPU",
+      likely_cpu: "likely CPU / tight VRAM",
+      cpu_only_host: "CPU only (no GPU)",
+      unknown: "unknown",
+    };
+    return map[tag] || tag || "unknown";
+  }
+
+  function renderStacksHealth(report) {
+    const box = $("#stacks-health");
+    if (!box || !report) {
+      if (box) box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = "";
+    const head = document.createElement("div");
+    head.className = "stacks-health-head";
+    const verdict = document.createElement("strong");
+    verdict.textContent = `GPU check · ${report.verdict || "?"}`;
+    const summary = document.createElement("p");
+    summary.className = "desk-meta";
+    summary.textContent = report.summary || "";
+    head.append(verdict, summary);
+    box.appendChild(head);
+    const ul = document.createElement("ul");
+    ul.className = "stacks-health-steps";
+    for (const step of report.steps || []) {
+      const li = document.createElement("li");
+      li.className = `health-step is-${step.status || "skip"}`;
+      const title = document.createElement("div");
+      title.textContent = `[${step.status}] ${step.id}: ${step.detail || ""}`;
+      li.appendChild(title);
+      if (step.fix) {
+        const fix = document.createElement("div");
+        fix.className = "desk-meta health-fix";
+        fix.textContent = `Fix: ${step.fix}`;
+        li.appendChild(fix);
+      }
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+  }
+
+  async function loadStacksHealth() {
+    const err = $("#stacks-error");
+    try {
+      const res = await api("/models/health");
+      if (!res.ok) throw new Error(`GET /models/health ${res.status}`);
+      const report = await res.json();
+      renderStacksHealth(report);
+      return report;
+    } catch (e) {
+      renderStacksHealth({
+        verdict: "error",
+        summary: String(e.message || e),
+        steps: [],
+      });
+      if (err) {
+        err.textContent = String(e.message || e);
+        err.hidden = false;
+      }
+      return null;
+    }
+  }
+
   async function loadStacks() {
     const list = $("#stacks-catalog");
     const err = $("#stacks-error");
@@ -480,9 +552,26 @@
     note.hidden = true;
     list.innerHTML = "";
     try {
-      const res = await api("/models");
+      const [res, health] = await Promise.all([
+        api("/models"),
+        api("/models/health"),
+      ]);
       if (!res.ok) throw new Error(`GET /models ${res.status}`);
       const data = await res.json();
+      let report = null;
+      if (health.ok) {
+        report = await health.json();
+        renderStacksHealth(report);
+      } else {
+        renderStacksHealth({
+          verdict: "error",
+          summary: `GET /models/health ${health.status}`,
+          steps: [],
+        });
+      }
+      const hintById = Object.fromEntries(
+        (report?.catalog_hints || []).map((h) => [h.id, h])
+      );
       const eng = data.engine || {};
       engineEl.textContent = eng.reachable
         ? `Ollama · ${eng.native_base} · reachable`
@@ -507,8 +596,7 @@
         title.textContent = entry.label || entry.id;
         const meta = document.createElement("div");
         meta.className = "desk-meta";
-        const grade =
-          entry.grade === "agent" ? "agent-grade" : "demo-grade";
+        const hint = hintById[entry.id];
         const size =
           sizeByName[entry.id] != null
             ? formatBytes(sizeByName[entry.id])
@@ -517,16 +605,26 @@
           entry.note || "",
           size,
           entry.pulled ? "pulled" : "not pulled",
+          hint ? hint.reason : "",
         ]
           .filter(Boolean)
           .join(" · ");
-        const gradeEl = document.createElement("span");
-        gradeEl.className = `model-grade ${grade}`;
-        gradeEl.textContent = entry.grade === "agent" ? "agent" : "demo";
         left.append(title, meta);
         const right = document.createElement("div");
         right.className = "desk-actions model-actions";
+        const gradeEl = document.createElement("span");
+        gradeEl.className =
+          "model-grade " +
+          (entry.grade === "agent" ? "agent-grade" : "demo-grade");
+        gradeEl.textContent = entry.grade === "agent" ? "agent" : "demo";
         right.appendChild(gradeEl);
+        if (hint?.run_tag) {
+          const runEl = document.createElement("span");
+          runEl.className = `model-grade run-tag run-${hint.run_tag}`;
+          runEl.textContent = runTagLabel(hint.run_tag);
+          runEl.title = hint.reason || "";
+          right.appendChild(runEl);
+        }
         const progress = document.createElement("div");
         progress.className = "model-progress";
         progress.hidden = true;
@@ -655,6 +753,7 @@
   $("#btn-empty-create").addEventListener("click", () => showView("create"));
   $("#btn-back-team").addEventListener("click", () => showView("team"));
   $("#btn-stacks-refresh").addEventListener("click", () => loadStacks());
+  $("#btn-stacks-health").addEventListener("click", () => loadStacksHealth());
   $("#gold-agent").addEventListener("change", () => loadGoldForSelected());
   $("#gold-save").addEventListener("click", () => saveGold());
   $("#gold-clear").addEventListener("click", () => clearGold());

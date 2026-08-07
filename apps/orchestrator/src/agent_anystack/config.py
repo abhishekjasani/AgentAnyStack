@@ -43,6 +43,11 @@ class Settings(BaseSettings):
         default="admin",
         validation_alias=AliasChoices("ORG_ADMINS"),
     )
+    # For on-demand Stacks GPU health (docker exec nvidia-smi when CLI available).
+    ollama_container_name: str = Field(
+        default="agentanystack-ollama-1",
+        validation_alias=AliasChoices("OLLAMA_CONTAINER_NAME"),
+    )
 
 
 @lru_cache

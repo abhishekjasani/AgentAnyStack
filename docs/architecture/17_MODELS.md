@@ -14,8 +14,12 @@ flowchart LR
 | HTTP | Role |
 | --- | --- |
 | `GET /models` | engine reachability + curated catalog (`pulled`) + installed |
+| `GET /models/health` | **On-demand** GPU ladder (Stacks only) — steps + fix hints + run tags |
 | `POST /models/pull` | SSE progress (`meta` / `progress` / `done` / `error`) |
 | `POST /models/delete` | remove curated tag from `./data/ollama` |
+
+**Health** runs only when Stacks loads or user clicks **Check GPU** — never from chat/channel.  
+Needs `nvidia-smi` (orchestrator with `docker-compose.gpu.yml`) and/or host `docker exec`.
 
 **Class:** `OllamaModelManager` in `adapters/ollama_models.py` (only Ollama-specific module).  
 **UI:** nav **Stacks** — Pull / progress / Delete.  

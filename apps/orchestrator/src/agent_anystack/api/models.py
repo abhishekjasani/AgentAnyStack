@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from agent_anystack.adapters.ollama_health import diagnose_gpu_health
 from agent_anystack.adapters.ollama_models import (
     CURATED_CATALOG,
     OllamaModelManager,
@@ -66,6 +67,16 @@ async def list_models(mgr: OllamaModelManager = Depends(get_model_manager)) -> d
         "catalog": catalog,
         "installed": installed,
     }
+
+
+@router.get("/models/health")
+async def models_health(settings: Settings = Depends(get_settings)) -> dict[str, Any]:
+    """On-demand GPU / Ollama ladder — Stacks UI only; not used by chat."""
+    report = await diagnose_gpu_health(
+        openai_compatible_base_url=settings.openai_compatible_base_url,
+        ollama_container_name=settings.ollama_container_name,
+    )
+    return report.as_dict()
 
 
 @router.post("/models/pull")

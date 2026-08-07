@@ -387,6 +387,66 @@ h1 {
   border-color: #6a8f82;
   color: #2f5b4c;
 }
+.model-grade.run-tag {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.model-grade.run-likely_gpu,
+.model-grade.run-running_gpu {
+  border-color: #6a8f82;
+  color: #2f5b4c;
+}
+.model-grade.run-likely_cpu,
+.model-grade.run-running_cpu,
+.model-grade.run-cpu_only_host {
+  border-color: #a67c52;
+  color: #6b4a2e;
+}
+.model-grade.run-running_split,
+.model-grade.run-unknown {
+  border-color: var(--line);
+  color: var(--muted);
+}
+.stacks-health {
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  padding: 0.85rem 1rem;
+  margin: 0.75rem 0 1rem;
+  font-size: 0.9rem;
+}
+.stacks-health-head strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+.stacks-health-steps {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+.health-step {
+  border-top: 1px solid var(--line);
+  padding-top: 0.4rem;
+}
+.health-step.is-pass {
+  border-left: 3px solid #6a8f82;
+  padding-left: 0.5rem;
+}
+.health-step.is-fail {
+  border-left: 3px solid #a15c4a;
+  padding-left: 0.5rem;
+}
+.health-step.is-warn,
+.health-step.is-skip {
+  border-left: 3px solid #c4a574;
+  padding-left: 0.5rem;
+}
+.health-fix {
+  margin-top: 0.25rem;
+  white-space: pre-wrap;
+}
+
 .model-progress {
   grid-column: 1 / -1;
   display: grid;

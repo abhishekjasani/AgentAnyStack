@@ -10,6 +10,20 @@
 #   docker compose --profile ollama up -d
 
 services:
+  # nvidia-smi in orchestrator enables Stacks GET /models/health without docker.sock
+  orchestrator:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      OLLAMA_CONTAINER_NAME: agentanystack-ollama-1
+
   ollama:
     deploy:
       resources:
