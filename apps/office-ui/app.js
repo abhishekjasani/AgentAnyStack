@@ -591,13 +591,6 @@
             verifyModel(entry.id, { fill, status, progress, verify })
           );
           right.appendChild(verify);
-          const unload = document.createElement("button");
-          unload.type = "button";
-          unload.className = "btn ghost";
-          unload.textContent = "Unload";
-          unload.title = "Free GPU/RAM (keep weights on disk)";
-          unload.addEventListener("click", () => unloadModel(entry.id));
-          right.appendChild(unload);
           const del = document.createElement("button");
           del.type = "button";
           del.className = "btn danger";
@@ -787,22 +780,32 @@
     }
   }
 
-  async function unloadModel(name) {
+  async function flushModels() {
     const err = $("#stacks-error");
+    const btn = $("#btn-stacks-flush");
     err.hidden = true;
+    if (btn) btn.disabled = true;
     try {
-      const res = await api("/models/unload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
+      const res = await api("/models/flush", { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || `unload ${res.status}`);
-      await loadStacks();
+      if (!res.ok) throw new Error(data.detail || `flush ${res.status}`);
+      const still = data.still_loaded || [];
+      const unloaded = data.unloaded || [];
+      if (still.length) {
+        err.textContent =
+          `Flush partial — still loaded: ${still.join(", ")}. ` +
+          "If VRAM stays high, restart the Ollama container.";
+        err.hidden = false;
+      } else if (!unloaded.length) {
+        err.textContent = "Nothing loaded in Ollama — if VRAM is still high, that is outside Ollama (driver / other GPU apps). Restart Ollama or check nvidia-smi.";
+        err.hidden = false;
+      }
       await loadStacksHealth();
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
+    } finally {
+      if (btn) btn.disabled = false;
     }
   }
 
@@ -840,6 +843,7 @@
   $("#btn-back-team").addEventListener("click", () => showView("team"));
   $("#btn-stacks-refresh").addEventListener("click", () => loadStacks());
   $("#btn-stacks-health").addEventListener("click", () => loadStacksHealth());
+  $("#btn-stacks-flush").addEventListener("click", () => flushModels());
   $("#gold-agent").addEventListener("change", () => loadGoldForSelected());
   $("#gold-refresh").addEventListener("click", () => loadGoldForSelected());
   $("#okf-add").addEventListener("click", () => addOkfFact());

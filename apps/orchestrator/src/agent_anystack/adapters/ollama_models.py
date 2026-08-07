@@ -179,9 +179,50 @@ class OllamaModelManager:
                 code="timeout",
             ) from exc
 
+    async def list_loaded(self) -> list[dict[str, Any]]:
+        """Models currently in Ollama RAM/VRAM (GET /api/ps)."""
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.get(f"{self.native_base}/api/ps")
+        except httpx.ConnectError as exc:
+            raise OllamaModelsError(
+                f"Cannot reach Ollama at {self.native_base}",
+                code="unreachable",
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise OllamaModelsError(
+                f"Ollama /api/ps timed out at {self.native_base}",
+                code="timeout",
+            ) from exc
+        if resp.status_code >= 400:
+            raise OllamaModelsError(
+                f"Ollama ps failed ({resp.status_code}): {resp.text[:300]}",
+                code="ps_http",
+            )
+        data = resp.json()
+        out: list[dict[str, Any]] = []
+        for row in data.get("models") or []:
+            name = str(row.get("name") or row.get("model") or "").strip()
+            if not name:
+                continue
+            out.append(
+                {
+                    "name": name,
+                    "size": row.get("size"),
+                    "size_vram": row.get("size_vram"),
+                    "expires_at": row.get("expires_at"),
+                }
+            )
+        return out
+
     async def unload(self, name: str) -> dict[str, Any]:
-        """Unload model from Ollama memory/VRAM via keep_alive: 0 (weights stay on disk)."""
-        tag = assert_curated(name)
+        """Unload one model from Ollama memory/VRAM via keep_alive: 0 (weights stay on disk).
+
+        Name may be any tag Ollama reports in /api/ps (not limited to curated catalog).
+        """
+        tag = name.strip()
+        if not tag:
+            raise OllamaModelsError("model name required", code="bad_name")
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(
@@ -216,6 +257,25 @@ class OllamaModelManager:
         return {
             "name": tag,
             "done_reason": data.get("done_reason") or "unload",
+        }
+
+    async def flush(self) -> dict[str, Any]:
+        """Unload every model currently listed in /api/ps (Ollama RAM/VRAM only)."""
+        before = await self.list_loaded()
+        unloaded: list[dict[str, Any]] = []
+        errors: list[dict[str, str]] = []
+        for row in before:
+            name = row["name"]
+            try:
+                unloaded.append(await self.unload(name))
+            except OllamaModelsError as exc:
+                errors.append({"name": name, "code": exc.code, "message": str(exc)})
+        after = await self.list_loaded()
+        return {
+            "before": [m["name"] for m in before],
+            "unloaded": [u["name"] for u in unloaded],
+            "still_loaded": [m["name"] for m in after],
+            "errors": errors,
         }
 
     async def delete(self, name: str) -> None:

@@ -223,6 +223,14 @@
           </div>
           <button type="button" class="btn ghost" id="btn-stacks-refresh">Refresh</button>
           <button type="button" class="btn ghost" id="btn-stacks-health">Check GPU</button>
+          <button
+            type="button"
+            class="btn ghost"
+            id="btn-stacks-flush"
+            title="Unload all models from Ollama RAM/VRAM (weights stay on disk)"
+          >
+            Flush
+          </button>
         </header>
         <p id="stacks-engine" class="desk-meta"></p>
         <div id="stacks-health" class="stacks-health" hidden></div>

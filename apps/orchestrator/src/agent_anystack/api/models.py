@@ -1,4 +1,4 @@
-"""Local model catalog — list / pull (SSE) / verify / unload / delete via Ollama."""
+"""Local model catalog — list / pull (SSE) / verify / flush / delete via Ollama."""
 
 from __future__ import annotations
 
@@ -162,20 +162,24 @@ async def verify_model(
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
-@router.post("/models/unload")
-async def unload_model(
-    body: ModelNameBody,
+@router.post("/models/flush")
+async def flush_models(
     mgr: OllamaModelManager = Depends(get_model_manager),
 ) -> dict[str, Any]:
-    """Unload model from Ollama RAM/VRAM (keep_alive: 0). Does not delete weights."""
+    """Unload all models currently in Ollama RAM/VRAM (/api/ps → keep_alive: 0).
+
+    Does not delete weights or reset the NVIDIA driver. If VRAM stays high with
+    still_loaded empty, restart the Ollama container / check other GPU processes.
+    """
     try:
-        result = await mgr.unload(body.name.strip())
+        result = await mgr.flush()
     except OllamaModelsError as exc:
         raise HTTPException(
             status_code=_http_status_for_models_error(exc),
             detail=str(exc),
         ) from exc
-    return {"status": "unloaded", **result}
+    status = "flushed" if not result["still_loaded"] and not result["errors"] else "partial"
+    return {"status": status, **result}
 
 
 @router.post("/models/delete")

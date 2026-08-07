@@ -17,16 +17,18 @@ flowchart LR
 | `GET /models/health` | **On-demand** GPU ladder (Stacks only) — steps + fix hints + run tags |
 | `POST /models/verify` | Warm-load curated tag + report `running_gpu` / `running_cpu` (SSE) |
 | `POST /models/pull` | SSE progress (`meta` / `progress` / `done` / `cancelled` / `error`); client abort closes Ollama stream |
-| `POST /models/unload` | free RAM/VRAM via `POST /api/generate` `{keep_alive: 0}` (weights stay on disk) |
+| `POST /models/flush` | unload **all** models in `/api/ps` via `keep_alive: 0` (weights stay on disk; not a driver reset) |
 | `POST /models/delete` | remove curated tag from `./data/ollama` |
 
 **Health** runs only when Stacks loads or user clicks **Check GPU** — never from chat/channel.  
 Needs `nvidia-smi` (orchestrator with `docker-compose.gpu.yml`) and/or host `docker exec`.
 
+**Flush** frees Ollama-held RAM/VRAM only. If Check GPU still shows high VRAM with `still_loaded: []`, restart the Ollama container or inspect other GPU processes — that is outside app-level unload.
+
 **Timeouts (env):** `OPENAI_COMPATIBLE_TIMEOUT` (chat/soft jobs), `OLLAMA_PULL_TIMEOUT` (Stacks pull).
 
 **Class:** `OllamaModelManager` in `adapters/ollama_models.py` (only Ollama-specific module).  
-**UI:** nav **Stacks** — Pull / Cancel / Verify / Unload / Delete.  
+**UI:** nav **Stacks** — Pull / Cancel / Verify / Delete; header **Flush** + **Check GPU**.  
 
 **Prereq (CPU — default):**
 
