@@ -636,6 +636,15 @@
         status.className = "desk-meta";
         progress.append(bar, status);
         if (entry.pulled) {
+          const verify = document.createElement("button");
+          verify.type = "button";
+          verify.className = "btn ghost";
+          verify.textContent = "Verify";
+          verify.title = "Load model and confirm GPU vs CPU";
+          verify.addEventListener("click", () =>
+            verifyModel(entry.id, { fill, status, progress, verify })
+          );
+          right.appendChild(verify);
           const del = document.createElement("button");
           del.type = "button";
           del.className = "btn danger";
@@ -658,6 +667,80 @@
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
+    }
+  }
+
+  async function verifyModel(name, ui) {
+    const err = $("#stacks-error");
+    err.hidden = true;
+    ui.progress.hidden = false;
+    ui.verify.disabled = true;
+    ui.status.textContent = "verifying…";
+    ui.fill.style.width = "15%";
+    try {
+      const res = await api("/models/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `verify ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let failed = false;
+      let resultMsg = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() || "";
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data:")) continue;
+          const payload = JSON.parse(line.slice(5).trim());
+          if (payload.type === "progress") {
+            if (payload.phase === "loading") ui.fill.style.width = "40%";
+            if (payload.phase === "checking") ui.fill.style.width = "80%";
+            ui.status.textContent = payload.message || payload.phase || "…";
+          } else if (payload.type === "result") {
+            ui.fill.style.width = "100%";
+            resultMsg = [
+              runTagLabel(payload.run_tag),
+              payload.processor,
+              payload.reason,
+              payload.fix ? `Fix: ${payload.fix}` : "",
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            ui.status.textContent = resultMsg;
+            if (payload.run_tag === "running_cpu" || payload.fix) {
+              err.textContent = resultMsg;
+              err.hidden = false;
+            }
+          } else if (payload.type === "error") {
+            failed = true;
+            err.textContent = payload.message || "verify failed";
+            err.hidden = false;
+            ui.status.textContent = "error";
+          } else if (payload.type === "done") {
+            ui.fill.style.width = "100%";
+            if (!ui.status.textContent || ui.status.textContent === "verifying…") {
+              ui.status.textContent = "done";
+            }
+          }
+        }
+      }
+      if (!failed) await loadStacks();
+      else ui.verify.disabled = false;
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+      ui.verify.disabled = false;
+      ui.status.textContent = "error";
     }
   }
 
