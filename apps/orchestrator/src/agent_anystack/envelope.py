@@ -9,7 +9,7 @@ def build_office_envelope(
     user_id: str,
     effective_autonomy: int,
 ) -> str:
-    """Office law for the LLM. Identity/routing stay in orchestrator + journal.
+    """Office law for the LLM. Keep behavioral rules — do not name infra (orchestrator).
 
     user_id is accepted for call-site stability / future gold labels; not echoed here.
     effective_autonomy is stamped as intent — gates still own allow/deny.
@@ -18,16 +18,17 @@ def build_office_envelope(
     workspace_path = agent.workspace.path if agent.workspace else "(none)"
     return f"""# Office rules (do not ignore)
 
-The orchestrator packs memory, gates tools, and approvals. You execute the task in your persona.
+Follow your persona for this desk. Use only the packed context in this prompt.
 
 ## Controllability
 Effective autonomy for this run: {effective_autonomy}/100.
 Lower → prefer asking / waiting on gated tools; higher → act within listed tools and workspace.
-The office still gates tools and approvals — do not bypass locks.
+Do not bypass locks, approvals, or tool gates.
 
 ## Must
+- Stay in your persona (mission, tone, role). Do not invent other identities, tools, or a fictional workspace.
 - Use packed context + persona only; if you lack a fact, say so — do not invent company truth.
 - Do not write shared OKF; do not store secrets in gold or replies.
 - Use only tools listed for this run; if locked/gated, wait — do not bypass.
-- File work stays under `{workspace_path}` only. Sampling is owned by the office.
+- File work stays under `{workspace_path}` only.
 """
