@@ -42,17 +42,84 @@
         <header class="view-head">
           <div>
             <h1 id="team-title">Team</h1>
-            <p class="lede">Desks in this office. Create agents from the UI — none ship pre-built.</p>
+            <p class="lede">
+              Office front desk is always here; create desks for roles. Soft jobs live in
+              <code>office/orchestrator.yaml</code>.
+            </p>
           </div>
           <button type="button" class="btn primary" id="btn-open-create">Create agent</button>
         </header>
+        <ul id="desk-list" class="desk-list"></ul>
         <div id="team-empty" class="empty hidden">
           <p class="empty-title">No desks yet</p>
-          <p class="empty-body">An empty office. Add an agent to seat the first desk.</p>
+          <p class="empty-body">Office is ready. Add an agent to seat the first desk.</p>
           <button type="button" class="btn primary" id="btn-empty-create">Create agent</button>
         </div>
-        <ul id="desk-list" class="desk-list" hidden></ul>
         <p id="team-error" class="error" hidden></p>
+      </section>
+
+      <section id="view-office-config" class="view" aria-labelledby="office-config-title" hidden>
+        <header class="view-head">
+          <div>
+            <h1 id="office-config-title">Configure Office</h1>
+            <p class="lede">
+              Soft orchestrator jobs — writes <code>office/orchestrator.yaml</code>.
+              Not a desk persona (no gold / AGENT.md).
+            </p>
+          </div>
+          <button type="button" class="btn ghost" id="btn-back-office-team">Back to Team</button>
+        </header>
+        <form id="office-config-form" class="form">
+          <label>Name <input name="name" required maxlength="128" /></label>
+          <label>Model
+            <select name="model" id="office-config-model" required aria-label="Office soft-job model">
+              <option value="">Loading models…</option>
+            </select>
+          </label>
+          <p id="office-config-model-hint" class="desk-meta"></p>
+          <label class="check-row">
+            <input type="checkbox" name="office_qa_llm" />
+            Office Q&amp;A LLM phrasing (cite-bound)
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="okf_extract_enabled" />
+            OKF extract after desk runs
+          </label>
+          <label>Default team
+            <input name="default_team" required pattern="^[a-z][a-z0-9_-]*$" />
+          </label>
+          <label>Pack token budget
+            <input name="pack_token_budget" type="number" min="500" max="200000" required />
+          </label>
+          <label>Gold max chars
+            <input name="gold_max_chars" type="number" min="1" max="1000000" required />
+          </label>
+          <label>Recent history days
+            <input name="recent_history_days" type="number" min="0" max="90" required />
+          </label>
+          <label>Recent history char budget
+            <input name="recent_history_char_budget" type="number" min="0" max="100000" required />
+          </label>
+          <label>Approver mode
+            <select name="approver_mode">
+              <option value="permissive">permissive (requester or admin)</option>
+              <option value="strict">strict (org admin only)</option>
+            </select>
+          </label>
+          <p class="desk-meta">
+            Org ceiling (read-only from <code>org.yaml</code>):
+            <span id="office-config-org"></span>
+          </p>
+          <p class="stub-note">
+            TODO later: extract temperature, Q&amp;A phrase style, soft_job_max_tokens,
+            default_project_id, Stacks restart-on-flush.
+          </p>
+          <p id="office-config-error" class="error" hidden></p>
+          <p id="office-config-ok" class="desk-meta" hidden></p>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Save office config</button>
+          </div>
+        </form>
       </section>
 
       <section id="view-chat" class="view" aria-labelledby="chat-title" hidden>

@@ -1,4 +1,10 @@
-"""Platform settings from environment / .env (bucket 1 — not editable via UI in v0)."""
+"""Platform settings from environment / .env (bucket 1 — process/runtime).
+
+Office soft-job knobs (model, OKF extract, pack budgets, approver_mode, …) live in
+office/orchestrator.yaml — see domain.orchestrator.OrchestratorConfig.
+Settings fields below are seed defaults when that YAML is missing, plus env aliases
+for first-time Docker bootstrap.
+"""
 
 from functools import lru_cache
 
@@ -46,19 +52,20 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("OLLAMA_PULL_TIMEOUT"),
     )
 
+    # --- Seed defaults for office/orchestrator.yaml (prefer editing that file) ---
     pack_token_budget: int = 8000
     gold_max_chars: int = Field(default=64_000, ge=1, le=1_000_000)
-    # Desk chat packs recent channel history (data/channel/<user>.jsonl) — continuity only.
     recent_history_days: int = Field(default=7, ge=0, le=90)
     recent_history_char_budget: int = Field(default=6_000, ge=0, le=100_000)
     okf_extract_enabled: bool = True
     office_qa_llm: bool = False
-    # Soft office LLM jobs (OKF extract, optional Office Q&A phrasing) — not desk persona.
     office_model: str = Field(
         default="llama3.2",
         validation_alias=AliasChoices("OFFICE_MODEL", "OFFICE_QA_MODEL"),
     )
     approver_mode: str = "permissive"
+    # TODO: when yaml always present, drop soft-job seeds from env and keep only runtime.
+
     # Community: sole admin. Enterprise: expand list / RBAC; edition switch later.
     org_admins: str = Field(
         default="admin",
@@ -69,6 +76,9 @@ class Settings(BaseSettings):
         default="agentanystack-ollama-1",
         validation_alias=AliasChoices("OLLAMA_CONTAINER_NAME"),
     )
+
+    # TODO: platform settings read-only UI (IMPLEMENTATION.md §7.1)
+    # TODO: multi-admin / edition switch for org_admins
 
 
 @lru_cache

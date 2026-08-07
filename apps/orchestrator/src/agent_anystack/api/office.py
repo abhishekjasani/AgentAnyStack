@@ -1,4 +1,4 @@
-"""Office front-desk Q&A — status + cited knowledge (no desk agent)."""
+"""Office front-desk Q&A + orchestrator.yaml config (pinned Office card)."""
 
 from pathlib import Path
 
@@ -6,9 +6,16 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+from agent_anystack.api.agents import get_office_repo
 from agent_anystack.api.deps import get_user_id
 from agent_anystack.config import Settings, get_settings
+from agent_anystack.domain.orchestrator import (
+    OrchestratorConfig,
+    OrchestratorConfigUpdate,
+)
+from agent_anystack.domain.org import OrgConfig
 from agent_anystack.memory import OkfStore, sqlite_path_from_database_url
+from agent_anystack.office import OfficeRepository
 from agent_anystack.office_qa import OfficeAskKind, OfficeQaService
 from agent_anystack.runs.journal import RunJournal
 from agent_anystack.runs.service import journal_path_from_database_url
@@ -33,26 +40,62 @@ class OfficeAskResponse(BaseModel):
     team: str
 
 
-def get_office_qa(settings: Settings = Depends(get_settings)) -> OfficeQaService:
+class OfficeConfigResponse(BaseModel):
+    """Pinned Office card payload — soft jobs + org ceiling (read)."""
+
+    orchestrator: OrchestratorConfig
+    org: OrgConfig
+    # TODO: expose todos / planned knobs as structured list for UI
+
+
+def get_office_qa(
+    settings: Settings = Depends(get_settings),
+    repo: OfficeRepository = Depends(get_office_repo),
+) -> OfficeQaService:
+    orc = repo.load_orchestrator()
     journal = RunJournal(
         journal_path_from_database_url(settings.database_url, Path("./data"))
     )
     okf = OkfStore(sqlite_path_from_database_url(settings.database_url))
     adapter = None
     model = None
-    if settings.office_qa_llm:
+    if orc.office_qa_llm:
         adapter = OpenAICompatibleAdapter(
             settings.openai_compatible_base_url,
             timeout=settings.openai_compatible_timeout,
         )
-        model = settings.office_model
+        model = orc.model
     return OfficeQaService(
         journal,
         okf,
         adapter=adapter,
         phrase_model=model,
-        use_llm_phrase=settings.office_qa_llm,
+        use_llm_phrase=orc.office_qa_llm,
     )
+
+
+@router.get("/office/config", response_model=OfficeConfigResponse)
+async def get_office_config(
+    repo: OfficeRepository = Depends(get_office_repo),
+    _user_id: str = Depends(get_user_id),
+) -> OfficeConfigResponse:
+    """Office card + Configure form — from office/orchestrator.yaml (+ org.yaml)."""
+    return OfficeConfigResponse(
+        orchestrator=repo.load_orchestrator(),
+        org=repo.load_org(),
+    )
+
+
+@router.put("/office/config", response_model=OfficeConfigResponse)
+async def put_office_config(
+    body: OrchestratorConfigUpdate,
+    repo: OfficeRepository = Depends(get_office_repo),
+    _user_id: str = Depends(get_user_id),
+) -> OfficeConfigResponse:
+    """Persist Office soft knobs to office/orchestrator.yaml."""
+    # TODO: admin-only write when ORG_ADMINS enforcement ships for this route
+    orc = repo.update_orchestrator(body)
+    return OfficeConfigResponse(orchestrator=orc, org=repo.load_org())
 
 
 @router.post("/office/ask", response_model=OfficeAskResponse)

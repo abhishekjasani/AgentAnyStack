@@ -21,7 +21,6 @@ from agent_anystack.hitl.service import (
     ApprovalNotPendingError,
 )
 from agent_anystack.memory import sqlite_path_from_database_url
-from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import RunJournal
 from agent_anystack.runs.service import journal_path_from_database_url
 
@@ -89,19 +88,20 @@ class ApprovalCardOut(BaseModel):
 def get_approval_service(
     settings: Settings = Depends(get_settings),
 ) -> ApprovalService:
+    from agent_anystack.api.agents import get_office_repo
+
     db = sqlite_path_from_database_url(settings.database_url)
     journal = RunJournal(
         journal_path_from_database_url(settings.database_url, Path("./data"))
     )
-    repo = OfficeRepository(
-        Path(settings.office_repo_path),
-        gold_max_chars=settings.gold_max_chars,
-    )
+    # Resolve via same helper so orchestrator.yaml is loaded / seeded.
+    repo = get_office_repo(settings)
+    orc = repo.load_orchestrator()
     return ApprovalService(
         ApprovalStore(db),
         journal,
         repo,
-        approver_mode=settings.approver_mode,
+        approver_mode=orc.approver_mode,
         org_admins=settings.org_admins,
     )
 

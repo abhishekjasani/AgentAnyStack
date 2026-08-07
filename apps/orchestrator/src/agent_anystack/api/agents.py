@@ -18,10 +18,26 @@ router = APIRouter(tags=["agents"])
 
 
 def get_office_repo(settings: Settings = Depends(get_settings)) -> OfficeRepository:
-    return OfficeRepository(
+    """Office git root; soft knobs from orchestrator.yaml (seeded from Settings if missing)."""
+    from agent_anystack.domain.orchestrator import OrchestratorConfig
+
+    repo = OfficeRepository(
         Path(settings.office_repo_path),
         gold_max_chars=settings.gold_max_chars,
     )
+    repo.load_orchestrator(
+        seed=OrchestratorConfig(
+            model=settings.office_model,
+            office_qa_llm=settings.office_qa_llm,
+            okf_extract_enabled=settings.okf_extract_enabled,
+            pack_token_budget=settings.pack_token_budget,
+            gold_max_chars=settings.gold_max_chars,
+            recent_history_days=settings.recent_history_days,
+            recent_history_char_budget=settings.recent_history_char_budget,
+            approver_mode=settings.approver_mode,
+        )
+    )
+    return repo
 
 
 @router.get("/agents", response_model=list[AgentSummary])

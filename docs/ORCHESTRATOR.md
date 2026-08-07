@@ -2,13 +2,15 @@
 
 The orchestrator is **not an LLM persona**. It is the bridge: routes messages, packs context, runs write/action gates, triggers humans, and keeps operational books.
 
-**Mostly deterministic** (pack, gold tools, HITL cards, autonomy, journal). **Soft LLM jobs** use a configurable **office model** (`OFFICE_MODEL` / `office_model`) — not the desk’s `agent.model`:
+**Mostly deterministic** (pack, gold tools, HITL cards, autonomy, journal). **Soft LLM jobs** use **`office/orchestrator.yaml`** (`model` / toggles — Team → Office → Configure), not the desk’s `agent.model`:
 
 | Soft job | Uses |
 | --- | --- |
-| OKF post-run extract (simple JSON) | `office_model` |
-| Office Q&A phrasing (optional) | `office_model` when `OFFICE_QA_LLM=true` |
+| OKF post-run extract (simple JSON) | `orchestrator.yaml` → `model` when `okf_extract_enabled` |
+| Office Q&A phrasing (optional) | same `model` when `office_qa_llm` |
 | Desk persona chat / tools | `agent.model` |
+
+Env `OFFICE_MODEL` / related seeds that YAML only when the file is missing.
 
 **Status:** core slices built (chat, gold tools, OKF extract/export, channel, HITL, Stacks). See [architecture/00_MAP.md](./architecture/00_MAP.md).
 

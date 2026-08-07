@@ -25,6 +25,7 @@
       btn.classList.toggle("is-active", btn.dataset.view === name);
     });
     if (name === "team") loadTeam();
+    if (name === "office-config") loadOfficeConfigForm();
     if (name === "chat") loadChannel({ keepRoute: true });
     if (name === "memory") {
       loadMemory();
@@ -44,53 +45,171 @@
     const err = $("#team-error");
     err.hidden = true;
     try {
-      const res = await api("/agents");
-      if (!res.ok) throw new Error(`GET /agents ${res.status}`);
-      const agents = await res.json();
+      const [agentsRes, cfgRes] = await Promise.all([
+        api("/agents"),
+        api("/office/config"),
+      ]);
+      if (!agentsRes.ok) throw new Error(`GET /agents ${agentsRes.status}`);
+      if (!cfgRes.ok) throw new Error(`GET /office/config ${cfgRes.status}`);
+      const agents = await agentsRes.json();
+      const cfg = await cfgRes.json();
+      const orc = cfg.orchestrator || {};
       list.innerHTML = "";
+      list.appendChild(renderOfficeCard(orc, cfg.org));
       if (!agents.length) {
         empty.classList.remove("hidden");
-        list.hidden = true;
-        return;
+      } else {
+        empty.classList.add("hidden");
       }
-      empty.classList.add("hidden");
-      list.hidden = false;
       for (const a of agents) {
-        const li = document.createElement("li");
-        const meta = document.createElement("div");
-        const nameBtn = document.createElement("button");
-        nameBtn.type = "button";
-        nameBtn.className = "desk-name-btn";
-        nameBtn.textContent = a.name;
-        nameBtn.addEventListener("click", () => openChannelChat(a));
-        const sub = document.createElement("div");
-        sub.className = "desk-meta";
-        sub.textContent = `${a.id} · team ${a.team}`;
-        meta.append(nameBtn, sub);
-        const right = document.createElement("div");
-        right.className = "desk-actions";
-        const stack = document.createElement("div");
-        stack.className = "desk-meta";
-        stack.textContent = `${a.stack} / ${a.model}`;
-        const chatBtn = document.createElement("button");
-        chatBtn.type = "button";
-        chatBtn.className = "btn ghost";
-        chatBtn.textContent = "Chat";
-        chatBtn.addEventListener("click", () => openChannelChat(a));
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "btn danger";
-        remove.textContent = "Remove";
-        remove.addEventListener("click", () => removeAgent(a.id, a.name));
-        right.append(stack, chatBtn, remove);
-        li.append(meta, right);
-        list.appendChild(li);
+        list.appendChild(renderDeskCard(a));
       }
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
       empty.classList.add("hidden");
-      list.hidden = true;
+      list.innerHTML = "";
+    }
+  }
+
+  function renderOfficeCard(orc, org) {
+    const li = document.createElement("li");
+    li.className = "is-office";
+    const meta = document.createElement("div");
+    const nameBtn = document.createElement("button");
+    nameBtn.type = "button";
+    nameBtn.className = "desk-name-btn";
+    nameBtn.textContent = orc.name || "Office";
+    nameBtn.addEventListener("click", () => openOfficeChannel());
+    const sub = document.createElement("div");
+    sub.className = "desk-meta";
+    const maxA = org?.max_autonomy != null ? org.max_autonomy : "—";
+    sub.textContent = `orchestrator · soft jobs · org max autonomy ${maxA}`;
+    meta.append(nameBtn, sub);
+    const right = document.createElement("div");
+    right.className = "desk-actions";
+    const stack = document.createElement("div");
+    stack.className = "desk-meta";
+    stack.textContent = `office / ${orc.model || "—"}`;
+    const chatBtn = document.createElement("button");
+    chatBtn.type = "button";
+    chatBtn.className = "btn ghost";
+    chatBtn.textContent = "Chat";
+    chatBtn.addEventListener("click", () => openOfficeChannel());
+    const cfgBtn = document.createElement("button");
+    cfgBtn.type = "button";
+    cfgBtn.className = "btn ghost";
+    cfgBtn.textContent = "Configure";
+    cfgBtn.addEventListener("click", () => showView("office-config"));
+    right.append(stack, chatBtn, cfgBtn);
+    li.append(meta, right);
+    return li;
+  }
+
+  function renderDeskCard(a) {
+    const li = document.createElement("li");
+    const meta = document.createElement("div");
+    const nameBtn = document.createElement("button");
+    nameBtn.type = "button";
+    nameBtn.className = "desk-name-btn";
+    nameBtn.textContent = a.name;
+    nameBtn.addEventListener("click", () => openChannelChat(a));
+    const sub = document.createElement("div");
+    sub.className = "desk-meta";
+    sub.textContent = `${a.id} · team ${a.team}`;
+    meta.append(nameBtn, sub);
+    const right = document.createElement("div");
+    right.className = "desk-actions";
+    const stack = document.createElement("div");
+    stack.className = "desk-meta";
+    stack.textContent = `${a.stack} / ${a.model}`;
+    const chatBtn = document.createElement("button");
+    chatBtn.type = "button";
+    chatBtn.className = "btn ghost";
+    chatBtn.textContent = "Chat";
+    chatBtn.addEventListener("click", () => openChannelChat(a));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "btn danger";
+    remove.textContent = "Remove";
+    remove.addEventListener("click", () => removeAgent(a.id, a.name));
+    right.append(stack, chatBtn, remove);
+    li.append(meta, right);
+    return li;
+  }
+
+  async function fillModelSelect(sel, preferred, hintEl) {
+    sel.innerHTML = "";
+    try {
+      const res = await api("/models");
+      if (!res.ok) throw new Error(`models ${res.status}`);
+      const data = await res.json();
+      const pulled = (data.catalog || []).filter((e) => e.pulled);
+      const installed = data.installed || [];
+      const names = new Set([
+        ...pulled.map((e) => e.id),
+        ...installed.map((m) => m.name),
+      ]);
+      if (preferred) names.add(preferred);
+      const opts = [...names].sort();
+      if (!opts.length) {
+        const o = document.createElement("option");
+        o.value = preferred || "";
+        o.textContent = preferred || "Pull a model on Stacks first";
+        sel.appendChild(o);
+        if (hintEl) {
+          hintEl.textContent = "Pull a model under Stacks, then return here.";
+        }
+        return;
+      }
+      for (const name of opts) {
+        const o = document.createElement("option");
+        o.value = name;
+        o.textContent = name;
+        if (name === preferred) o.selected = true;
+        sel.appendChild(o);
+      }
+      if (hintEl) hintEl.textContent = "";
+    } catch (e) {
+      const o = document.createElement("option");
+      o.value = preferred || "";
+      o.textContent = preferred || String(e.message || e);
+      sel.appendChild(o);
+      if (hintEl) hintEl.textContent = String(e.message || e);
+    }
+  }
+
+  async function loadOfficeConfigForm() {
+    const form = $("#office-config-form");
+    const err = $("#office-config-error");
+    const ok = $("#office-config-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    try {
+      const res = await api("/office/config");
+      if (!res.ok) throw new Error(`GET /office/config ${res.status}`);
+      const data = await res.json();
+      const orc = data.orchestrator || {};
+      const org = data.org || {};
+      form.name.value = orc.name || "Office";
+      form.office_qa_llm.checked = !!orc.office_qa_llm;
+      form.okf_extract_enabled.checked = !!orc.okf_extract_enabled;
+      form.default_team.value = orc.default_team || "eng";
+      form.pack_token_budget.value = orc.pack_token_budget ?? 8000;
+      form.gold_max_chars.value = orc.gold_max_chars ?? 64000;
+      form.recent_history_days.value = orc.recent_history_days ?? 7;
+      form.recent_history_char_budget.value = orc.recent_history_char_budget ?? 6000;
+      form.approver_mode.value = orc.approver_mode || "permissive";
+      $("#office-config-org").textContent =
+        `max ${org.max_autonomy ?? "—"} · default ${org.autonomy?.default ?? "—"}`;
+      await fillModelSelect(
+        $("#office-config-model"),
+        orc.model,
+        $("#office-config-model-hint")
+      );
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
     }
   }
 
@@ -841,9 +960,47 @@
   $("#btn-open-create").addEventListener("click", () => showView("create"));
   $("#btn-empty-create").addEventListener("click", () => showView("create"));
   $("#btn-back-team").addEventListener("click", () => showView("team"));
+  $("#btn-back-office-team").addEventListener("click", () => showView("team"));
   $("#btn-stacks-refresh").addEventListener("click", () => loadStacks());
   $("#btn-stacks-health").addEventListener("click", () => loadStacksHealth());
   $("#btn-stacks-flush").addEventListener("click", () => flushModels());
+
+  $("#office-config-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const form = ev.target;
+    const err = $("#office-config-error");
+    const ok = $("#office-config-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    const body = {
+      name: String(form.name.value || "").trim(),
+      model: String(form.model.value || "").trim(),
+      office_qa_llm: !!form.office_qa_llm.checked,
+      okf_extract_enabled: !!form.okf_extract_enabled.checked,
+      default_team: String(form.default_team.value || "").trim(),
+      pack_token_budget: Number(form.pack_token_budget.value),
+      gold_max_chars: Number(form.gold_max_chars.value),
+      recent_history_days: Number(form.recent_history_days.value),
+      recent_history_char_budget: Number(form.recent_history_char_budget.value),
+      approver_mode: String(form.approver_mode.value || "permissive"),
+    };
+    try {
+      const res = await api("/office/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || `save ${res.status}`);
+      }
+      ok.textContent = "Saved office/orchestrator.yaml";
+      ok.hidden = false;
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  });
   $("#gold-agent").addEventListener("change", () => loadGoldForSelected());
   $("#gold-refresh").addEventListener("click", () => loadGoldForSelected());
   $("#okf-add").addEventListener("click", () => addOkfFact());

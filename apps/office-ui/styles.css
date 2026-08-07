@@ -144,6 +144,20 @@ h1 {
   justify-content: space-between;
   gap: 1rem;
 }
+.desk-list li.is-office {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent);
+  margin: 0 -0.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  border-radius: 4px;
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+}
+.check-row input { width: auto; }
 .desk-name { font-weight: 600; }
 .desk-meta { color: var(--muted); font-size: 0.9rem; }
 .desk-actions {

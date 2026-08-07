@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from agent_anystack.api.agents import get_office_repo
 from agent_anystack.api.deps import get_user_id
-from agent_anystack.config import Settings, get_settings
 from agent_anystack.office import GoldTooLargeError, OfficeRepository
 from agent_anystack.office.gold_notes import format_gold_with_rules
 
@@ -32,7 +31,7 @@ class GoldResponse(BaseModel):
 
 
 class GoldWriteRequest(BaseModel):
-    """Ops replace: non-empty lines become notes. Length capped via Settings."""
+    """Ops replace: non-empty lines become notes. Length capped via orchestrator.yaml."""
 
     content: str = Field(default="")
 
@@ -69,16 +68,15 @@ async def put_gold(
     body: GoldWriteRequest,
     user_id: str = Depends(get_user_id),
     repo: OfficeRepository = Depends(get_office_repo),
-    settings: Settings = Depends(get_settings),
 ) -> GoldResponse:
     agent = repo.get_agent(agent_id)
     if agent is None:
         raise HTTPException(status_code=404, detail=f"agent not found: {agent_id}")
-    if len(body.content) > settings.gold_max_chars:
+    if len(body.content) > repo.gold_max_chars:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"gold exceeds {settings.gold_max_chars} characters "
+                f"gold exceeds {repo.gold_max_chars} characters "
                 f"({len(body.content)})"
             ),
         )

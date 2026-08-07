@@ -43,17 +43,18 @@ def get_chat_service(
     history = ChannelHistoryStore(
         channel_history_root_from_database_url(settings.database_url, Path("./data"))
     )
+    orc = repo.load_orchestrator()
     return ChatRunService(
         repo,
         RunJournal(journal_file),
         settings.openai_compatible_base_url,
         OkfStore(sqlite_path_from_database_url(settings.database_url)),
-        pack_token_budget=settings.pack_token_budget,
-        okf_extract_enabled=settings.okf_extract_enabled,
+        pack_token_budget=orc.pack_token_budget,
+        okf_extract_enabled=orc.okf_extract_enabled,
         channel_history=history,
-        recent_history_days=settings.recent_history_days,
-        recent_history_char_budget=settings.recent_history_char_budget,
-        office_model=settings.office_model,
+        recent_history_days=orc.recent_history_days,
+        recent_history_char_budget=orc.recent_history_char_budget,
+        office_model=orc.model,
         openai_compatible_timeout=settings.openai_compatible_timeout,
     )
 

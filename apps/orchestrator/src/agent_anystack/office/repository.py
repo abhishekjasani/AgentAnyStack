@@ -14,6 +14,10 @@ from agent_anystack.domain.agent import (
     ToolsConfig,
 )
 from agent_anystack.domain.org import OrgConfig
+from agent_anystack.domain.orchestrator import (
+    OrchestratorConfig,
+    OrchestratorConfigUpdate,
+)
 from agent_anystack.office.gold_notes import (
     SYSTEM_GOLD_ID,
     GoldNote,
@@ -48,6 +52,23 @@ class GoldTooLargeError(Exception):
 class OfficeRepository:
     """Desks live at office/teams/<team>/agents/<id>/ (git data, not Python classes)."""
 
+    _ORCHESTRATOR_HEADER = """# Office front desk / soft orchestrator jobs — NOT a desk persona.
+# Team shows a pinned "Office" card; Configure edits this file.
+# Desk agents: office/teams/<team>/agents/<id>/agent.yaml
+#
+# Soft jobs using `model`:
+#   - OKF post-run extract (when okf_extract_enabled)
+#   - Office Q&A phrasing (when office_qa_llm)
+#
+# TODO: extract_temperature / soft-job sampling policy (ORCHESTRATOR.md §5)
+# TODO: office_qa_phrase_style (short | formal)
+# TODO: soft_job_max_tokens
+# TODO: default_project_id for memory pack when projects ship
+# TODO: extract_schema_version
+# TODO: Stacks helper restart_ollama_on_flush (container recreate)
+
+"""
+
     def __init__(self, root: Path, *, gold_max_chars: int = 64_000) -> None:
         self.root = root.resolve()
         self.gold_max_chars = gold_max_chars
@@ -55,6 +76,10 @@ class OfficeRepository:
     @property
     def org_path(self) -> Path:
         return self.root / "org.yaml"
+
+    @property
+    def orchestrator_path(self) -> Path:
+        return self.root / "orchestrator.yaml"
 
     @property
     def teams_dir(self) -> Path:
@@ -68,6 +93,39 @@ class OfficeRepository:
             raise FileNotFoundError(f"missing org.yaml at {self.org_path}")
         data = yaml.safe_load(self.org_path.read_text(encoding="utf-8")) or {}
         return OrgConfig.model_validate(data)
+
+    def load_orchestrator(
+        self,
+        *,
+        seed: OrchestratorConfig | None = None,
+    ) -> OrchestratorConfig:
+        """Load office/orchestrator.yaml; create from seed/defaults if missing."""
+        if self.orchestrator_path.is_file():
+            data = yaml.safe_load(self.orchestrator_path.read_text(encoding="utf-8")) or {}
+            cfg = OrchestratorConfig.model_validate(data)
+        else:
+            cfg = seed or OrchestratorConfig()
+            self.save_orchestrator(cfg)
+        self.gold_max_chars = cfg.gold_max_chars
+        return cfg
+
+    def save_orchestrator(self, config: OrchestratorConfig) -> OrchestratorConfig:
+        self.root.mkdir(parents=True, exist_ok=True)
+        payload = config.model_dump(mode="json")
+        body = yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
+        self.orchestrator_path.write_text(
+            self._ORCHESTRATOR_HEADER + body,
+            encoding="utf-8",
+        )
+        self.gold_max_chars = config.gold_max_chars
+        return config
+
+    def update_orchestrator(self, patch: OrchestratorConfigUpdate) -> OrchestratorConfig:
+        current = self.load_orchestrator()
+        data = current.model_dump(mode="json")
+        updates = patch.model_dump(mode="json", exclude_none=True)
+        data.update(updates)
+        return self.save_orchestrator(OrchestratorConfig.model_validate(data))
 
     def list_agents(self) -> list[AgentConfig]:
         """Scan teams/*/agents/*/agent.yaml. Empty office → []."""
