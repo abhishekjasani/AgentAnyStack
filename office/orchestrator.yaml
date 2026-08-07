@@ -23,4 +23,3 @@ gold_max_chars: 64000
 recent_history_days: 7
 recent_history_char_budget: 6000
 approver_mode: permissive
-default_team: eng
