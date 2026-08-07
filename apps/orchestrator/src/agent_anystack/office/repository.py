@@ -15,9 +15,11 @@ from agent_anystack.domain.agent import (
 )
 from agent_anystack.domain.org import OrgConfig
 from agent_anystack.office.gold_notes import (
+    SYSTEM_GOLD_ID,
     GoldNote,
     GoldNotesTooLargeError,
-    load_gold_notes,
+    ensure_gold_primer,
+    make_system_note,
     new_gold_id,
     render_gold_notes,
     save_gold_notes,
@@ -122,8 +124,8 @@ class OfficeRepository:
             return agent.system_prompt
         return ""
 
-    def create_agent(self, req: CreateAgentRequest) -> AgentConfig:
-        """Write agent.yaml + AGENT.md + gold/. Raises if id collision or autonomy over org ceiling."""
+    def create_agent(self, req: CreateAgentRequest, *, user_id: str) -> AgentConfig:
+        """Write agent.yaml + AGENT.md + gold/. Seeds usage primer for creating user."""
         if self.get_agent(req.id) is not None:
             raise AgentExistsError(req.id)
 
@@ -169,6 +171,9 @@ class OfficeRepository:
         persona_md = req.persona_markdown or _default_persona_markdown(config.name)
         (desk / "AGENT.md").write_text(persona_md, encoding="utf-8")
 
+        # Primer for the creating user only; other users get lazy seed on first gold touch.
+        self.ensure_gold_primer(config, user_id)
+
         return config
 
     def gold_dir(self, agent: AgentConfig) -> Path:
@@ -178,14 +183,21 @@ class OfficeRepository:
         """Legacy .md path (migration source). Canonical store is .jsonl."""
         return self.gold_dir(agent) / f"{user_id}.md"
 
+    def ensure_gold_primer(self, agent: AgentConfig, user_id: str) -> list[GoldNote]:
+        """Ensure gold/<user>.jsonl exists with pinned g_system usage note."""
+        return ensure_gold_primer(
+            self.gold_dir(agent),
+            user_id,
+            max_chars=self.gold_max_chars,
+        )
+
     def list_gold_notes(self, agent: AgentConfig, user_id: str) -> list[GoldNote]:
-        return load_gold_notes(self.gold_dir(agent), user_id)
+        """List notes; lazily seeds usage primer for this user if missing."""
+        return self.ensure_gold_primer(agent, user_id)
 
     def read_gold(self, agent: AgentConfig, user_id: str) -> str:
-        """Rendered notes for UI/pack body (ids + text). Missing → empty string."""
+        """Rendered notes for UI/pack body (ids + text)."""
         notes = self.list_gold_notes(agent, user_id)
-        if not notes:
-            return ""
         return render_gold_notes(notes)
 
     def append_gold_note(
@@ -224,8 +236,9 @@ class OfficeRepository:
         user_id: str,
         ids: list[str],
     ) -> list[str]:
-        """Remove notes by id. Returns ids that were deleted."""
+        """Remove notes by id. g_system is protected. Returns ids that were deleted."""
         want = {i.strip() for i in ids if isinstance(i, str) and i.strip()}
+        want.discard(SYSTEM_GOLD_ID)
         if not want:
             return []
         notes = self.list_gold_notes(agent, user_id)
@@ -248,28 +261,31 @@ class OfficeRepository:
         return deleted
 
     def clear_gold(self, agent: AgentConfig, user_id: str) -> None:
-        save_gold_notes(
-            self.gold_dir(agent),
-            user_id,
-            [],
-            max_chars=self.gold_max_chars,
-        )
+        """Wipe working notes; re-seed pinned usage primer."""
+        try:
+            save_gold_notes(
+                self.gold_dir(agent),
+                user_id,
+                [make_system_note()],
+                max_chars=self.gold_max_chars,
+            )
+        except GoldNotesTooLargeError as exc:
+            raise GoldTooLargeError(str(exc)) from exc
 
     def write_gold(self, agent: AgentConfig, user_id: str, content: str) -> None:
-        """Ops replace: each non-empty line → a note. Empty content clears."""
-        if not content.strip():
-            self.clear_gold(agent, user_id)
-            return
-        notes = [
-            GoldNote(
-                id=new_gold_id(),
-                text=line.strip(),
-                run_id=None,
-                created_at=utc_now_iso(),
-            )
-            for line in content.splitlines()
-            if line.strip()
-        ]
+        """Ops replace: each non-empty line → a note. Always keeps g_system primer."""
+        notes = [make_system_note()]
+        if content.strip():
+            for line in content.splitlines():
+                if line.strip():
+                    notes.append(
+                        GoldNote(
+                            id=new_gold_id(),
+                            text=line.strip(),
+                            run_id=None,
+                            created_at=utc_now_iso(),
+                        )
+                    )
         try:
             save_gold_notes(
                 self.gold_dir(agent),

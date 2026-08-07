@@ -7,7 +7,11 @@ from typing import Any
 
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.office import GoldTooLargeError, OfficeRepository
-from agent_anystack.office.gold_notes import GOLD_RULES, format_gold_with_rules
+from agent_anystack.office.gold_notes import (
+    SYSTEM_GOLD_ID,
+    GOLD_RULES,
+    format_gold_with_rules,
+)
 
 GOLD_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
@@ -52,6 +56,7 @@ GOLD_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "name": "delete_gold",
             "description": (
                 "Delete one or more gold notes by id (from read_gold or packed gold). "
+                f"Cannot delete the usage primer ({SYSTEM_GOLD_ID}). "
                 "Pass a single id or a list of ids."
             ),
             "parameters": {
@@ -73,7 +78,9 @@ GOLD_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "clear_gold",
-            "description": "Remove all gold notes for this desk notepad.",
+            "description": (
+                "Remove all working gold notes. The usage primer is kept/restored."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -129,17 +136,20 @@ def execute_gold_tool(
             deleted = repo.delete_gold_notes(agent, user_id, ids)
         except GoldTooLargeError as exc:
             return f"error: {exc}"
-        missing = [i for i in ids if i not in deleted]
+        protected = [i for i in ids if i == SYSTEM_GOLD_ID]
+        missing = [i for i in ids if i not in deleted and i != SYSTEM_GOLD_ID]
         parts = [f"ok: deleted {len(deleted)}"]
         if deleted:
             parts.append("ids=" + ",".join(deleted))
+        if protected:
+            parts.append(f"protected={SYSTEM_GOLD_ID}")
         if missing:
             parts.append("missing=" + ",".join(missing))
         return "; ".join(parts)
 
     if name == "clear_gold":
         repo.clear_gold(agent, user_id)
-        return "ok: gold cleared"
+        return f"ok: gold cleared; primer {SYSTEM_GOLD_ID} restored"
 
     return f"error: unknown tool {name}"
 

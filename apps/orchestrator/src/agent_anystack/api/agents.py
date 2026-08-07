@@ -53,11 +53,11 @@ async def get_agent(
 async def create_agent(
     body: CreateAgentRequest,
     repo: OfficeRepository = Depends(get_office_repo),
-    _user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_user_id),
 ) -> AgentConfig:
-    """Write office/teams/<team>/agents/<id>/ (agent.yaml + AGENT.md + gold/)."""
+    """Write office/teams/<team>/agents/<id>/; seed gold usage primer for creating user."""
     try:
-        return repo.create_agent(body)
+        return repo.create_agent(body, user_id=user_id)
     except AgentExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except AutonomyCeilingError as exc:

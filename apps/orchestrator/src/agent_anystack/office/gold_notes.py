@@ -14,6 +14,16 @@ GOLD_RULES = (
     "Prefer read_gold before delete. Never dump the whole chat. Not shared OKF."
 )
 
+# Pinned primer — not tied to a chat run; delete_gold cannot remove; clear_gold re-seeds.
+SYSTEM_GOLD_ID = "g_system"
+SYSTEM_GOLD_TEXT = (
+    "Gold usage: this notepad is yours. "
+    "Call append_gold with one durable bullet at a time. "
+    "Call delete_gold with note id(s) to remove working notes (not this primer). "
+    "Call clear_gold to wipe working notes (primer returns). "
+    "Call read_gold before deleting. Do not dump the whole chat here. Not shared OKF."
+)
+
 
 @dataclass(frozen=True)
 class GoldNote:
@@ -29,6 +39,22 @@ def new_gold_id() -> str:
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def make_system_note() -> GoldNote:
+    return GoldNote(
+        id=SYSTEM_GOLD_ID,
+        text=SYSTEM_GOLD_TEXT,
+        run_id=None,
+        created_at=utc_now_iso(),
+    )
+
+
+def ensure_system_note(notes: list[GoldNote]) -> tuple[list[GoldNote], bool]:
+    """Ensure pinned primer is first. Returns (notes, changed)."""
+    if any(n.id == SYSTEM_GOLD_ID for n in notes):
+        return notes, False
+    return [make_system_note(), *notes], True
 
 
 def render_gold_notes(notes: list[GoldNote]) -> str:
@@ -79,6 +105,20 @@ def load_gold_notes(gold_dir: Path, user_id: str) -> list[GoldNote]:
         legacy.unlink(missing_ok=True)
         return [note]
     return []
+
+
+def ensure_gold_primer(
+    gold_dir: Path,
+    user_id: str,
+    *,
+    max_chars: int,
+) -> list[GoldNote]:
+    """Load notes and ensure pinned g_system primer exists (create file if needed)."""
+    notes = load_gold_notes(gold_dir, user_id)
+    notes, changed = ensure_system_note(notes)
+    if changed:
+        save_gold_notes(gold_dir, user_id, notes, max_chars=max_chars)
+    return notes
 
 
 def save_gold_notes(
