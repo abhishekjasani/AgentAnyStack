@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 _EXTRACT_SYSTEM = """You extract durable team knowledge facts from a chat turn.
 Rules:
 - Extract ONLY statements clearly present in the user or assistant text.
-- Do NOT invent, infer, or add world knowledge.
+- Do not invent, infer, or add world knowledge.
 - Skip greetings, chit-chat, and one-off task noise.
 - Prefer atomic one-sentence facts.
 - Return JSON only: {"facts":[{"type":"fact|decision|constraint|glossary|procedure|outcome|risk","body":"..."}]}
@@ -78,6 +78,8 @@ async def run_okf_extract(
 ) -> int:
     """
     Extract facts and upsert into team OKF. Returns count written.
+
+    Uses job.model — callers must set the orchestrator office_model (not desk model).
     Failures are logged — never raised to the chat client.
     """
     if not job.assistant_text.strip() and not job.user_message.strip():

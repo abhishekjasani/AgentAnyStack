@@ -26,7 +26,7 @@ sequenceDiagram
 | Ask | Source | LLM? |
 | --- | --- | --- |
 | Status (“what’s running?”) | `journal.jsonl` | No |
-| Knowledge (“commission rule?”) | Team OKF match | Optional phrase (`OFFICE_QA_LLM`) — must cite `fact_id` |
+| Knowledge (“commission rule?”) | Team OKF match | Optional phrase (`OFFICE_QA_LLM` + `OFFICE_MODEL`) — must cite `fact_id` |
 | Work (“build the hero”) | — | Refuse; route to desk chat |
 | Empty | No rows / no match | Say so — never invent |
 

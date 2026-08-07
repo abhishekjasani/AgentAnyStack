@@ -193,7 +193,7 @@ Desk LLM does **not** INSERT into SQLite mid-stream.
 
 1. Collect user message + full assistant text during the stream.
 2. Deterministic: lines matching `remember: …` in the user message.
-3. Soft: one non-streaming LLM call (`complete_chat`) — extract only, no invent.
+3. Soft: one non-streaming LLM call (`complete_chat`) on **`office_model`** (`OFFICE_MODEL`) — extract only, no invent. Not the desk’s `agent.model`.
 4. Stamp trusted metadata → `OkfStore.upsert`.
 
 Toggle: `OKF_EXTRACT_ENABLED` (default true). Failures are logged; they do not fail the chat response.
@@ -216,8 +216,8 @@ Toggle: `OKF_EXTRACT_ENABLED` (default true). Failures are logged; they do not f
 + OK (v0): human seeds team OKF; chat packs mem(team)
 - BAD: desk LLM INSERT into okf_facts
 
-+ OK: extract after run via BackgroundTasks
-- BAD: await long extract inside chat response
++ OK: soft extract uses configurable office_model (OFFICE_MODEL)
+- BAD: extract reuses desk agent.model for office housekeeping
 
 + OK: pack all teammates’ room facts (created_by_user = audit only)
 - BAD: filter shared OKF by user_id on pack (v0)

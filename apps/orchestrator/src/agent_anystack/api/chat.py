@@ -53,6 +53,7 @@ def get_chat_service(
         channel_history=history,
         recent_history_days=settings.recent_history_days,
         recent_history_char_budget=settings.recent_history_char_budget,
+        office_model=settings.office_model,
     )
 
 

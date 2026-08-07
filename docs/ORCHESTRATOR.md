@@ -1,10 +1,16 @@
 # Orchestrator — Control Plane
 
-The orchestrator is **not an LLM persona**. It is the bridge: routes messages, packs context, runs write/action gates, triggers humans, and keeps operational books. Almost everything is **deterministic algorithm**; one fenced LLM step (the memory extractor) is the exception.
+The orchestrator is **not an LLM persona**. It is the bridge: routes messages, packs context, runs write/action gates, triggers humans, and keeps operational books.
 
-**Status:** design (agreed through 2026-08-04; not fully built)
-**Target runtime:** **Python / FastAPI** (async) — see [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [V0_SCOPE.md](./V0_SCOPE.md). This repo’s Fastify app is a behavior reference only.
-**Related:** [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [CONNECT.md](./CONNECT.md) · [ANALYTICS.md](./ANALYTICS.md)
+**Mostly deterministic** (pack, gold tools, HITL cards, autonomy, journal). **Soft LLM jobs** use a configurable **office model** (`OFFICE_MODEL` / `office_model`) — not the desk’s `agent.model`:
+
+| Soft job | Uses |
+| --- | --- |
+| OKF post-run extract (simple JSON) | `office_model` |
+| Office Q&A phrasing (optional) | `office_model` when `OFFICE_QA_LLM=true` |
+| Desk persona chat / tools | `agent.model` |
+
+**Status:** core slices built (chat, gold tools, OKF extract/export, channel, HITL, Stacks). See [architecture/00_MAP.md](./architecture/00_MAP.md).
 
 ---
 

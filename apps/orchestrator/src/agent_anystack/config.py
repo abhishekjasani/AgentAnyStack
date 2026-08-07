@@ -39,9 +39,12 @@ class Settings(BaseSettings):
     recent_history_char_budget: int = Field(default=6_000, ge=0, le=100_000)
     okf_extract_enabled: bool = True
     office_qa_llm: bool = False
-    office_qa_model: str = "llama3.2"
-    approver_mode: str = "permissive"
-    # Community: sole admin. Enterprise: expand list / RBAC; edition switch later.
+    # Soft office LLM jobs (OKF extract, optional Office Q&A phrasing) — not desk persona.
+    office_model: str = Field(
+        default="llama3.2",
+        validation_alias=AliasChoices("OFFICE_MODEL", "OFFICE_QA_MODEL"),
+    )
+    approver_mode: str = "permissive"    # Community: sole admin. Enterprise: expand list / RBAC; edition switch later.
     org_admins: str = Field(
         default="admin",
         validation_alias=AliasChoices("ORG_ADMINS"),

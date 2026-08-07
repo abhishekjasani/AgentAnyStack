@@ -34,6 +34,7 @@ class ChatRunService:
         channel_history: ChannelHistoryStore | None = None,
         recent_history_days: int = 7,
         recent_history_char_budget: int = 6_000,
+        office_model: str = "llama3.2",
     ) -> None:
         self.repo = repo
         self.journal = journal
@@ -44,6 +45,7 @@ class ChatRunService:
         self.channel_history = channel_history
         self.recent_history_days = recent_history_days
         self.recent_history_char_budget = recent_history_char_budget
+        self.office_model = office_model
 
     async def stream_agent_chat(
         self,
@@ -168,7 +170,7 @@ class ChatRunService:
                 agent_id=agent.id,
                 user_id=user_id,
                 team=agent.team,
-                model=agent.model,
+                model=self.office_model,
                 user_message=message,
                 assistant_text="".join(assistant_parts),
                 project_id=agent.workspace.project_id if agent.workspace else None,
