@@ -34,6 +34,9 @@ class Settings(BaseSettings):
 
     pack_token_budget: int = 8000
     gold_max_chars: int = Field(default=64_000, ge=1, le=1_000_000)
+    # Desk chat packs recent channel history (data/channel/<user>.jsonl) — continuity only.
+    recent_history_days: int = Field(default=7, ge=0, le=90)
+    recent_history_char_budget: int = Field(default=6_000, ge=0, le=100_000)
     okf_extract_enabled: bool = True
     office_qa_llm: bool = False
     office_qa_model: str = "llama3.2"

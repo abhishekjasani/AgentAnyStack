@@ -8,6 +8,7 @@ from typing import Any
 
 from agent_anystack.adapters import StackError
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+from agent_anystack.channel_history import ChannelHistoryStore
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.envelope import build_office_envelope
 from agent_anystack.hitl.autonomy import compute_effective
@@ -30,6 +31,9 @@ class ChatRunService:
         okf: OkfStore,
         pack_token_budget: int = 8000,
         okf_extract_enabled: bool = True,
+        channel_history: ChannelHistoryStore | None = None,
+        recent_history_days: int = 7,
+        recent_history_char_budget: int = 6_000,
     ) -> None:
         self.repo = repo
         self.journal = journal
@@ -37,6 +41,9 @@ class ChatRunService:
         self.okf = okf
         self.pack_token_budget = pack_token_budget
         self.okf_extract_enabled = okf_extract_enabled
+        self.channel_history = channel_history
+        self.recent_history_days = recent_history_days
+        self.recent_history_char_budget = recent_history_char_budget
 
     async def stream_agent_chat(
         self,
@@ -83,11 +90,24 @@ class ChatRunService:
         persona = self.repo.read_persona(agent)
         gold_notes = self.repo.list_gold_notes(agent, user_id)
         team_facts = self.okf.list_team_facts(agent.team)
+        recent_messages = []
+        if self.channel_history is not None and self.recent_history_days > 0:
+            try:
+                recent_messages = self.channel_history.list_recent(
+                    user_id,
+                    days=self.recent_history_days,
+                    exclude_text=message,
+                )
+            except ValueError:
+                recent_messages = []
         memory_sections = pack_memory_sections(
             user_id=user_id,
             gold=gold_notes,
             team_facts=team_facts,
             pack_token_budget=self.pack_token_budget,
+            recent_messages=recent_messages,
+            recent_history_days=self.recent_history_days,
+            recent_history_char_budget=self.recent_history_char_budget,
         )
         parts = [envelope, persona, *memory_sections]
         system = "\n\n---\n\n".join(parts)

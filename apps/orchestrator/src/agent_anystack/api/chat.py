@@ -10,6 +10,10 @@ from pydantic import BaseModel, Field
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.api.agents import get_office_repo
 from agent_anystack.api.deps import get_user_id
+from agent_anystack.channel_history import (
+    ChannelHistoryStore,
+    channel_history_root_from_database_url,
+)
 from agent_anystack.config import Settings, get_settings
 from agent_anystack.memory import (
     ExtractJob,
@@ -36,6 +40,9 @@ def get_chat_service(
         settings.database_url,
         Path("./data"),
     )
+    history = ChannelHistoryStore(
+        channel_history_root_from_database_url(settings.database_url, Path("./data"))
+    )
     return ChatRunService(
         repo,
         RunJournal(journal_file),
@@ -43,6 +50,9 @@ def get_chat_service(
         OkfStore(sqlite_path_from_database_url(settings.database_url)),
         pack_token_budget=settings.pack_token_budget,
         okf_extract_enabled=settings.okf_extract_enabled,
+        channel_history=history,
+        recent_history_days=settings.recent_history_days,
+        recent_history_char_budget=settings.recent_history_char_budget,
     )
 
 

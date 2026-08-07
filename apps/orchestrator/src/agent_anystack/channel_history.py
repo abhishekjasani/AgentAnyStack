@@ -78,6 +78,48 @@ class ChannelHistoryStore:
                     continue
         return rows[-limit:]
 
+    def list_recent(
+        self,
+        user_id: str,
+        *,
+        days: int = 7,
+        limit: int = 1000,
+        exclude_text: str | None = None,
+    ) -> list[ChannelMessage]:
+        """Messages from the last `days` (UTC), oldest→newest within window."""
+        if days <= 0:
+            return []
+        cutoff = datetime.now(timezone.utc).timestamp() - (days * 86400)
+        rows = self.list_messages(user_id, limit=limit)
+        recent: list[ChannelMessage] = []
+        for m in rows:
+            ts = _parse_created_at(m.created_at)
+            if ts is None or ts >= cutoff:
+                recent.append(m)
+        if (
+            exclude_text is not None
+            and recent
+            and recent[-1].role == "user"
+            and recent[-1].text.strip() == exclude_text.strip()
+        ):
+            recent = recent[:-1]
+        return recent
+
+
+def _parse_created_at(raw: str) -> float | None:
+    if not raw or not raw.strip():
+        return None
+    text = raw.strip()
+    try:
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp()
+    except ValueError:
+        return None
+
 
 def channel_history_root_from_database_url(
     database_url: str,

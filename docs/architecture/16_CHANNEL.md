@@ -24,6 +24,8 @@ Desk **Chat** → same Chat view with that agent chip selected. Nav **Chat** →
 
 History file: `data/channel/<user_id>.jsonl` (one thread per user, all agents).
 
+Desk chat packs **recent thread** (default last 7 days, char-capped) into the system prompt for continuity — not OKF/gold. Env: `RECENT_HISTORY_DAYS`, `RECENT_HISTORY_CHAR_BUDGET`.
+
 Decide still: `POST /approvals/{id}/decide`.
 
 See also earlier SSE event types in this file’s previous section / README.

@@ -1,15 +1,16 @@
-"""Pack C(a,p,u) for a run — v0: gold(a,u) ∪ mem(team). Shelf ∩ P(p) later."""
+"""Pack C(a,p,u) for a run — gold ∪ mem(team) ∪ recent thread. Shelf ∩ P(p) later."""
 
 from __future__ import annotations
 
+from agent_anystack.channel_history import ChannelMessage
 from agent_anystack.memory.fact import OkfFact
+from agent_anystack.memory.recent import format_recent_thread_section
 from agent_anystack.office.gold_notes import GoldNote, format_gold_with_rules
 
 
 def format_gold_section(notes: list[GoldNote] | str) -> str:
     """Agent-facing gold — rules + id rows; no user_id / path."""
     if isinstance(notes, str):
-        # Legacy callers passing rendered text
         from agent_anystack.office.gold_notes import GOLD_RULES
 
         body = notes.strip() if notes.strip() else "(empty)"
@@ -51,24 +52,33 @@ def pack_memory_sections(
     gold: str | list[GoldNote],
     team_facts: list[OkfFact],
     pack_token_budget: int,
+    recent_messages: list[ChannelMessage] | None = None,
+    recent_history_days: int = 7,
+    recent_history_char_budget: int = 6_000,
 ) -> list[str]:
     """
     Build markdown sections for the system prompt.
 
-    v0: C(a,p,u) ≈ gold ∪ mem(team). Floor/org ∩ P(p) not packed yet.
-    Budget is approximate chars (~4 chars/token heuristic).
-    user_id is call-site / pack identity only — not echoed in gold section.
+    v0: C ≈ gold ∪ mem(team) ∪ recent thread. Floor/org ∩ P(p) not packed yet.
+    user_id is call-site identity only — not echoed in gold section.
     """
     _ = user_id
     char_budget = max(500, pack_token_budget * 4)
     sections: list[str] = []
 
-    if isinstance(gold, list):
-        gold_sec = format_gold_section(gold)
-    else:
-        gold_sec = format_gold_section(gold)
+    gold_sec = format_gold_section(gold)
     sections.append(gold_sec)
     char_budget -= len(gold_sec)
+
+    recent_budget = min(recent_history_char_budget, max(0, char_budget // 2))
+    recent_sec = format_recent_thread_section(
+        recent_messages or [],
+        days=recent_history_days,
+        char_budget=recent_budget,
+    )
+    if recent_sec:
+        sections.append(recent_sec)
+        char_budget -= len(recent_sec)
 
     okf_sec = format_team_okf_section(team_facts, char_budget=max(0, char_budget))
     if okf_sec:
