@@ -1,0 +1,18 @@
+id: developer
+name: developer
+team: eng
+stack: openai-compatible
+model: llama3.2:3b
+persona:
+  domain: general
+  channels: []
+  risk_class: read_draft
+autonomy:
+  default: 50
+system_prompt_file: ./AGENT.md
+registrations:
+  mcp: []
+  skills: []
+  apis: []
+tools:
+  mode: none
