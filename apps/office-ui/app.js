@@ -1,14 +1,9 @@
 (() => {
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
-  const USER_KEY = "aas.user_id";
-
-  function currentUserId() {
-    return $("#user-id")?.value || "admin";
-  }
 
   function apiHeaders(extra = {}) {
-    return { "X-User-Id": currentUserId(), ...extra };
+    return { "X-User-Id": "admin", ...extra };
   }
 
   async function api(path, options = {}) {
@@ -194,7 +189,6 @@
       form.name.value = orc.name || "Office";
       form.office_qa_llm.checked = !!orc.office_qa_llm;
       form.okf_extract_enabled.checked = !!orc.okf_extract_enabled;
-      form.default_team.value = orc.default_team || "eng";
       form.pack_token_budget.value = orc.pack_token_budget ?? 8000;
       form.gold_max_chars.value = orc.gold_max_chars ?? 64000;
       form.recent_history_days.value = orc.recent_history_days ?? 7;
@@ -399,21 +393,6 @@
       err.textContent = String(e.message || e);
       err.hidden = false;
     }
-  }
-
-  function initUserPicker() {
-    const sel = $("#user-id");
-    const saved = localStorage.getItem(USER_KEY);
-    if (saved && [...sel.options].some((o) => o.value === saved)) {
-      sel.value = saved;
-    }
-    sel.addEventListener("change", () => {
-      localStorage.setItem(USER_KEY, sel.value);
-      const mem = $("#view-memory");
-      if (mem && !mem.hidden) loadGoldForSelected();
-      const chat = $("#view-chat");
-      if (chat && !chat.hidden) loadChannel({ keepRoute: true });
-    });
   }
 
   async function loadMemory() {
@@ -977,7 +956,6 @@
       model: String(form.model.value || "").trim(),
       office_qa_llm: !!form.office_qa_llm.checked,
       okf_extract_enabled: !!form.okf_extract_enabled.checked,
-      default_team: String(form.default_team.value || "").trim(),
       pack_token_budget: Number(form.pack_token_budget.value),
       gold_max_chars: Number(form.gold_max_chars.value),
       recent_history_days: Number(form.recent_history_days.value),
@@ -1392,6 +1370,5 @@
     }
   });
 
-  initUserPicker();
   showView("team");
 })();

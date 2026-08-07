@@ -6,11 +6,13 @@ Desk agents keep agent.yaml (model, autonomy, AGENT.md, gold).
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class OrchestratorConfig(BaseModel):
     """Pinned Office card settings (git-backed under office/)."""
+
+    model_config = ConfigDict(extra="ignore")
 
     id: str = "office"
     name: str = "Office"
@@ -23,10 +25,6 @@ class OrchestratorConfig(BaseModel):
     recent_history_days: int = Field(default=7, ge=0, le=90)
     recent_history_char_budget: int = Field(default=6_000, ge=0, le=100_000)
     approver_mode: str = Field(default="permissive")
-    default_team: str = Field(
-        default="eng",
-        pattern=r"^[a-z][a-z0-9_-]*$",
-    )
 
     # --- Planned (not wired yet; reserved / ignored if present) ---
     # TODO: extract_temperature: float — soft-job sampling (docs §5)
@@ -35,10 +33,13 @@ class OrchestratorConfig(BaseModel):
     # TODO: default_project_id: str — pack filter when projects exist
     # TODO: extract_schema_version: str
     # TODO: restart_ollama_on_flush: bool — Stacks flush helper
+    # Team scope lives on desks / OKF UI — not on Office soft-job config.
 
 
 class OrchestratorConfigUpdate(BaseModel):
     """Partial update from Team → Configure Office."""
+
+    model_config = ConfigDict(extra="ignore")
 
     name: str | None = Field(default=None, min_length=1, max_length=128)
     model: str | None = Field(default=None, min_length=1)
@@ -49,7 +50,3 @@ class OrchestratorConfigUpdate(BaseModel):
     recent_history_days: int | None = Field(default=None, ge=0, le=90)
     recent_history_char_budget: int | None = Field(default=None, ge=0, le=100_000)
     approver_mode: str | None = None
-    default_team: str | None = Field(
-        default=None,
-        pattern=r"^[a-z][a-z0-9_-]*$",
-    )

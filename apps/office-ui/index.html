@@ -14,16 +14,7 @@
     <aside class="nav" aria-label="Office navigation">
       <div class="brand">
         <span class="brand-name">AgentAnyStack</span>
-        <span class="brand-tag">Any stack. One orchestrator.</span>
       </div>
-      <label class="user-pick">
-        <span>User (stub)</span>
-        <select id="user-id" aria-label="Current user id">
-          <option value="admin" selected>admin</option>
-          <option value="alice">alice</option>
-          <option value="bob">bob</option>
-        </select>
-      </label>
       <nav class="nav-list">
         <button type="button" class="nav-item is-active" data-view="team">Team</button>
         <button type="button" class="nav-item" data-view="chat">Chat</button>
@@ -84,9 +75,6 @@
           <label class="check-row">
             <input type="checkbox" name="okf_extract_enabled" />
             OKF extract after desk runs
-          </label>
-          <label>Default team
-            <input name="default_team" required pattern="^[a-z][a-z0-9_-]*$" />
           </label>
           <label>Pack token budget
             <input name="pack_token_budget" type="number" min="500" max="200000" required />
