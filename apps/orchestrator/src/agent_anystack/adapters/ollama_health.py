@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import re
 import shutil
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -13,6 +14,8 @@ import httpx
 from agent_anystack.adapters.ollama_models import (
     CURATED_CATALOG,
     OllamaModelManager,
+    OllamaModelsError,
+    assert_curated,
 )
 
 # Rough VRAM need (MiB) for curated tags — advisory for UI tags.
@@ -412,8 +415,147 @@ async def diagnose_gpu_health(
     )
 
 
+def _match_loaded(tag: str, loaded: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for m in loaded:
+        n = str(m.get("name") or "")
+        if n == tag or n == f"{tag}:latest":
+            return m
+    for m in loaded:
+        n = str(m.get("name") or "")
+        if n.startswith(tag + ":"):
+            return m
+    if ":" not in tag:
+        for m in loaded:
+            n = str(m.get("name") or "")
+            if n.split(":")[0] == tag:
+                return m
+    return None
+
+
+def _run_tag_from_processor(processor: str) -> tuple[str, str]:
+    proc = processor or "unknown"
+    if proc == "100% GPU":
+        return "running_gpu", f"Verified: {proc}"
+    if proc == "100% CPU":
+        return "running_cpu", f"Verified: {proc}"
+    if "/" in proc:
+        return "running_split", f"Verified: {proc}"
+    return "running_unknown", f"Verified: {proc}"
+
+
+async def verify_model_gpu(
+    *,
+    openai_compatible_base_url: str,
+    name: str,
+) -> AsyncIterator[dict[str, Any]]:
+    """Warm-load a curated model, then report processor from /api/ps (Stacks only)."""
+    tag = assert_curated(name)
+    mgr = OllamaModelManager(openai_compatible_base_url, timeout=900.0)
+    native = mgr.native_base
+    yield {"type": "meta", "name": tag, "phase": "start"}
+
+    installed = {m.name for m in await mgr.list_installed()}
+    pulled = (
+        tag in installed
+        or f"{tag}:latest" in installed
+        or any(
+            n.startswith(tag + ":")
+            or (":" not in tag and n.split(":")[0] == tag)
+            for n in installed
+        )
+    )
+    if not pulled:
+        raise OllamaModelsError(
+            f"model '{tag}' is not pulled — Pull it on Stacks first",
+            code="not_pulled",
+        )
+
+    yield {
+        "type": "progress",
+        "name": tag,
+        "phase": "loading",
+        "message": "Loading model into memory (first time can take several minutes)…",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=900.0) as client:
+            resp = await client.post(
+                f"{native}/api/generate",
+                json={
+                    "model": tag,
+                    "prompt": "hi",
+                    "stream": False,
+                    "keep_alive": "5m",
+                    "options": {"num_predict": 1},
+                },
+            )
+    except httpx.ConnectError as exc:
+        raise OllamaModelsError(
+            f"Cannot reach Ollama at {native}",
+            code="unreachable",
+        ) from exc
+    except httpx.TimeoutException as exc:
+        raise OllamaModelsError(
+            f"Verify timed out loading '{tag}' (often CPU path or CUDA discovery failure)",
+            code="timeout",
+        ) from exc
+
+    if resp.status_code >= 400:
+        raise OllamaModelsError(
+            f"Ollama generate failed ({resp.status_code}): {resp.text[:400]}",
+            code="verify_http",
+        )
+
+    yield {
+        "type": "progress",
+        "name": tag,
+        "phase": "checking",
+        "message": "Model responded — reading GPU/CPU processor…",
+    }
+
+    loaded = await _list_loaded(native)
+    match = _match_loaded(tag, loaded)
+    if not match:
+        yield {
+            "type": "result",
+            "name": tag,
+            "run_tag": "running_unknown",
+            "processor": "unknown",
+            "reason": "Model generated but /api/ps did not list it (unloaded very fast?)",
+            "fix": "Retry Verify; or docker exec … ollama ps while chatting",
+            "loaded": loaded,
+        }
+        yield {"type": "done", "name": tag}
+        return
+
+    processor = str(match.get("processor") or "unknown")
+    run_tag, reason = _run_tag_from_processor(processor)
+    fix = None
+    if run_tag == "running_cpu":
+        fix = (
+            "GPU free but model on CPU — recreate Ollama with docker-compose.gpu.yml "
+            "and check logs for 'GPU discovery' timeout"
+        )
+    elif run_tag == "running_split":
+        fix = "Partial GPU offload — use a smaller tag or free more VRAM"
+
+    yield {
+        "type": "result",
+        "name": tag,
+        "run_tag": run_tag,
+        "processor": processor,
+        "size": match.get("size"),
+        "size_vram": match.get("size_vram"),
+        "reason": reason,
+        "fix": fix,
+        "loaded": loaded,
+    }
+    yield {"type": "done", "name": tag}
+
+
 # re-export for tests / callers
 __all__ = [
     "GpuHealthReport",
     "diagnose_gpu_health",
+    "verify_model_gpu",
 ]

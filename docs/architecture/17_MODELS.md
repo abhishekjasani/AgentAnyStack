@@ -15,6 +15,7 @@ flowchart LR
 | --- | --- |
 | `GET /models` | engine reachability + curated catalog (`pulled`) + installed |
 | `GET /models/health` | **On-demand** GPU ladder (Stacks only) — steps + fix hints + run tags |
+| `POST /models/verify` | Warm-load curated tag + report `running_gpu` / `running_cpu` (SSE) |
 | `POST /models/pull` | SSE progress (`meta` / `progress` / `done` / `error`) |
 | `POST /models/delete` | remove curated tag from `./data/ollama` |
 

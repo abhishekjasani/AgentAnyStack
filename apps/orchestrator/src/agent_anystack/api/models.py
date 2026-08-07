@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from agent_anystack.adapters.ollama_health import diagnose_gpu_health
+from agent_anystack.adapters.ollama_health import diagnose_gpu_health, verify_model_gpu
 from agent_anystack.adapters.ollama_models import (
     CURATED_CATALOG,
     OllamaModelManager,
@@ -92,6 +92,34 @@ async def pull_model(
             async for chunk in mgr.pull_stream(name):
                 yield _sse({"type": "progress", "name": name, **chunk})
             yield _sse({"type": "done", "name": name})
+        except OllamaModelsError as exc:
+            yield _sse(
+                {
+                    "type": "error",
+                    "name": name,
+                    "code": exc.code,
+                    "message": str(exc),
+                }
+            )
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post("/models/verify")
+async def verify_model(
+    body: ModelNameBody,
+    settings: Settings = Depends(get_settings),
+) -> StreamingResponse:
+    """Warm-load model and report GPU/CPU — Stacks only; long-running SSE."""
+    name = body.name.strip()
+
+    async def event_stream() -> AsyncIterator[str]:
+        try:
+            async for chunk in verify_model_gpu(
+                openai_compatible_base_url=settings.openai_compatible_base_url,
+                name=name,
+            ):
+                yield _sse(chunk)
         except OllamaModelsError as exc:
             yield _sse(
                 {
