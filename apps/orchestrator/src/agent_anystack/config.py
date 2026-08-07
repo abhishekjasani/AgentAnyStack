@@ -31,6 +31,20 @@ class Settings(BaseSettings):
             "OLLAMA_BASE_URL",
         ),
     )
+    # Desk chat / extract / office Q&A HTTP timeout (seconds).
+    openai_compatible_timeout: float = Field(
+        default=300.0,
+        ge=30.0,
+        le=3600.0,
+        validation_alias=AliasChoices("OPENAI_COMPATIBLE_TIMEOUT"),
+    )
+    # Stacks pull stream timeout (seconds).
+    ollama_pull_timeout: float = Field(
+        default=600.0,
+        ge=60.0,
+        le=7200.0,
+        validation_alias=AliasChoices("OLLAMA_PULL_TIMEOUT"),
+    )
 
     pack_token_budget: int = 8000
     gold_max_chars: int = Field(default=64_000, ge=1, le=1_000_000)
@@ -44,7 +58,8 @@ class Settings(BaseSettings):
         default="llama3.2",
         validation_alias=AliasChoices("OFFICE_MODEL", "OFFICE_QA_MODEL"),
     )
-    approver_mode: str = "permissive"    # Community: sole admin. Enterprise: expand list / RBAC; edition switch later.
+    approver_mode: str = "permissive"
+    # Community: sole admin. Enterprise: expand list / RBAC; edition switch later.
     org_admins: str = Field(
         default="admin",
         validation_alias=AliasChoices("ORG_ADMINS"),

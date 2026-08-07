@@ -1,4 +1,4 @@
-"""Local model catalog — list / pull (SSE) / delete via Ollama native API."""
+"""Local model catalog — list / pull (SSE) / verify / unload / delete via Ollama."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -26,7 +26,10 @@ class ModelNameBody(BaseModel):
 
 
 def get_model_manager(settings: Settings = Depends(get_settings)) -> OllamaModelManager:
-    return OllamaModelManager(settings.openai_compatible_base_url)
+    return OllamaModelManager(
+        settings.openai_compatible_base_url,
+        timeout=settings.ollama_pull_timeout,
+    )
 
 
 def _sse(payload: dict[str, Any]) -> str:
@@ -36,6 +39,14 @@ def _sse(payload: dict[str, Any]) -> str:
 def _is_pulled(catalog_id: str, installed_names: set[str]) -> bool:
     """Exact tag match only — llama3.2 must not match llama3.2:3b."""
     return catalog_id in installed_names or f"{catalog_id}:latest" in installed_names
+
+
+def _http_status_for_models_error(exc: OllamaModelsError) -> int:
+    if exc.code == "not_curated":
+        return 400
+    if exc.code == "unreachable":
+        return 503
+    return 502
 
 
 @router.get("/models")
@@ -82,16 +93,32 @@ async def models_health(settings: Settings = Depends(get_settings)) -> dict[str,
 @router.post("/models/pull")
 async def pull_model(
     body: ModelNameBody,
+    request: Request,
     mgr: OllamaModelManager = Depends(get_model_manager),
 ) -> StreamingResponse:
+    """SSE pull. Client disconnect / AbortController cancels the Ollama pull stream."""
     name = body.name.strip()
 
     async def event_stream() -> AsyncIterator[str]:
         yield _sse({"type": "meta", "name": name})
+        stream = mgr.pull_stream(name)
+        cancelled = False
         try:
-            async for chunk in mgr.pull_stream(name):
+            async for chunk in stream:
+                if await request.is_disconnected():
+                    cancelled = True
+                    break
                 yield _sse({"type": "progress", "name": name, **chunk})
-            yield _sse({"type": "done", "name": name})
+            if cancelled:
+                yield _sse(
+                    {
+                        "type": "cancelled",
+                        "name": name,
+                        "message": "Pull cancelled",
+                    }
+                )
+            else:
+                yield _sse({"type": "done", "name": name})
         except OllamaModelsError as exc:
             yield _sse(
                 {
@@ -101,6 +128,8 @@ async def pull_model(
                     "message": str(exc),
                 }
             )
+        finally:
+            await stream.aclose()
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -133,6 +162,22 @@ async def verify_model(
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
+@router.post("/models/unload")
+async def unload_model(
+    body: ModelNameBody,
+    mgr: OllamaModelManager = Depends(get_model_manager),
+) -> dict[str, Any]:
+    """Unload model from Ollama RAM/VRAM (keep_alive: 0). Does not delete weights."""
+    try:
+        result = await mgr.unload(body.name.strip())
+    except OllamaModelsError as exc:
+        raise HTTPException(
+            status_code=_http_status_for_models_error(exc),
+            detail=str(exc),
+        ) from exc
+    return {"status": "unloaded", **result}
+
+
 @router.post("/models/delete")
 async def delete_model(
     body: ModelNameBody,
@@ -141,8 +186,8 @@ async def delete_model(
     try:
         await mgr.delete(body.name)
     except OllamaModelsError as exc:
-        status = 400 if exc.code == "not_curated" else 502
-        if exc.code == "unreachable":
-            status = 503
-        raise HTTPException(status_code=status, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=_http_status_for_models_error(exc),
+            detail=str(exc),
+        ) from exc
     return {"status": "deleted", "name": body.name.strip()}

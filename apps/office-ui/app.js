@@ -591,6 +591,13 @@
             verifyModel(entry.id, { fill, status, progress, verify })
           );
           right.appendChild(verify);
+          const unload = document.createElement("button");
+          unload.type = "button";
+          unload.className = "btn ghost";
+          unload.textContent = "Unload";
+          unload.title = "Free GPU/RAM (keep weights on disk)";
+          unload.addEventListener("click", () => unloadModel(entry.id));
+          right.appendChild(unload);
           const del = document.createElement("button");
           del.type = "button";
           del.className = "btn danger";
@@ -602,10 +609,16 @@
           pull.type = "button";
           pull.className = "btn primary";
           pull.textContent = "Pull";
+          const cancel = document.createElement("button");
+          cancel.type = "button";
+          cancel.className = "btn ghost";
+          cancel.textContent = "Cancel";
+          cancel.hidden = true;
           pull.addEventListener("click", () =>
-            pullModel(entry.id, { fill, status, progress, pull })
+            pullModel(entry.id, { fill, status, progress, pull, cancel })
           );
           right.appendChild(pull);
+          right.appendChild(cancel);
         }
         li.append(left, right, progress);
         list.appendChild(li);
@@ -695,13 +708,25 @@
     err.hidden = true;
     ui.progress.hidden = false;
     ui.pull.disabled = true;
+    if (ui.cancel) {
+      ui.cancel.hidden = false;
+      ui.cancel.disabled = false;
+    }
     ui.status.textContent = "starting…";
     ui.fill.style.width = "0%";
+    const ac = new AbortController();
+    const onCancel = () => {
+      ac.abort();
+      ui.status.textContent = "cancelling…";
+      if (ui.cancel) ui.cancel.disabled = true;
+    };
+    if (ui.cancel) ui.cancel.onclick = onCancel;
     try {
       const res = await api("/models/pull", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
+        signal: ac.signal,
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -711,6 +736,7 @@
       const decoder = new TextDecoder();
       let buf = "";
       let failed = false;
+      let cancelled = false;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -733,19 +759,50 @@
             err.textContent = payload.message || "pull failed";
             err.hidden = false;
             ui.status.textContent = "error";
+          } else if (payload.type === "cancelled") {
+            cancelled = true;
+            ui.status.textContent = "cancelled";
           } else if (payload.type === "done") {
             ui.fill.style.width = "100%";
             ui.status.textContent = "done";
           }
         }
       }
-      if (!failed) await loadStacks();
+      if (!failed && !cancelled) await loadStacks();
       else ui.pull.disabled = false;
+    } catch (e) {
+      if (e && (e.name === "AbortError" || String(e.message || "").includes("abort"))) {
+        ui.status.textContent = "cancelled";
+      } else {
+        err.textContent = String(e.message || e);
+        err.hidden = false;
+        ui.status.textContent = "error";
+      }
+      ui.pull.disabled = false;
+    } finally {
+      if (ui.cancel) {
+        ui.cancel.hidden = true;
+        ui.cancel.onclick = null;
+      }
+    }
+  }
+
+  async function unloadModel(name) {
+    const err = $("#stacks-error");
+    err.hidden = true;
+    try {
+      const res = await api("/models/unload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `unload ${res.status}`);
+      await loadStacks();
+      await loadStacksHealth();
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
-      ui.pull.disabled = false;
-      ui.status.textContent = "error";
     }
   }
 

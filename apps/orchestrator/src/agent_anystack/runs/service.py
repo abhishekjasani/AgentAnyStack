@@ -35,10 +35,14 @@ class ChatRunService:
         recent_history_days: int = 7,
         recent_history_char_budget: int = 6_000,
         office_model: str = "llama3.2",
+        openai_compatible_timeout: float = 300.0,
     ) -> None:
         self.repo = repo
         self.journal = journal
-        self.adapter = OpenAICompatibleAdapter(openai_compatible_base_url)
+        self.adapter = OpenAICompatibleAdapter(
+            openai_compatible_base_url,
+            timeout=openai_compatible_timeout,
+        )
         self.okf = okf
         self.pack_token_budget = pack_token_budget
         self.okf_extract_enabled = okf_extract_enabled

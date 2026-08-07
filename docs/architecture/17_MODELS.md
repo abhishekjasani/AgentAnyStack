@@ -7,7 +7,7 @@ flowchart LR
     UI["Stacks UI"]
     API["GET/POST /models"]
     M["OllamaModelManager"]
-    OL["Ollama /api/pull, tags, delete"]
+    OL["Ollama /api/pull, tags, generate, delete"]
     UI --> API --> M --> OL
 ```
 
@@ -16,14 +16,17 @@ flowchart LR
 | `GET /models` | engine reachability + curated catalog (`pulled`) + installed |
 | `GET /models/health` | **On-demand** GPU ladder (Stacks only) — steps + fix hints + run tags |
 | `POST /models/verify` | Warm-load curated tag + report `running_gpu` / `running_cpu` (SSE) |
-| `POST /models/pull` | SSE progress (`meta` / `progress` / `done` / `error`) |
+| `POST /models/pull` | SSE progress (`meta` / `progress` / `done` / `cancelled` / `error`); client abort closes Ollama stream |
+| `POST /models/unload` | free RAM/VRAM via `POST /api/generate` `{keep_alive: 0}` (weights stay on disk) |
 | `POST /models/delete` | remove curated tag from `./data/ollama` |
 
 **Health** runs only when Stacks loads or user clicks **Check GPU** — never from chat/channel.  
 Needs `nvidia-smi` (orchestrator with `docker-compose.gpu.yml`) and/or host `docker exec`.
 
+**Timeouts (env):** `OPENAI_COMPATIBLE_TIMEOUT` (chat/soft jobs), `OLLAMA_PULL_TIMEOUT` (Stacks pull).
+
 **Class:** `OllamaModelManager` in `adapters/ollama_models.py` (only Ollama-specific module).  
-**UI:** nav **Stacks** — Pull / progress / Delete.  
+**UI:** nav **Stacks** — Pull / Cancel / Verify / Unload / Delete.  
 
 **Prereq (CPU — default):**
 

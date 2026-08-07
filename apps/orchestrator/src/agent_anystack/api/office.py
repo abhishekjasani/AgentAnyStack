@@ -41,7 +41,10 @@ def get_office_qa(settings: Settings = Depends(get_settings)) -> OfficeQaService
     adapter = None
     model = None
     if settings.office_qa_llm:
-        adapter = OpenAICompatibleAdapter(settings.openai_compatible_base_url)
+        adapter = OpenAICompatibleAdapter(
+            settings.openai_compatible_base_url,
+            timeout=settings.openai_compatible_timeout,
+        )
         model = settings.office_model
     return OfficeQaService(
         journal,

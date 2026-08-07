@@ -54,12 +54,16 @@ def get_chat_service(
         recent_history_days=settings.recent_history_days,
         recent_history_char_budget=settings.recent_history_char_budget,
         office_model=settings.office_model,
+        openai_compatible_timeout=settings.openai_compatible_timeout,
     )
 
 
 async def _background_okf_extract(job: ExtractJob, settings: Settings) -> None:
     store = OkfStore(sqlite_path_from_database_url(settings.database_url))
-    adapter = OpenAICompatibleAdapter(settings.openai_compatible_base_url)
+    adapter = OpenAICompatibleAdapter(
+        settings.openai_compatible_base_url,
+        timeout=settings.openai_compatible_timeout,
+    )
     await run_okf_extract(job, okf=store, adapter=adapter)
 
 

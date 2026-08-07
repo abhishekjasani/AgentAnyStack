@@ -179,6 +179,45 @@ class OllamaModelManager:
                 code="timeout",
             ) from exc
 
+    async def unload(self, name: str) -> dict[str, Any]:
+        """Unload model from Ollama memory/VRAM via keep_alive: 0 (weights stay on disk)."""
+        tag = assert_curated(name)
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(
+                    f"{self.native_base}/api/generate",
+                    json={
+                        "model": tag,
+                        "prompt": "",
+                        "stream": False,
+                        "keep_alive": 0,
+                    },
+                )
+        except httpx.ConnectError as exc:
+            raise OllamaModelsError(
+                f"Cannot reach Ollama at {self.native_base}",
+                code="unreachable",
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise OllamaModelsError(
+                f"Ollama unload timed out for {tag}",
+                code="timeout",
+            ) from exc
+        if resp.status_code >= 400:
+            raise OllamaModelsError(
+                f"Ollama unload failed ({resp.status_code}): {resp.text[:300]}",
+                code="unload_http",
+            )
+        data: dict[str, Any] = {}
+        try:
+            data = resp.json()
+        except json.JSONDecodeError:
+            data = {}
+        return {
+            "name": tag,
+            "done_reason": data.get("done_reason") or "unload",
+        }
+
     async def delete(self, name: str) -> None:
         tag = assert_curated(name)
         try:
