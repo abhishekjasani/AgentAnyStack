@@ -117,14 +117,15 @@
           <div>
             <h1>Memory</h1>
             <p class="lede">
-              Gold = per-user notepad. Team OKF = shared SQLite facts packed into chat
+              Gold = the desk’s personal working notes (agent read/update via tools; view-only here).
+              Team OKF = shared SQLite facts packed into chat
               (<code>C ≈ gold ∪ mem(team)</code>). Export writes a portable snapshot under
               <code>office/memory/</code> (leave-path).
             </p>
           </div>
         </header>
 
-        <h2 class="memory-h2">Gold (per user)</h2>
+        <h2 class="memory-h2">Gold (agent-owned)</h2>
         <div class="form memory-form">
           <label>
             Desk
@@ -132,14 +133,13 @@
           </label>
           <p id="gold-meta" class="desk-meta"></p>
           <label>
-            Gold (markdown)
-            <textarea id="gold-content" rows="10" placeholder="Scratch notes for this desk + current user…"></textarea>
+            Gold (read-only)
+            <textarea id="gold-content" rows="10" readonly placeholder="Agent updates gold via read_gold / update_gold…"></textarea>
           </label>
           <p id="gold-error" class="error" hidden></p>
           <p id="gold-ok" class="desk-meta" hidden></p>
           <div class="form-actions memory-actions">
-            <button type="button" class="btn primary" id="gold-save">Save gold</button>
-            <button type="button" class="btn ghost" id="gold-clear">Clear</button>
+            <button type="button" class="btn ghost" id="gold-refresh">Refresh</button>
           </div>
         </div>
 

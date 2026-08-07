@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import httpx
@@ -17,7 +18,7 @@ class StackAdapter(Protocol):
         self,
         *,
         model: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
     ) -> AsyncIterator[str]:
         """Yield assistant text deltas. Raises StackError on failure."""
         ...
@@ -31,6 +32,19 @@ class StackError(Exception):
         super().__init__(message)
 
 
+@dataclass
+class ToolCallRequest:
+    id: str
+    name: str
+    arguments: str
+
+
+@dataclass
+class ChatTurnResult:
+    content: str = ""
+    tool_calls: list[ToolCallRequest] = field(default_factory=list)
+
+
 class OpenAICompatibleAdapter:
     """One wire for any OpenAI chat-completions server — switch host via base_url."""
 
@@ -42,7 +56,7 @@ class OpenAICompatibleAdapter:
         self,
         *,
         model: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
     ) -> AsyncIterator[str]:
         url = f"{self.base_url}/chat/completions"
         payload: dict[str, Any] = {
@@ -99,10 +113,26 @@ class OpenAICompatibleAdapter:
         self,
         *,
         model: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         temperature: float = 0.0,
     ) -> str:
         """Non-streaming completion (extractor). Returns assistant text."""
+        turn = await self.complete_chat_turn(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+        )
+        return turn.content.strip()
+
+    async def complete_chat_turn(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float = 0.0,
+    ) -> ChatTurnResult:
+        """Non-streaming turn — text and/or tool_calls (OpenAI tools shape)."""
         url = f"{self.base_url}/chat/completions"
         payload: dict[str, Any] = {
             "model": model,
@@ -110,6 +140,8 @@ class OpenAICompatibleAdapter:
             "stream": False,
             "temperature": temperature,
         }
+        if tools:
+            payload["tools"] = tools
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 resp = await client.post(url, json=payload)
@@ -132,9 +164,12 @@ class OpenAICompatibleAdapter:
                     )
                 choices = data.get("choices") or []
                 if not choices:
-                    return ""
+                    return ChatTurnResult()
                 message = choices[0].get("message") or {}
-                return (message.get("content") or "").strip()
+                return ChatTurnResult(
+                    content=(message.get("content") or "") or "",
+                    tool_calls=_parse_tool_calls(message.get("tool_calls")),
+                )
         except httpx.ConnectError as exc:
             raise StackError(
                 f"Cannot reach OpenAI-compatible server at {self.base_url}.",
@@ -145,6 +180,29 @@ class OpenAICompatibleAdapter:
                 f"OpenAI-compatible server timed out at {self.base_url}.",
                 code="openai_compatible_timeout",
             ) from exc
+
+
+def _parse_tool_calls(raw: Any) -> list[ToolCallRequest]:
+    if not isinstance(raw, list):
+        return []
+    out: list[ToolCallRequest] = []
+    for i, item in enumerate(raw):
+        if not isinstance(item, dict):
+            continue
+        fn = item.get("function") or {}
+        if not isinstance(fn, dict):
+            continue
+        name = fn.get("name") or ""
+        if not name:
+            continue
+        args = fn.get("arguments")
+        if isinstance(args, dict):
+            args_s = json.dumps(args, ensure_ascii=False)
+        else:
+            args_s = str(args or "")
+        call_id = str(item.get("id") or f"call_{i}")
+        out.append(ToolCallRequest(id=call_id, name=name, arguments=args_s))
+    return out
 
 
 def _normalize_base_url(base_url: str) -> str:

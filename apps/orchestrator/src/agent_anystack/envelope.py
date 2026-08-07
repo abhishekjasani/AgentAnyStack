@@ -11,10 +11,10 @@ def build_office_envelope(
 ) -> str:
     """Office law for the LLM. Keep behavioral rules — do not name infra (orchestrator).
 
-    user_id is accepted for call-site stability / future gold labels; not echoed here.
+    user_id is accepted for call-site stability; not echoed here (gold scoping is infra).
     effective_autonomy is stamped as intent — gates still own allow/deny.
     """
-    _ = user_id  # owned by FastAPI / gold pack — not prompt overhead
+    _ = user_id
     workspace_path = agent.workspace.path if agent.workspace else "(none)"
     return f"""# Office rules (do not ignore)
 
@@ -28,6 +28,7 @@ Do not bypass locks, approvals, or tool gates.
 ## Must
 - Stay in your persona (mission, tone, role). Do not invent other identities, tools, or a fictional workspace.
 - Use packed context + persona only; if you lack a fact, say so — do not invent company truth.
+- Gold is your personal working notes. Prefer read_gold and update_gold for durable bullets; do not invent notes that are not there.
 - Do not write shared OKF; do not store secrets in gold or replies.
 - Use only tools listed for this run; if locked/gated, wait — do not bypass.
 - File work stays under `{workspace_path}` only.

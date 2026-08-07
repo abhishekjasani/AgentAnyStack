@@ -5,13 +5,15 @@ from __future__ import annotations
 from agent_anystack.memory.fact import OkfFact
 
 
-def format_gold_section(user_id: str, gold: str) -> str | None:
-    if not gold.strip():
-        return None
+def format_gold_section(gold: str) -> str:
+    """Agent-facing gold — no user_id / path (orchestrator owns scoping)."""
+    body = gold.strip() if gold.strip() else "(empty)"
     return (
-        f"## Gold notepad (user: {user_id})\n\n"
-        "Personal scratch for this desk and user only — not shared OKF.\n\n"
-        f"{gold.strip()}"
+        "## Gold (your working notes)\n\n"
+        "Your personal notepad for this desk. Prefer read_gold before changing; "
+        "use update_gold for durable bullets only — never dump the whole chat. "
+        "Not shared OKF.\n\n"
+        f"{body}"
     )
 
 
@@ -55,14 +57,15 @@ def pack_memory_sections(
 
     v0: C(a,p,u) ≈ gold ∪ mem(team). Floor/org ∩ P(p) not packed yet.
     Budget is approximate chars (~4 chars/token heuristic).
+    user_id is call-site / pack identity only — not echoed in gold section.
     """
+    _ = user_id
     char_budget = max(500, pack_token_budget * 4)
     sections: list[str] = []
 
-    gold_sec = format_gold_section(user_id, gold)
-    if gold_sec:
-        sections.append(gold_sec)
-        char_budget -= len(gold_sec)
+    gold_sec = format_gold_section(gold)
+    sections.append(gold_sec)
+    char_budget -= len(gold_sec)
 
     okf_sec = format_team_okf_section(team_facts, char_budget=max(0, char_budget))
     if okf_sec:

@@ -1,4 +1,8 @@
-"""Per-user gold notepad — gold(a,u) under agents/<id>/gold/<user_id>.md."""
+"""Per-user gold notepad — gold(a,u) under agents/<id>/gold/<user_id>.md.
+
+Primary write path: agent tools read_gold / update_gold (orchestrator-mediated).
+HTTP PUT/DELETE remain for ops; Memory UI is view-only.
+"""
 
 from pydantic import BaseModel, Field
 

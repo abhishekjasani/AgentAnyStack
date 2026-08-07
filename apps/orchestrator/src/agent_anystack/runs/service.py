@@ -1,17 +1,24 @@
-"""Chat run orchestration — pack, envelope, adapter, journal, extract hook."""
+"""Chat run orchestration — pack, envelope, gold tools, adapter, journal, extract."""
+
+from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
 from agent_anystack.adapters import StackError
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.envelope import build_office_envelope
 from agent_anystack.hitl.autonomy import compute_effective
 from agent_anystack.memory import ExtractJob, OkfStore, pack_memory_sections
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
+from agent_anystack.tools.gold import GOLD_TOOL_SCHEMAS, execute_gold_tool
 
 SUPPORTED_STACKS = frozenset({"openai-compatible"})
+MAX_TOOL_ROUNDS = 6
+_TOKEN_CHUNK = 48
 
 
 class ChatRunService:
@@ -84,7 +91,7 @@ class ChatRunService:
         )
         parts = [envelope, persona, *memory_sections]
         system = "\n\n---\n\n".join(parts)
-        messages = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": system},
             {"role": "user", "content": message},
         ]
@@ -93,12 +100,15 @@ class ChatRunService:
         error: str | None = None
         assistant_parts: list[str] = []
         try:
-            async for token in self.adapter.stream_chat(
+            async for event in self._run_with_gold_tools(
                 model=agent.model,
                 messages=messages,
+                agent=agent,
+                user_id=user_id,
             ):
-                assistant_parts.append(token)
-                yield {"type": "token", "text": token}
+                if event.get("type") == "token":
+                    assistant_parts.append(event.get("text") or "")
+                yield event
         except StackError as exc:
             status = "error"
             error = str(exc)
@@ -143,6 +153,100 @@ class ChatRunService:
                 project_id=agent.workspace.project_id if agent.workspace else None,
             )
         yield done
+
+    async def _run_with_gold_tools(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        agent: AgentConfig,
+        user_id: str,
+    ) -> AsyncIterator[dict]:
+        """Tool loop for read_gold / update_gold; then emit assistant text as tokens."""
+        for _round in range(MAX_TOOL_ROUNDS):
+            try:
+                turn = await self.adapter.complete_chat_turn(
+                    model=model,
+                    messages=messages,
+                    tools=GOLD_TOOL_SCHEMAS,
+                )
+            except StackError as exc:
+                # Some hosts reject tools — fall back to plain stream once.
+                if _round == 0 and _looks_like_tools_unsupported(exc):
+                    async for token in self.adapter.stream_chat(
+                        model=model,
+                        messages=messages,
+                    ):
+                        yield {"type": "token", "text": token}
+                    return
+                raise
+            if turn.tool_calls:
+                assistant_msg: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": turn.content or "",
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.name,
+                                "arguments": tc.arguments,
+                            },
+                        }
+                        for tc in turn.tool_calls
+                    ],
+                }
+                messages.append(assistant_msg)
+                for tc in turn.tool_calls:
+                    result = execute_gold_tool(
+                        tc.name,
+                        tc.arguments,
+                        repo=self.repo,
+                        agent=agent,
+                        user_id=user_id,
+                    )
+                    yield {
+                        "type": "tool",
+                        "name": tc.name,
+                        "ok": not result.startswith("error:"),
+                        "detail": result[:200],
+                    }
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": result,
+                        }
+                    )
+                continue
+
+            text = turn.content or ""
+            if text:
+                for chunk in _chunk_text(text, _TOKEN_CHUNK):
+                    yield {"type": "token", "text": chunk}
+            return
+
+        yield {
+            "type": "error",
+            "message": f"tool loop exceeded {MAX_TOOL_ROUNDS} rounds",
+            "code": "tool_loop_limit",
+        }
+
+
+def _chunk_text(text: str, size: int) -> list[str]:
+    if size <= 0 or len(text) <= size:
+        return [text] if text else []
+    return [text[i : i + size] for i in range(0, len(text), size)]
+
+
+def _looks_like_tools_unsupported(exc: StackError) -> bool:
+    msg = str(exc).lower()
+    return "tool" in msg and (
+        "not support" in msg
+        or "unsupported" in msg
+        or "unknown field" in msg
+        or "does not support" in msg
+    )
 
 
 def journal_path_from_database_url(database_url: str, data_fallback: Path) -> Path:

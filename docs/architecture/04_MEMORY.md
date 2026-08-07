@@ -11,7 +11,8 @@ flowchart TB
         T[(Team OKF SQLite)]
         S[(Shelf floor/org OKF)]
     end
-    HUMAN[Human / Memory UI] -->|v0 write| G
+    AGENT[Agent tools read_gold / update_gold] -->|mediated write| G
+    HUMAN[Human / Memory UI] -->|view only| G
     HUMAN -->|seed facts until extract| T
     RUN[Agent run] -->|pack read| G
     RUN -->|pack read| T
@@ -27,9 +28,9 @@ C(a,p,u) ≈ gold(a,u) ∪ mem(team)
 
 Shelf / floor / org ∩ `P(p)` not packed yet. Team facts are **not** filtered by `created_by_user` (audit label only).
 
-| Tier | Store | Who writes (v0) |
+| Tier | Store | Who writes |
 | --- | --- | --- |
-| Gold | `gold/<user_id>.md` | **Human** via `PUT /gold` / Memory UI |
+| Gold | `gold/<user_id>.md` | **Agent** via orchestrator tools `read_gold` / `update_gold` (Memory UI view-only; HTTP PUT for ops) |
 | Team OKF | SQLite `okf_facts` (`DATABASE_URL`) | **Human seed** `POST /okf/facts` until extract |
 | Shelf | — | Later |
 
@@ -204,11 +205,11 @@ Toggle: `OKF_EXTRACT_ENABLED` (default true). Failures are logged; they do not f
 - BAD: desk agent INSERT into okf_facts mid-run
 ```
 
-**v0 decision:** gold write is **human-only**. Do not build `append_gold` for the stream agent in this cut.
+**Gold write:** agent-owned via `read_gold` / `update_gold` (orchestrator-mediated). Memory UI is view-only.
 
 ```text
-+ OK (v0): human edits gold; agent uses packed notes in chat
-- BAD (v0): stream agent writes gold / append_gold tool
++ OK: agent tools update gold; Memory UI view-only
+- BAD: model calls PUT /gold or invents user/agent ids in tool args
 
 + OK (v0): human seeds team OKF; chat packs mem(team)
 - BAD: desk LLM INSERT into okf_facts
@@ -220,4 +221,4 @@ Toggle: `OKF_EXTRACT_ENABLED` (default true). Failures are logged; they do not f
 - BAD: filter shared OKF by user_id on pack (v0)
 ```
 
-**Status (P11–P15):** gold + team OKF pack + extract + office Q&A + **OKF export** ([15_OKF_EXPORT.md](./15_OKF_EXPORT.md)). Shelf ∩ P(p) / import later.
+**Status:** gold tools + team OKF pack + extract + office Q&A + **OKF export** ([15_OKF_EXPORT.md](./15_OKF_EXPORT.md)). Shelf ∩ P(p) / import later.

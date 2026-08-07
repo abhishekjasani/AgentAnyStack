@@ -1,55 +1,56 @@
-# Chat run path (P8) · gold pack (P9)
+# Chat run path (P8) · gold pack (P9) · gold tools
 
 UI → orchestrator → OpenAI-compatible server (default Ollama `/v1`). Pull model separately.  
 Full call chain: main → router → classes. See [V0_SCOPE.md](../V0_SCOPE.md) for product cut.
 
-## What v0 will have (this path)
+## What this path has
 
-**Decision:** gold **write** in v0 is **human/API only**. Do **not** build `append_gold` (or any stream-agent gold tool) in this cut. The chat agent only **reads** packed gold.
+**Decision:** gold is the agent’s personal notepad. Writes go through orchestrator-mediated tools (`read_gold` / `update_gold`) with `(agent_id, user_id)` from the run — never raw `PUT /gold` from the model. Memory UI is **view-only**.
 
-| In v0 | Status |
+| In path | Status |
 | --- | --- |
-| `POST /agents/{id}/chat` SSE (`meta` / `token` / `error` / `done`) | **Built** |
+| `POST /agents/{id}/chat` SSE (`meta` / `token` / `tool` / `error` / `done`) | **Built** |
 | `agent_id` from URL + `user_id` from `X-User-Id` (run locals, not cache) | **Built** |
-| Office Envelope + `AGENT.md` + pack **gold(a,u)** into system prompt (read) | **Built** |
+| Office Envelope + `AGENT.md` + pack **gold(a,u)** into system prompt | **Built** |
+| Mediated **`read_gold` / `update_gold`** tool loop on chat | **Built** |
 | One OpenAI-compatible adapter (`adapters/llm.py`); switch host via URL | **Built** |
 | Journal row per run (team, project_id, stack, autonomy, …) | **Built** |
-| Human gold CRUD: `GET/PUT/DELETE /agents/{id}/gold` + Memory UI (**only** write path) | **Built** |
-| Pack formula grows to `C(a,p,u)` ≈ gold ∪ team OKF | **Built** (shelf ∩ P(p) later) |
+| Gold HTTP `GET` (UI view) + optional `PUT/DELETE` (ops) | **Built** |
+| Pack formula `C(a,p,u)` ≈ gold ∪ team OKF | **Built** (shelf ∩ P(p) later) |
 | Background extract after run | **Built** (P11 — BackgroundTasks) |
 | Thin office Q&A | **Built** (P12 — `POST /office/ask`) |
 | One HITL card | **Built** (P13 — Approvals board) |
 | Autonomy on one gate | **Built** (P14 — `external_send`) |
 
-### Explicitly not v0 (design only below)
+### Still out of cut (design only)
 
-| Out of v0 | Why |
+| Out | Why |
 | --- | --- |
-| Mediated **`append_gold(text)`** / stream tool-calling for gold | Human-only gold write for this cut; tool loop is a later phase |
-| Model calling FastAPI `PUT /gold` itself | Even later, tools stay orchestrator-mediated — never raw REST from the LLM |
+| Model calling FastAPI `PUT /gold` itself | Tools stay orchestrator-mediated — never raw REST from the LLM |
 | Full MCP / `_locked` matrix / multi-stack polish | [V0_SCOPE.md](../V0_SCOPE.md) non-goals |
 | Persisting full chat transcript server-side | Journal = ops log only |
 | Redis/session cache of `user_id` | Request locals only |
 
-**Current architecture:** human writes gold → chat packs it → model answers from prompt. No agent write-back to `gold/<user>.md` in v0.
+**Current architecture:** chat packs gold → model may call `read_gold` / `update_gold` → orchestrator writes `gold/<user>.md` → tokens stream to UI.
 
 ```mermaid
 sequenceDiagram
     participant UI
     participant ORC as Orchestrator
     participant OL as OpenAI-compatible
+    participant G as gold file
     participant J as Journal
 
     UI->>ORC: POST /agents/{id}/chat + X-User-Id
     ORC->>ORC: run_id + Envelope + AGENT.md + gold(a,u)
-    ORC->>OL: stream /v1/chat/completions
-    alt model missing
-        OL-->>ORC: error
-        ORC-->>UI: SSE error pull hint
-    else ok
-        OL-->>ORC: tokens
-        ORC-->>UI: SSE tokens
+    ORC->>OL: chat/completions + gold tools
+    alt tool_calls
+        OL-->>ORC: read_gold / update_gold
+        ORC->>G: mediated read/write
+        ORC->>OL: tool results → continue
     end
+    OL-->>ORC: assistant text
+    ORC-->>UI: SSE tokens
     ORC->>J: journal.jsonl
 ```
 
@@ -201,157 +202,68 @@ SSE line from model server
 
 `agent_id` / `user_id` never come back from the LLM — they remain locals from the original HTTP request.
 
-## Token vs tool_call (after v0 — design only)
+## Token vs tool_call (gold tools)
 
-**Not in this v0 cut.** Kept so the binding story is clear when mediated tools ship later. Until then the adapter only handles `delta.content` (tokens).
+Gold tools use **non-streaming** `complete_chat_turn` rounds (tools on the request), then the final assistant text is emitted as SSE `token` chunks. Hosts that reject `tools` fall back to plain `stream_chat`.
 
-### Same wire — not a different HTTP Content-Type
+### Wire (OpenAI-compatible)
 
-Tool calling does **not** switch media type. Still:
-
-- Request: `POST {base}/v1/chat/completions` with `stream: true` (`application/json` body)
-- Response: SSE `data: {…}` lines (same as today’s token stream)
-- Browser chat: still `text/event-stream` from our FastAPI `StreamingResponse`
-
-What changes is (1) **`tools` on the request** and (2) **fields inside each JSON delta** (`content` vs `tool_calls`).
-
-### How `delta.tool_calls` is generated (model + host, not our Envelope)
-
-The stream agent does **not** invent this format in Python. The **OpenAI-compatible tools protocol** does:
-
-1. Orchestrator sends tool definitions on the chat-completions request, e.g.:
+1. Orchestrator sends tool definitions:
 
 ```json
-"tools": [{
-  "type": "function",
-  "function": {
-    "name": "append_gold",
-    "description": "Append to this user's gold notepad",
-    "parameters": {
-      "type": "object",
-      "properties": { "text": { "type": "string" } },
-      "required": ["text"]
-    }
-  }
-}]
+"tools": [
+  { "type": "function", "function": { "name": "read_gold", "parameters": { "type": "object", "properties": {} } } },
+  { "type": "function", "function": {
+      "name": "update_gold",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "content": { "type": "string" },
+          "mode": { "type": "string", "enum": ["replace", "append"] }
+        },
+        "required": ["content"]
+      }
+  }}
+]
 ```
 
-2. The inference host (Ollama / vLLM / …) runs a **tool-capable** model. When the model decides to use a tool, the host serializes that as OpenAI-style streamed chunks — not free-text like `CALL append_gold(...)`.
+2. Model returns `message.tool_calls` (or plain `content`). Orchestrator runs `execute_gold_tool` with **run-bound** `agent_id` / `user_id` — never from model args.
 
-3. Typical streamed shape (arguments often arrive in pieces and must be concatenated):
-
-```text
-{
-  "choices": [{
-    "delta": {
-      "tool_calls": [{
-        "index": 0,
-        "id": "call_abc",
-        "function": {
-          "name": "append_gold",
-          "arguments": "{\"text\": \"buy milk\"}"
-        }
-      }]
-    }
-  }]
-}
-```
-
-`arguments` is a **string** containing JSON.
-
-4. Orchestrator parses `name` + `arguments`, runs the tool (e.g. `write_gold` with run-bound `agent_id` / `user_id`), then usually continues the conversation with a `role: tool` result and streams again for the final answer.
-
-| Does **not** generate `tool_calls` | What actually does |
-| --- | --- |
-| Office Envelope / `AGENT.md` text alone | Prompt may encourage tools; wire format needs `tools` + host support |
-| Browser or `PUT /gold` | Human write path — separate |
-| `OpenAICompatibleAdapter` inventing the shape | Adapter only **parses** what the host streams |
-
-Today’s adapter only reads `delta.content` and `yield`s strings — it **ignores** `tool_calls` until a later change.
-
-```text
-You: messages + tools schema
-Model+host: delta.content  OR  delta.tool_calls  (OpenAI wire)
-You: execute tool (bound to this run’s user/agent), continue
-```
-
-If the model/host does not support tools, you will not get `tool_calls` even when `tools` is sent.
-
-### Distinguishing token vs tool in the same SSE
-
-Parse OpenAI-compatible deltas so the orchestrator can run mediated tools (e.g. `append_gold`) while still streaming normal reply tokens.
-
-OpenAI-compatible streams share one SSE channel; **delta shape** distinguishes them:
-
-```text
-# Reply token
-delta: { "content": "Hello" }
-
-# Tool call (often streamed in pieces)
-delta: { "tool_calls": [ { "index": 0, "id": "call_…",
-         "function": { "name": "append_gold", "arguments": "{\"text\":" } } ] }
-# later chunks append more of arguments; finish_reason: "tool_calls"
-```
+3. Tool result → `role: tool` message → next turn. SSE may include `{ "type": "tool", "name": "…" }` for the UI meta line.
 
 ```mermaid
 flowchart TB
-    CHUNK[SSE chunk from LLM]
-    CHUNK --> D{delta has?}
-    D -->|content| TOK[Treat as text token]
-    D -->|tool_calls| ACC[Accumulate name + arguments JSON]
-    ACC --> DONE{finish_reason tool_calls?}
-    DONE -->|yes| EXEC[Orchestrator runs tool]
-    EXEC --> GOLD["append_gold → write_gold(agent, user_id, …)"]
-    GOLD --> CONT[Optional: tool result back into messages, stream again]
-    TOK --> UI[SSE type=token to UI]
+    TURN[complete_chat_turn + gold tools]
+    TURN --> D{tool_calls?}
+    D -->|yes| EXEC[execute_gold_tool]
+    EXEC --> GOLD["write_gold / read_gold (agent, user_id from run)"]
+    GOLD --> CONT[append tool result → next turn]
+    D -->|no| TOK[SSE type=token chunks]
 ```
 
-### Later: `append_gold(text)` — ids from run, not from the model
+### Binding: ids from the run, not the model
 
-**Out of v0.** When (if) built: tool schema the model sees is tiny: `{ "name": "append_gold", "parameters": { "text": "string" } }`.  
-It must **not** pass `user_id` / `agent_id` (Alice must not overwrite Bob).
+Tool schema is content-only (`content`, optional `mode`).  
+`ChatRunService` locals (`agent_id`, `user_id` from path + `X-User-Id`) bind the file write.
 
-```mermaid
-sequenceDiagram
-    participant LLM as Model stream
-    participant AD as Adapter
-    participant S as ChatRunService<br/>locals: ba, alice
-    participant G as write_gold
-    participant C as POST .../chat SSE
-
-    LLM-->>AD: delta.tool_calls append_gold
-    AD-->>S: ToolCall(name, args)
-    Note over S: ba + alice from this run<br/>route path + X-User-Id — not from LLM
-    S->>G: write_gold(ba, alice, text)
-    S-->>C: optional {type:"tool", status:"ok"}
-    Note over S: May call adapter again with<br/>messages + tool result
-    LLM-->>AD: delta.content "Saved."
-    AD-->>S: "Saved."
-    S-->>C: {type:"token", text:"Saved."}
-```
-
-Human/UI path is the **v0 write path**: `PUT /agents/{id}/gold` (Memory tab). Same file; agent does not write it in v0. See [04_MEMORY.md](./04_MEMORY.md).
+Memory UI is **view-only** (`GET /gold` + Refresh). HTTP `PUT/DELETE` remain for ops.
 
 ### What is / is not “cached”
 
 | Thing | Mechanism |
 | --- | --- |
 | `agent_id`, `user_id`, `run_id` | Request/run **locals** for one `stream_agent_chat` |
-| Partial tool `arguments` string | Accumulator while streaming one tool call (**after v0**, if tools ship) |
-| Gold notepad | Disk `gold/<user_id>.md` — **human-written in v0** |
+| Gold notepad | Disk `gold/<user_id>.md` — **agent tools** (orchestrator-mediated) |
 | Chat tokens to UI | SSE — full transcript **not** persisted server-side yet |
 
 ```text
-+ OK: UI → orchestrator → OpenAI-compatible → SSE (envelope + gold pack + journal)
++ OK: UI → orchestrator → OpenAI-compatible → SSE (envelope + gold pack + gold tools + journal)
 - BAD: UI → model host directly
 
-+ OK: Envelope = musts + workspace + autonomy intent; AGENT.md = role; gold(a,u) labeled
-- BAD: repeat agent/user/stack/model in every prompt (orchestrator already knows)
++ OK: Envelope = musts + workspace + autonomy intent; AGENT.md = role; gold = personal notes (no user_id in prompt)
+- BAD: teach the model about user_id / gold file paths
 
-+ OK (v0): human PUT/Memory UI writes gold; chat only packs/reads it
-- BAD (v0): build append_gold / expect the stream agent to update gold
-
-+ OK (later): tool append_gold(text only); orchestrator binds agent_id + user_id from the run
++ OK: tools read_gold / update_gold; orchestrator binds agent_id + user_id from the run
 - BAD: model chooses user_id / calls PUT /gold itself
 
 + OK: Ollama up, no model → StackError with pull hint

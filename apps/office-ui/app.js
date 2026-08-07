@@ -358,63 +358,9 @@
       const data = await res.json();
       $("#gold-content").value = data.content || "";
       $("#gold-meta").textContent =
-        `User ${data.user_id} · path gold/${data.user_id}.md`;
-    } catch (e) {
-      err.textContent = String(e.message || e);
-      err.hidden = false;
-    }
-  }
-
-  async function saveGold() {
-    const agentId = $("#gold-agent").value;
-    const err = $("#gold-error");
-    const ok = $("#gold-ok");
-    err.hidden = true;
-    ok.hidden = true;
-    if (!agentId) return;
-    try {
-      const res = await api(`/agents/${encodeURIComponent(agentId)}/gold`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: $("#gold-content").value }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.detail || `PUT gold ${res.status}`);
-      }
-      $("#gold-content").value = data.content || "";
-      ok.textContent = "Saved.";
-      ok.hidden = false;
-      await loadGoldForSelected();
-    } catch (e) {
-      err.textContent = String(e.message || e);
-      err.hidden = false;
-    }
-  }
-
-  async function clearGold() {
-    const agentId = $("#gold-agent").value;
-    if (!agentId) return;
-    const okConfirm = window.confirm(
-      `Clear gold for user ${currentUserId()} on desk ${agentId}?`
-    );
-    if (!okConfirm) return;
-    const err = $("#gold-error");
-    const ok = $("#gold-ok");
-    err.hidden = true;
-    ok.hidden = true;
-    try {
-      const res = await api(`/agents/${encodeURIComponent(agentId)}/gold`, {
-        method: "DELETE",
-      });
-      if (!res.ok && res.status !== 204) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || `DELETE gold ${res.status}`);
-      }
-      $("#gold-content").value = "";
-      ok.textContent = "Cleared.";
-      ok.hidden = false;
-      await loadGoldForSelected();
+        data.content && data.content.trim()
+          ? "Agent-owned notepad · view only (scoped by session)"
+          : "Empty — agent can fill via update_gold";
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
@@ -838,8 +784,7 @@
   $("#btn-stacks-refresh").addEventListener("click", () => loadStacks());
   $("#btn-stacks-health").addEventListener("click", () => loadStacksHealth());
   $("#gold-agent").addEventListener("change", () => loadGoldForSelected());
-  $("#gold-save").addEventListener("click", () => saveGold());
-  $("#gold-clear").addEventListener("click", () => clearGold());
+  $("#gold-refresh").addEventListener("click", () => loadGoldForSelected());
   $("#okf-add").addEventListener("click", () => addOkfFact());
   $("#okf-refresh").addEventListener("click", () => loadOkf());
   $("#okf-export").addEventListener("click", () => exportOkf());
@@ -1200,6 +1145,11 @@
             text += payload.text;
             replyText.textContent = text;
             $("#chat-log").scrollTop = $("#chat-log").scrollHeight;
+          } else if (payload.type === "tool") {
+            const tip = payload.ok === false
+              ? `tool ${payload.name} failed`
+              : `tool ${payload.name}`;
+            $("#chat-meta").textContent = tip;
           } else if (payload.type === "answer") {
             text = payload.text || "";
             replyText.textContent = text;

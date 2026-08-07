@@ -48,6 +48,6 @@ flowchart LR
 - BAD: invent a Python Agent subclass package
 ```
 
-**Built now (P1–P16 + P17 models):** health, desks, Docker, UI, chat, gold, team OKF, office Q&A, HITL, autonomy gate, OKF export, unified channel, **Stacks local model pull**.  
+**Built now (P1–P16 + P17 models):** health, desks, Docker, UI, chat, gold tools, team OKF, office Q&A, HITL, autonomy gate, OKF export, unified channel, **Stacks local model pull**.  
 **Optional later:** shelf ∩ P(p), OKF import, Settings read-only page, BYO Cursor/Claude keys UI.  
-**Out of v0 cut:** stream-agent `append_gold` tool (human gold write only); floors / full MCP / Analytics BI.
+**Out of v0 cut:** floors / full MCP / Analytics BI.
