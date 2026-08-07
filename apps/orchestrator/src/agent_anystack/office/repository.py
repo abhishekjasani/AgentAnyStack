@@ -14,6 +14,15 @@ from agent_anystack.domain.agent import (
     ToolsConfig,
 )
 from agent_anystack.domain.org import OrgConfig
+from agent_anystack.office.gold_notes import (
+    GoldNote,
+    GoldNotesTooLargeError,
+    load_gold_notes,
+    new_gold_id,
+    render_gold_notes,
+    save_gold_notes,
+    utc_now_iso,
+)
 
 
 class AgentExistsError(Exception):
@@ -23,6 +32,13 @@ class AgentExistsError(Exception):
 
 
 class AutonomyCeilingError(Exception):
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
+class GoldTooLargeError(Exception):
+    """Gold notepad over size cap."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
 
@@ -155,34 +171,114 @@ class OfficeRepository:
 
         return config
 
+    def gold_dir(self, agent: AgentConfig) -> Path:
+        return self.agent_dir(agent.team, agent.id) / "gold"
+
     def gold_path(self, agent: AgentConfig, user_id: str) -> Path:
-        return self.agent_dir(agent.team, agent.id) / "gold" / f"{user_id}.md"
+        """Legacy .md path (migration source). Canonical store is .jsonl."""
+        return self.gold_dir(agent) / f"{user_id}.md"
+
+    def list_gold_notes(self, agent: AgentConfig, user_id: str) -> list[GoldNote]:
+        return load_gold_notes(self.gold_dir(agent), user_id)
 
     def read_gold(self, agent: AgentConfig, user_id: str) -> str:
-        """Per-user notepad gold(a,u). Missing file → empty string."""
-        path = self.gold_path(agent, user_id)
-        if not path.is_file():
+        """Rendered notes for UI/pack body (ids + text). Missing → empty string."""
+        notes = self.list_gold_notes(agent, user_id)
+        if not notes:
             return ""
-        return path.read_text(encoding="utf-8")
+        return render_gold_notes(notes)
+
+    def append_gold_note(
+        self,
+        agent: AgentConfig,
+        user_id: str,
+        text: str,
+        *,
+        run_id: str | None = None,
+    ) -> GoldNote:
+        cleaned = text.strip()
+        if not cleaned:
+            raise ValueError("gold note text is empty")
+        notes = self.list_gold_notes(agent, user_id)
+        note = GoldNote(
+            id=new_gold_id(),
+            text=cleaned,
+            run_id=run_id,
+            created_at=utc_now_iso(),
+        )
+        notes.append(note)
+        try:
+            save_gold_notes(
+                self.gold_dir(agent),
+                user_id,
+                notes,
+                max_chars=self.gold_max_chars,
+            )
+        except GoldNotesTooLargeError as exc:
+            raise GoldTooLargeError(str(exc)) from exc
+        return note
+
+    def delete_gold_notes(
+        self,
+        agent: AgentConfig,
+        user_id: str,
+        ids: list[str],
+    ) -> list[str]:
+        """Remove notes by id. Returns ids that were deleted."""
+        want = {i.strip() for i in ids if isinstance(i, str) and i.strip()}
+        if not want:
+            return []
+        notes = self.list_gold_notes(agent, user_id)
+        kept: list[GoldNote] = []
+        deleted: list[str] = []
+        for n in notes:
+            if n.id in want:
+                deleted.append(n.id)
+            else:
+                kept.append(n)
+        try:
+            save_gold_notes(
+                self.gold_dir(agent),
+                user_id,
+                kept,
+                max_chars=self.gold_max_chars,
+            )
+        except GoldNotesTooLargeError as exc:
+            raise GoldTooLargeError(str(exc)) from exc
+        return deleted
+
+    def clear_gold(self, agent: AgentConfig, user_id: str) -> None:
+        save_gold_notes(
+            self.gold_dir(agent),
+            user_id,
+            [],
+            max_chars=self.gold_max_chars,
+        )
 
     def write_gold(self, agent: AgentConfig, user_id: str, content: str) -> None:
-        """Replace gold(a,u). Empty content deletes the file (reset)."""
-        if len(content) > self.gold_max_chars:
-            raise GoldTooLargeError(
-                f"gold exceeds {self.gold_max_chars} characters ({len(content)})"
-            )
-        gold_dir = self.agent_dir(agent.team, agent.id) / "gold"
-        gold_dir.mkdir(parents=True, exist_ok=True)
-        path = self.gold_path(agent, user_id)
+        """Ops replace: each non-empty line → a note. Empty content clears."""
         if not content.strip():
-            if path.is_file():
-                path.unlink()
+            self.clear_gold(agent, user_id)
             return
-        path.write_text(content, encoding="utf-8", newline="\n")
-
-
-class GoldTooLargeError(Exception):
-    """Gold notepad over size cap."""
+        notes = [
+            GoldNote(
+                id=new_gold_id(),
+                text=line.strip(),
+                run_id=None,
+                created_at=utc_now_iso(),
+            )
+            for line in content.splitlines()
+            if line.strip()
+        ]
+        try:
+            save_gold_notes(
+                self.gold_dir(agent),
+                user_id,
+                notes,
+                max_chars=self.gold_max_chars,
+            )
+        except GoldNotesTooLargeError as exc:
+            raise GoldTooLargeError(str(exc)) from exc
 
 
 def _default_persona_markdown(name: str) -> str:

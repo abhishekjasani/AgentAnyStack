@@ -5,13 +5,13 @@ Users share the **room**; they do not share the **notepad**.
 ```mermaid
 flowchart TB
     subgraph short [Short-term]
-        G["gold(a,u) markdown in git"]
+        G["gold(a,u) jsonl notes in git"]
     end
     subgraph long [Long-term shared]
         T[(Team OKF SQLite)]
         S[(Shelf floor/org OKF)]
     end
-    AGENT[Agent tools read_gold / update_gold] -->|mediated write| G
+    AGENT[Agent tools append/delete/clear gold] -->|mediated write| G
     HUMAN[Human / Memory UI] -->|view only| G
     HUMAN -->|seed facts until extract| T
     RUN[Agent run] -->|pack read| G
@@ -30,7 +30,7 @@ Shelf / floor / org ∩ `P(p)` not packed yet. Team facts are **not** filtered b
 
 | Tier | Store | Who writes |
 | --- | --- | --- |
-| Gold | `gold/<user_id>.md` | **Agent** via orchestrator tools `read_gold` / `update_gold` (Memory UI view-only; HTTP PUT for ops) |
+| Gold | `gold/<user_id>.jsonl` | **Agent** via `read_gold` / `append_gold` / `delete_gold` / `clear_gold` (Memory UI view-only; HTTP PUT for ops) |
 | Team OKF | SQLite `okf_facts` (`DATABASE_URL`) | **Human seed** `POST /okf/facts` until extract |
 | Shelf | — | Later |
 
@@ -205,11 +205,13 @@ Toggle: `OKF_EXTRACT_ENABLED` (default true). Failures are logged; they do not f
 - BAD: desk agent INSERT into okf_facts mid-run
 ```
 
-**Gold write:** agent-owned via `read_gold` / `update_gold` (orchestrator-mediated). Memory UI is view-only.
+**Gold write:** agent-owned via `append_gold` / `delete_gold` / `clear_gold` (orchestrator-mediated; unique note ids). Memory UI is view-only.
 
 ```text
 + OK: agent tools update gold; Memory UI view-only
 - BAD: model calls PUT /gold or invents user/agent ids in tool args
++ OK: delete by note id(s); each append gets a unique id (run_id = provenance only)
+- BAD: delete-by-chat-run_id as the only key when multiple notes share a run
 
 + OK (v0): human seeds team OKF; chat packs mem(team)
 - BAD: desk LLM INSERT into okf_facts

@@ -1,7 +1,7 @@
-"""Per-user gold notepad — gold(a,u) under agents/<id>/gold/<user_id>.md.
+"""Per-user gold notepad — gold(a,u) as gold/<user_id>.jsonl (id-addressable notes).
 
-Primary write path: agent tools read_gold / update_gold (orchestrator-mediated).
-HTTP PUT/DELETE remain for ops; Memory UI is view-only.
+Primary write path: agent tools read_gold / append_gold / delete_gold / clear_gold.
+HTTP GET (view) + PUT/DELETE (ops); Memory UI is view-only.
 """
 
 from pydantic import BaseModel, Field
@@ -12,18 +12,27 @@ from agent_anystack.api.agents import get_office_repo
 from agent_anystack.api.deps import get_user_id
 from agent_anystack.config import Settings, get_settings
 from agent_anystack.office import GoldTooLargeError, OfficeRepository
+from agent_anystack.office.gold_notes import format_gold_with_rules
 
 router = APIRouter(tags=["gold"])
+
+
+class GoldNoteOut(BaseModel):
+    id: str
+    text: str
+    run_id: str | None = None
+    created_at: str | None = None
 
 
 class GoldResponse(BaseModel):
     agent_id: str
     user_id: str
     content: str
+    entries: list[GoldNoteOut] = Field(default_factory=list)
 
 
 class GoldWriteRequest(BaseModel):
-    """Length capped in put_gold via Settings.gold_max_chars (not a fixed Field)."""
+    """Ops replace: non-empty lines become notes. Length capped via Settings."""
 
     content: str = Field(default="")
 
@@ -37,10 +46,20 @@ async def get_gold(
     agent = repo.get_agent(agent_id)
     if agent is None:
         raise HTTPException(status_code=404, detail=f"agent not found: {agent_id}")
+    notes = repo.list_gold_notes(agent, user_id)
     return GoldResponse(
         agent_id=agent.id,
         user_id=user_id,
-        content=repo.read_gold(agent, user_id),
+        content=format_gold_with_rules(notes),
+        entries=[
+            GoldNoteOut(
+                id=n.id,
+                text=n.text,
+                run_id=n.run_id,
+                created_at=n.created_at,
+            )
+            for n in notes
+        ],
     )
 
 
@@ -67,10 +86,20 @@ async def put_gold(
         repo.write_gold(agent, user_id, body.content)
     except GoldTooLargeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    notes = repo.list_gold_notes(agent, user_id)
     return GoldResponse(
         agent_id=agent.id,
         user_id=user_id,
-        content=repo.read_gold(agent, user_id),
+        content=format_gold_with_rules(notes),
+        entries=[
+            GoldNoteOut(
+                id=n.id,
+                text=n.text,
+                run_id=n.run_id,
+                created_at=n.created_at,
+            )
+            for n in notes
+        ],
     )
 
 
@@ -80,8 +109,8 @@ async def delete_gold(
     user_id: str = Depends(get_user_id),
     repo: OfficeRepository = Depends(get_office_repo),
 ) -> None:
-    """Reset gold(a,u) for the current user."""
+    """Clear gold(a,u) for the current user."""
     agent = repo.get_agent(agent_id)
     if agent is None:
         raise HTTPException(status_code=404, detail=f"agent not found: {agent_id}")
-    repo.write_gold(agent, user_id, "")
+    repo.clear_gold(agent, user_id)

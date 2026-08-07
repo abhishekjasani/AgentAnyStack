@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 from agent_anystack.memory.fact import OkfFact
+from agent_anystack.office.gold_notes import GoldNote, format_gold_with_rules
 
 
-def format_gold_section(gold: str) -> str:
-    """Agent-facing gold — no user_id / path (orchestrator owns scoping)."""
-    body = gold.strip() if gold.strip() else "(empty)"
-    return (
-        "## Gold (your working notes)\n\n"
-        "Your personal notepad for this desk. Prefer read_gold before changing; "
-        "use update_gold for durable bullets only — never dump the whole chat. "
-        "Not shared OKF.\n\n"
-        f"{body}"
-    )
+def format_gold_section(notes: list[GoldNote] | str) -> str:
+    """Agent-facing gold — rules + id rows; no user_id / path."""
+    if isinstance(notes, str):
+        # Legacy callers passing rendered text
+        from agent_anystack.office.gold_notes import GOLD_RULES
+
+        body = notes.strip() if notes.strip() else "(empty)"
+        return f"## Gold (your working notes)\n\n{GOLD_RULES}\n\n{body}"
+    return format_gold_with_rules(notes)
 
 
 def format_team_okf_section(facts: list[OkfFact], *, char_budget: int) -> str | None:
@@ -48,7 +48,7 @@ def format_team_okf_section(facts: list[OkfFact], *, char_budget: int) -> str | 
 def pack_memory_sections(
     *,
     user_id: str,
-    gold: str,
+    gold: str | list[GoldNote],
     team_facts: list[OkfFact],
     pack_token_budget: int,
 ) -> list[str]:
@@ -63,7 +63,10 @@ def pack_memory_sections(
     char_budget = max(500, pack_token_budget * 4)
     sections: list[str] = []
 
-    gold_sec = format_gold_section(gold)
+    if isinstance(gold, list):
+        gold_sec = format_gold_section(gold)
+    else:
+        gold_sec = format_gold_section(gold)
     sections.append(gold_sec)
     char_budget -= len(gold_sec)
 

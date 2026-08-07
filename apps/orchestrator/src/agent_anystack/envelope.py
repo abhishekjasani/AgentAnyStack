@@ -28,7 +28,7 @@ Do not bypass locks, approvals, or tool gates.
 ## Must
 - Stay in your persona (mission, tone, role). Do not invent other identities, tools, or a fictional workspace.
 - Use packed context + persona only; if you lack a fact, say so — do not invent company truth.
-- Gold is your personal working notes. Prefer read_gold and update_gold for durable bullets; do not invent notes that are not there.
+- Gold is your personal working notes. Prefer append_gold / delete_gold / clear_gold (and read_gold); do not invent notes that are not there.
 - Do not write shared OKF; do not store secrets in gold or replies.
 - Use only tools listed for this run; if locked/gated, wait — do not bypass.
 - File work stays under `{workspace_path}` only.

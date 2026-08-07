@@ -81,11 +81,11 @@ class ChatRunService:
             effective_autonomy=eff,
         )
         persona = self.repo.read_persona(agent)
-        gold = self.repo.read_gold(agent, user_id)
+        gold_notes = self.repo.list_gold_notes(agent, user_id)
         team_facts = self.okf.list_team_facts(agent.team)
         memory_sections = pack_memory_sections(
             user_id=user_id,
-            gold=gold,
+            gold=gold_notes,
             team_facts=team_facts,
             pack_token_budget=self.pack_token_budget,
         )
@@ -105,6 +105,7 @@ class ChatRunService:
                 messages=messages,
                 agent=agent,
                 user_id=user_id,
+                run_id=run_id,
             ):
                 if event.get("type") == "token":
                     assistant_parts.append(event.get("text") or "")
@@ -161,8 +162,9 @@ class ChatRunService:
         messages: list[dict[str, Any]],
         agent: AgentConfig,
         user_id: str,
+        run_id: str,
     ) -> AsyncIterator[dict]:
-        """Tool loop for read_gold / update_gold; then emit assistant text as tokens."""
+        """Tool loop for gold CRUD; then emit assistant text as tokens."""
         for _round in range(MAX_TOOL_ROUNDS):
             try:
                 turn = await self.adapter.complete_chat_turn(
@@ -204,6 +206,7 @@ class ChatRunService:
                         repo=self.repo,
                         agent=agent,
                         user_id=user_id,
+                        run_id=run_id,
                     )
                     yield {
                         "type": "tool",

@@ -5,14 +5,14 @@ Full call chain: main → router → classes. See [V0_SCOPE.md](../V0_SCOPE.md) 
 
 ## What this path has
 
-**Decision:** gold is the agent’s personal notepad. Writes go through orchestrator-mediated tools (`read_gold` / `update_gold`) with `(agent_id, user_id)` from the run — never raw `PUT /gold` from the model. Memory UI is **view-only**.
+**Decision:** gold is the agent’s personal notepad (id-addressable notes in `gold/<user>.jsonl`). Writes go through orchestrator-mediated tools (`read_gold` / `append_gold` / `delete_gold` / `clear_gold`) with `(agent_id, user_id)` from the run — never raw `PUT /gold` from the model. Memory UI is **view-only**.
 
 | In path | Status |
 | --- | --- |
 | `POST /agents/{id}/chat` SSE (`meta` / `token` / `tool` / `error` / `done`) | **Built** |
 | `agent_id` from URL + `user_id` from `X-User-Id` (run locals, not cache) | **Built** |
 | Office Envelope + `AGENT.md` + pack **gold(a,u)** into system prompt | **Built** |
-| Mediated **`read_gold` / `update_gold`** tool loop on chat | **Built** |
+| Mediated **`read_gold` / `append_gold` / `delete_gold` / `clear_gold`** | **Built** |
 | One OpenAI-compatible adapter (`adapters/llm.py`); switch host via URL | **Built** |
 | Journal row per run (team, project_id, stack, autonomy, …) | **Built** |
 | Gold HTTP `GET` (UI view) + optional `PUT/DELETE` (ops) | **Built** |
@@ -214,20 +214,18 @@ Gold tools use **non-streaming** `complete_chat_turn` rounds (tools on the reque
 "tools": [
   { "type": "function", "function": { "name": "read_gold", "parameters": { "type": "object", "properties": {} } } },
   { "type": "function", "function": {
-      "name": "update_gold",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "content": { "type": "string" },
-          "mode": { "type": "string", "enum": ["replace", "append"] }
-        },
-        "required": ["content"]
-      }
-  }}
+      "name": "append_gold",
+      "parameters": { "type": "object", "properties": { "text": { "type": "string" } }, "required": ["text"] }
+  }},
+  { "type": "function", "function": {
+      "name": "delete_gold",
+      "parameters": { "type": "object", "properties": { "ids": { "type": "array", "items": { "type": "string" } } }, "required": ["ids"] }
+  }},
+  { "type": "function", "function": { "name": "clear_gold", "parameters": { "type": "object", "properties": {} } } }
 ]
 ```
 
-2. Model returns `message.tool_calls` (or plain `content`). Orchestrator runs `execute_gold_tool` with **run-bound** `agent_id` / `user_id` — never from model args.
+2. Model returns `message.tool_calls` (or plain `content`). Orchestrator runs `execute_gold_tool` with **run-bound** `agent_id` / `user_id` / `run_id` (provenance on append) — never from model args.
 
 3. Tool result → `role: tool` message → next turn. SSE may include `{ "type": "tool", "name": "…" }` for the UI meta line.
 
@@ -236,7 +234,7 @@ flowchart TB
     TURN[complete_chat_turn + gold tools]
     TURN --> D{tool_calls?}
     D -->|yes| EXEC[execute_gold_tool]
-    EXEC --> GOLD["write_gold / read_gold (agent, user_id from run)"]
+    EXEC --> GOLD["append/delete/clear → gold/<user>.jsonl"]
     GOLD --> CONT[append tool result → next turn]
     D -->|no| TOK[SSE type=token chunks]
 ```

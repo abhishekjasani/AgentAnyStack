@@ -360,7 +360,7 @@
       $("#gold-meta").textContent =
         data.content && data.content.trim()
           ? "Agent-owned notepad · view only (scoped by session)"
-          : "Empty — agent can fill via update_gold";
+          : "Empty — agent can fill via append_gold";
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
