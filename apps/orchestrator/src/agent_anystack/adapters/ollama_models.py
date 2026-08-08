@@ -42,6 +42,13 @@ CURATED_CATALOG: tuple[dict[str, str], ...] = (
         "size_hint": "~4.7 GB",
         "note": "Developer-style roles",
     },
+    {
+        "id": "gemma4:e4b",
+        "label": "gemma4:e4b",
+        "grade": "agent",
+        "size_hint": "~9.6 GB",
+        "note": "Gemma 4 E4B — needs Ollama 0.20+; heavy for 4 GB VRAM",
+    },
 )
 
 _CURATED_IDS = frozenset(e["id"] for e in CURATED_CATALOG)
