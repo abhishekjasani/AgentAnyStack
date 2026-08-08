@@ -25,6 +25,10 @@ data/*
 *.db
 *.sqlite3
 
+# agent project working trees (own git per project; LFS later)
+projects/*
+!projects/.gitkeep
+
 # node (office-ui later)
 node_modules/
 apps/office-ui/dist/

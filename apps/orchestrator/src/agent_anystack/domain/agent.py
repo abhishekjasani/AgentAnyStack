@@ -49,6 +49,7 @@ class AgentConfig(BaseModel):
     model: str
     persona: PersonaAxes = Field(default_factory=PersonaAxes)
     autonomy: AgentAutonomy = Field(default_factory=AgentAutonomy)
+    # Required for new desks; older yaml without workspace still loads (None).
     workspace: Workspace | None = None
     system_prompt_file: str = "./AGENT.md"
     system_prompt: str | None = None
@@ -67,6 +68,7 @@ class AgentSummary(BaseModel):
     team: str
     stack: str
     model: str
+    project_id: str | None = None
     max_input_tokens: int = -1
     max_output_tokens: int = -1
 
@@ -82,7 +84,8 @@ class CreateAgentRequest(BaseModel):
     persona_markdown: str | None = None
     persona: PersonaAxes | None = None
     autonomy: AgentAutonomy | None = None
-    workspace: Workspace | None = None
+    # Compulsory: bind to an active project (create project first if needed).
+    workspace: Workspace
     tools_mode: Literal["none", "mediated", "worker"] = "none"
     max_input_tokens: int = Field(default=-1, ge=-1, le=200_000)
     max_output_tokens: int = Field(default=-1, ge=-1, le=100_000)

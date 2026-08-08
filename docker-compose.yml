@@ -15,11 +15,13 @@ services:
       PORT: "8787"
       OFFICE_REPO_PATH: /office
       OFFICE_UI_PATH: /ui
+      PROJECTS_ROOT: /projects
       DATABASE_URL: sqlite:////data/office.db
       # OpenAI-compatible /v1 (Ollama default). Same adapter works for vLLM etc.
       OPENAI_COMPATIBLE_BASE_URL: http://ollama:11434/v1
     volumes:
       - ./office:/office
+      - ./projects:/projects
       - ./data:/data
     # Ollama optional at boot — chat wiring is a later phase
     restart: unless-stopped

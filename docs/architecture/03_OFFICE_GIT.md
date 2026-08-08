@@ -15,6 +15,7 @@ flowchart LR
 ```text
 office/
   org.yaml                 # org max_autonomy, defaults
+  projects.yaml            # project registry (id, name, slug, path, status)
   memory/                  # OKF export snapshot (P15) — not hot pack
     index.md
     teams/<team>/…
@@ -22,12 +23,17 @@ office/
     <team>/
       agents/
         <id>/
-          agent.yaml       # machine contract
+          agent.yaml       # machine contract (workspace required on create)
           AGENT.md         # persona markdown
-          gold/            # gold/<user_id>.md per-user notepad
+          gold/            # gold/<user_id>.jsonl per-user notepad
+
+projects/                  # PROJECTS_ROOT — one git tree per project (not office git)
+  <slug>/                  # working dir; LFS optional later
 ```
 
 **Ship empty:** no seed analysts/developers. Create via API/UI only.
+
+**Compulsory workspace:** `POST /agents` requires `workspace.project_id` for an **active** project. If none exists, `POST /projects` first (creates registry row + `projects/<slug>/` + `git init`). Path on the agent is taken from the registry.
 
 ```text
 + OK: POST {id:ba, team:eng, ...} → office/teams/eng/agents/ba/
@@ -38,6 +44,9 @@ office/
 
 + OK: GET /agents → [] until someone creates a desk
 - BAD: hardcode agent names in Python
+
++ OK: project under projects/; pointer in agent.yaml workspace
+- BAD: create agent without an active project
 ```
 
 ## Two files per desk

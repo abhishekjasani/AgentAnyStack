@@ -28,7 +28,10 @@
     }
     if (name === "approvals") loadApprovals();
     if (name === "stacks") loadStacks();
-    if (name === "create") loadCreateModels();
+    if (name === "create") {
+      loadCreateModels();
+      loadCreateProjects();
+    }
   }
 
   let channelAgents = [];
@@ -111,7 +114,9 @@
     nameBtn.addEventListener("click", () => openChannelChat(a));
     const sub = document.createElement("div");
     sub.className = "desk-meta";
-    sub.textContent = `${a.id} · team ${a.team}`;
+    sub.textContent = a.project_id
+      ? `${a.id} · team ${a.team} · project ${a.project_id}`
+      : `${a.id} · team ${a.team}`;
     meta.append(nameBtn, sub);
     const right = document.createElement("div");
     right.className = "desk-actions";
@@ -474,6 +479,86 @@
     if (v < 1024 ** 2) return `${(v / 1024).toFixed(1)} KB`;
     if (v < 1024 ** 3) return `${(v / 1024 ** 2).toFixed(1)} MB`;
     return `${(v / 1024 ** 3).toFixed(1)} GB`;
+  }
+
+  async function loadCreateProjects(selectId) {
+    const sel = $("#create-project");
+    const hint = $("#create-project-hint");
+    if (!sel) return;
+    const prev = selectId || sel.value;
+    sel.innerHTML = "";
+    if (hint) hint.textContent = "";
+    try {
+      const res = await api("/projects");
+      if (!res.ok) throw new Error(`GET /projects ${res.status}`);
+      const projects = await res.json();
+      if (!projects.length) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "No projects — create one below";
+        sel.appendChild(opt);
+        if (hint) {
+          hint.textContent =
+            "Every desk needs a working directory. Create a project first.";
+        }
+        return;
+      }
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Select a project…";
+      sel.appendChild(placeholder);
+      for (const p of projects) {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = `${p.name} (${p.path})`;
+        sel.appendChild(opt);
+      }
+      if (prev && [...sel.options].some((o) => o.value === prev)) {
+        sel.value = prev;
+      }
+    } catch (e) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "Failed to load projects";
+      sel.appendChild(opt);
+      if (hint) hint.textContent = String(e.message || e);
+    }
+  }
+
+  async function createProjectFromForm() {
+    const nameInput = $("#new-project-name");
+    const err = $("#create-error");
+    const ok = $("#create-project-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    const name = (nameInput?.value || "").trim();
+    if (!name) {
+      err.textContent = "Enter a new project name.";
+      err.hidden = false;
+      return;
+    }
+    try {
+      const res = await api("/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = data.detail;
+        const msg = Array.isArray(detail)
+          ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
+          : detail || `POST /projects ${res.status}`;
+        throw new Error(msg);
+      }
+      if (nameInput) nameInput.value = "";
+      ok.textContent = `Created ${data.name} → ${data.path}`;
+      ok.hidden = false;
+      await loadCreateProjects(data.id);
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
   }
 
   async function loadCreateModels() {
@@ -942,6 +1027,10 @@
   $("#btn-empty-create").addEventListener("click", () => showView("create"));
   $("#btn-back-team").addEventListener("click", () => showView("team"));
   $("#btn-back-office-team").addEventListener("click", () => showView("team"));
+  const btnCreateProject = $("#btn-create-project");
+  if (btnCreateProject) {
+    btnCreateProject.addEventListener("click", () => createProjectFromForm());
+  }
   $("#btn-stacks-refresh").addEventListener("click", () => loadStacks());
   $("#btn-stacks-health").addEventListener("click", () => loadStacksHealth());
   $("#btn-stacks-flush").addEventListener("click", () => flushModels());
@@ -1257,6 +1346,12 @@
     const err = $("#create-error");
     err.hidden = true;
     const fd = new FormData(ev.target);
+    const projectId = String(fd.get("project_id") || "").trim();
+    if (!projectId) {
+      err.textContent = "Select or create a project (working directory is required).";
+      err.hidden = false;
+      return;
+    }
     const body = {
       id: String(fd.get("id") || "").trim(),
       name: String(fd.get("name") || "").trim(),
@@ -1265,6 +1360,10 @@
       model: String(fd.get("model") || "").trim(),
       max_input_tokens: Number(fd.get("max_input_tokens") ?? -1),
       max_output_tokens: Number(fd.get("max_output_tokens") ?? -1),
+      workspace: {
+        project_id: projectId,
+        path: ".", // server overwrites from registry
+      },
     };
     const persona = String(fd.get("persona_markdown") || "").trim();
     if (persona) body.persona_markdown = persona;
@@ -1288,6 +1387,7 @@
       ev.target.max_input_tokens.value = "-1";
       ev.target.max_output_tokens.value = "-1";
       await loadCreateModels();
+      await loadCreateProjects();
       showView("team");
     } catch (e) {
       err.textContent = String(e.message || e);

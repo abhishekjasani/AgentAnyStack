@@ -142,7 +142,10 @@
         <header class="view-head">
           <div>
             <h1 id="create-title">Create agent</h1>
-            <p class="lede">Writes <code>agent.yaml</code> + <code>AGENT.md</code> under <code>office/teams/…</code>.</p>
+            <p class="lede">
+              Writes <code>agent.yaml</code> + <code>AGENT.md</code> under <code>office/teams/…</code>.
+              A <strong>project working directory</strong> is required (create one if needed).
+            </p>
           </div>
           <button type="button" class="btn ghost" id="btn-back-team">Back to Team</button>
         </header>
@@ -150,6 +153,20 @@
           <label>Id <input name="id" required pattern="^[a-z][a-z0-9_-]*$" placeholder="ba" /></label>
           <label>Name <input name="name" required placeholder="Business Analyst" /></label>
           <label>Team <input name="team" required pattern="^[a-z][a-z0-9_-]*$" placeholder="eng" value="eng" /></label>
+          <label>Project (working dir)
+            <select name="project_id" id="create-project" required aria-label="Project working directory">
+              <option value="">Loading projects…</option>
+            </select>
+          </label>
+          <p id="create-project-hint" class="desk-meta"></p>
+          <details id="create-project-new" class="create-project-new">
+            <summary>Create new project first</summary>
+            <label>New project name
+              <input name="new_project_name" id="new-project-name" type="text" maxlength="128" placeholder="Loan portal" />
+            </label>
+            <button type="button" class="btn ghost" id="btn-create-project">Create project</button>
+            <p id="create-project-ok" class="desk-meta" hidden></p>
+          </details>
           <label>Stack
             <select name="stack">
               <option value="openai-compatible" selected>openai-compatible (Ollama)</option>

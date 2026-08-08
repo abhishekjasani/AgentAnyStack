@@ -157,6 +157,7 @@ class OfficeRepository:
                 team=a.team,
                 stack=a.stack,
                 model=a.model,
+                project_id=a.workspace.project_id if a.workspace else None,
                 max_input_tokens=a.max_input_tokens,
                 max_output_tokens=a.max_output_tokens,
             )

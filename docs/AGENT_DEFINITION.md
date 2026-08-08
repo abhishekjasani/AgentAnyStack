@@ -78,6 +78,8 @@ tools:
 
 UI wizard collects the four Claude fields + team/workspace/autonomy → writes `agent.yaml` + `AGENT.md` → git commit.
 
+**Compulsory:** create an active **project** first (`POST /projects` → `projects/<slug>/` + registry), then bind `workspace.project_id` on the agent. Agents without a working dir are rejected.
+
 ---
 
 ## 4. Workspace isolation (by stack)

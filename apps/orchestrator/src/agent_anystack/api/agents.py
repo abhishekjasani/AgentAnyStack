@@ -5,14 +5,16 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from agent_anystack.api.deps import get_user_id
+from agent_anystack.api.projects import get_project_registry
 from agent_anystack.config import Settings, get_settings
-from agent_anystack.domain.agent import AgentConfig, AgentSummary, CreateAgentRequest
+from agent_anystack.domain.agent import AgentConfig, AgentSummary, CreateAgentRequest, Workspace
 from agent_anystack.domain.org import OrgConfig
 from agent_anystack.office import (
     AgentExistsError,
     AutonomyCeilingError,
     OfficeRepository,
 )
+from agent_anystack.office.project_registry import ProjectNotFoundError, ProjectRegistry
 
 router = APIRouter(tags=["agents"])
 
@@ -69,11 +71,29 @@ async def get_agent(
 async def create_agent(
     body: CreateAgentRequest,
     repo: OfficeRepository = Depends(get_office_repo),
+    registry: ProjectRegistry = Depends(get_project_registry),
     user_id: str = Depends(get_user_id),
 ) -> AgentConfig:
-    """Write office/teams/<team>/agents/<id>/; seed gold usage primer for creating user."""
+    """Write office/teams/<team>/agents/<id>/; workspace must reference an active project."""
     try:
-        return repo.create_agent(body, user_id=user_id)
+        project = registry.require_active(body.workspace.project_id)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{exc}. Create a project first (POST /projects), then bind "
+                "workspace.project_id on the agent."
+            ),
+        ) from exc
+
+    # Path always comes from the registry (capability is the truth).
+    bound = body.model_copy(
+        update={
+            "workspace": Workspace(project_id=project.id, path=project.path),
+        }
+    )
+    try:
+        return repo.create_agent(bound, user_id=user_id)
     except AgentExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except AutonomyCeilingError as exc:

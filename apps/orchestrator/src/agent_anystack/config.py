@@ -26,6 +26,11 @@ class Settings(BaseSettings):
 
     office_repo_path: str = "./office"
     office_ui_path: str = "./apps/office-ui"
+    # One git working tree per project (bind-mount in Docker). LFS later.
+    projects_root: str = Field(
+        default="./projects",
+        validation_alias=AliasChoices("PROJECTS_ROOT"),
+    )
     database_url: str = "sqlite:///./data/office.db"
 
     # Default local engine = Ollama OpenAI /v1. Point at vLLM etc. via same env.

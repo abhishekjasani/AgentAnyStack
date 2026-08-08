@@ -30,6 +30,8 @@ Needs `nvidia-smi` (orchestrator with `docker-compose.gpu.yml`) and/or host `doc
 **Class:** `OllamaModelManager` in `adapters/ollama_models.py` (only Ollama-specific module).  
 **UI:** nav **Stacks** — Pull / Cancel / Verify / Delete; header **Flush** + **Check GPU**.  
 
+**Projects / working dir:** every desk must bind `workspace` to an active project (`GET/POST /projects`). Trees live under `PROJECTS_ROOT` (`./projects` → `/projects` in compose). See [03_OFFICE_GIT.md](./03_OFFICE_GIT.md).
+
 **Prereq (CPU — default):**
 
 ```bash
