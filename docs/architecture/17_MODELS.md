@@ -42,6 +42,8 @@ docker compose --profile ollama up -d
 docker compose --profile ollama -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ```
 
+**Token limits vs Ollama context:** Office / agents expose **max input / max output** only. We do **not** send Ollama `options.num_ctx` on Verify or chat — that sized KV at load time, forced reloads, and on ~4 GB Docker/WSL GPUs produced `timed out waiting for llama-server to start` with GPU stuck near idle. Cap KV with compose `OLLAMA_CONTEXT_LENGTH` instead. Full write-up: [LOCAL_MODEL_STACK.md](../LOCAL_MODEL_STACK.md) §9 “Why we do not send per-request num_ctx”.
+
 ```text
 + OK: pull allowlisted curated tags only
 - BAD: expose arbitrary registry pull from UI
@@ -49,4 +51,6 @@ docker compose --profile ollama -f docker-compose.yml -f docker-compose.gpu.yml 
 - BAD: bake weights into the image
 + OK: CPU default; GPU opt-in override
 - BAD: hard-require NVIDIA in base compose
++ OK: server OLLAMA_CONTEXT_LENGTH; app max_input / max_output
+- BAD: per-request options.num_ctx on small VRAM Docker GPU
 ```

@@ -221,6 +221,40 @@ Compose shape: `ollama/ollama` service + bind **`./data/ollama` → `/root/.olla
 4. **Model quality expectations.** 3B–7B quantized models are fine for chat/summarize roles but weak at agentic tool calling. Flag catalog entries as "demo-grade" vs "can run a Developer agent" so the product isn't judged by a 3B model failing tool calls.
 5. **Don't bake models into the image.** Weights go to **`./data/ollama`** (gitignored) at runtime; the image stays small and models survive container upgrades.
 
+### Why we do **not** send per-request `num_ctx` (GPU load)
+
+**Decision (2026-08-08):** AgentAnyStack does **not** pass Ollama `options.num_ctx` on chat, Verify, extract, or soft jobs. App-level **max input / max output** stay. Server KV size is capped only via compose (`OLLAMA_CONTEXT_LENGTH` in `docker-compose.gpu.yml`).
+
+#### What `num_ctx` actually is
+
+| Knob | Layer | Effect |
+| --- | --- | --- |
+| `options.num_ctx` (request) | Ollama runner | Sets **load-time context / KV cache** size for that model instance. Changing it often forces a **reload**. |
+| `OLLAMA_CONTEXT_LENGTH` (env) | Ollama server | Default context when the client does not send `num_ctx`. |
+| Agent / Office `max_input_tokens` / `max_output_tokens` | Orchestrator | Truncate packed prompts and set OpenAI `max_tokens` only — **does not** size GPU KV or force a reload. |
+
+Many GGUF tags advertise huge train context (e.g. `n_ctx_train = 131072`). Without a small server default, or with a client that keeps sending `num_ctx`, Ollama plans a large KV alongside weights.
+
+#### Why that blocked **100% GPU** on small VRAM (≈4 GB laptop + Docker/WSL)
+
+Observed on RTX 500 Ada (~4 GiB) with CUDA visible (`library=CUDA`) but Verify failing:
+
+1. **Per-request `num_ctx` forces a cold (re)load path.** Verify/chat that send `options.num_ctx` tell llama-server to allocate KV for that size. On first CUDA load that path is heavier than a plain generate with server defaults.
+2. **KV + weights compete for the same VRAM.** Even “small” values (2k–4k) plus a 3B quant leave little headroom; larger values (or falling back toward model-advertised context) make the fitter/load path thrash or hang. Logs showed long stalls in `fitting params to device memory` / `load_tensors` while **GPU util stayed ~0%** and used VRAM barely moved (~70 MiB) — the runner never finished becoming ready.
+3. **Ollama then returns 500:** `timed out waiting for llama-server to start`. Stacks surfaced that as Verify failure — not “CPU chosen on purpose,” but **load never completed**, so `/api/ps` never showed `100% GPU`.
+4. **Docker/WSL CUDA discovery already fragile.** Same environment also hit `llama-server GPU discovery watchdog timed out`. Extra reload pressure from `num_ctx` made hangs more likely; after removing request `num_ctx` (and keeping `OLLAMA_CONTEXT_LENGTH=2048`, `OLLAMA_LLM_LIBRARY=cuda_v13`, `OLLAMA_VULKAN=false`), the same tag loaded as **100% GPU**.
+
+```text
++ OK: OLLAMA_CONTEXT_LENGTH in gpu compose; max_input / max_output in Office / agents
+- BAD: send options.num_ctx on every /v1 or /api/generate call from the orchestrator
++ OK: Flush → Verify after GPU compose recreate; expect first load to take minutes
+- BAD: treat "llama-server start timeout" as a bug in max_output alone
+```
+
+**If someone reintroduces catalog/stack `num_ctx`:** keep it **server-side or one-shot warm only**, never as a required field on every inference request on ≤8 GB VRAM Docker GPU hosts.
+
+See also [architecture/17_MODELS.md](./architecture/17_MODELS.md) · [architecture/07_DOCKER.md](./architecture/07_DOCKER.md).
+
 ---
 
 ## 10. Cheat sheet
@@ -256,5 +290,6 @@ Compose shape: `ollama/ollama` service + bind **`./data/ollama` → `/root/.olla
 
 | Date | Note |
 | --- | --- |
-| 2026-07-31 | Quick-start Docker + Ollama decision |
+| 2026-08-08 | Documented: do not send per-request `num_ctx` — blocked GPU load on small VRAM Docker |
 | 2026-08-03 | Link IMPLEMENTATION.md — Python orchestrator consumes OpenAI-compatible engines |
+| 2026-07-31 | Quick-start Docker + Ollama decision |
