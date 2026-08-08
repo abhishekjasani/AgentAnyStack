@@ -145,12 +145,16 @@ class OfficeQaService:
         adapter: OpenAICompatibleAdapter | None = None,
         phrase_model: str | None = None,
         use_llm_phrase: bool = False,
+        num_ctx: int | None = None,
+        max_tokens: int | None = None,
     ) -> None:
         self.journal = journal
         self.okf = okf
         self.adapter = adapter
         self.phrase_model = phrase_model
         self.use_llm_phrase = use_llm_phrase
+        self.num_ctx = num_ctx
+        self.max_tokens = max_tokens
 
     async def ask(self, *, message: str, team: str) -> OfficeAskResult:
         kind = classify_office_ask(message)
@@ -204,6 +208,8 @@ class OfficeQaService:
                     },
                 ],
                 temperature=0.0,
+                num_ctx=self.num_ctx,
+                max_tokens=self.max_tokens,
             )
         except Exception:  # noqa: BLE001 — fall back to deterministic list
             return None

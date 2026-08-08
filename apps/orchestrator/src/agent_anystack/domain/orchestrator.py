@@ -25,11 +25,16 @@ class OrchestratorConfig(BaseModel):
     recent_history_days: int = Field(default=7, ge=0, le=90)
     recent_history_char_budget: int = Field(default=6_000, ge=0, le=100_000)
     approver_mode: str = Field(default="permissive")
+    # Stack envelope for Ollama cold-start (per-model catalog overrides when set).
+    default_num_ctx: int = Field(default=4096, ge=512, le=131_072)
+    # -1 = derive max_input from num_ctx - max_output; else absolute ceiling.
+    default_max_input_tokens: int = Field(default=-1, ge=-1, le=200_000)
+    # Soft default max_tokens; -1 = omit max_tokens on the wire.
+    default_max_output_tokens: int = Field(default=1024, ge=-1, le=100_000)
 
     # --- Planned (not wired yet; reserved / ignored if present) ---
-    # TODO: extract_temperature: float — soft-job sampling (docs §5)
+    # TODO: extract_temperature: float — soft-job sampling (ORCHESTRATOR.md §5)
     # TODO: office_qa_phrase_style: short|formal
-    # TODO: soft_job_max_tokens: int
     # TODO: default_project_id: str — pack filter when projects exist
     # TODO: extract_schema_version: str
     # TODO: restart_ollama_on_flush: bool — Stacks flush helper
@@ -50,3 +55,6 @@ class OrchestratorConfigUpdate(BaseModel):
     recent_history_days: int | None = Field(default=None, ge=0, le=90)
     recent_history_char_budget: int | None = Field(default=None, ge=0, le=100_000)
     approver_mode: str | None = None
+    default_num_ctx: int | None = Field(default=None, ge=512, le=131_072)
+    default_max_input_tokens: int | None = Field(default=None, ge=-1, le=200_000)
+    default_max_output_tokens: int | None = Field(default=None, ge=-1, le=100_000)

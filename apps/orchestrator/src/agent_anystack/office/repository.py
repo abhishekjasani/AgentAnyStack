@@ -60,9 +60,11 @@ class OfficeRepository:
 #   - OKF post-run extract (when okf_extract_enabled)
 #   - Office Q&A phrasing (when office_qa_llm)
 #
+# Stack envelope: default_num_ctx / default_max_input_tokens / default_max_output_tokens
+# (per-model num_ctx on Stacks catalog; agents tighten max_input/output only, -1 inherit)
+#
 # TODO: extract_temperature / soft-job sampling policy (ORCHESTRATOR.md §5)
 # TODO: office_qa_phrase_style (short | formal)
-# TODO: soft_job_max_tokens
 # TODO: default_project_id for memory pack when projects ship
 # TODO: extract_schema_version
 # TODO: Stacks helper restart_ollama_on_flush (container recreate)
@@ -155,6 +157,8 @@ class OfficeRepository:
                 team=a.team,
                 stack=a.stack,
                 model=a.model,
+                max_input_tokens=a.max_input_tokens,
+                max_output_tokens=a.max_output_tokens,
             )
             for a in self.list_agents()
         ]
@@ -209,6 +213,8 @@ class OfficeRepository:
             workspace=req.workspace,
             system_prompt_file="./AGENT.md",
             tools=ToolsConfig(mode=req.tools_mode),
+            max_input_tokens=req.max_input_tokens,
+            max_output_tokens=req.max_output_tokens,
         )
 
         desk = self.agent_dir(req.team, req.id)

@@ -13,13 +13,15 @@ from typing import Any
 import httpx
 
 # Curated quick-start tags (LOCAL_MODEL_STACK.md). Pull allowlisted only.
-CURATED_CATALOG: tuple[dict[str, str], ...] = (
+# num_ctx = Ollama load context (KV); tune per tag for small GPUs.
+CURATED_CATALOG: tuple[dict[str, Any], ...] = (
     {
         "id": "llama3.2:3b",
         "label": "llama3.2:3b",
         "grade": "demo",
         "size_hint": "~2 GB",
         "note": "Chat / summarize only",
+        "num_ctx": 4096,
     },
     {
         "id": "llama3.2",
@@ -27,6 +29,7 @@ CURATED_CATALOG: tuple[dict[str, str], ...] = (
         "grade": "demo",
         "size_hint": "~2 GB",
         "note": "Default create-agent model",
+        "num_ctx": 4096,
     },
     {
         "id": "qwen2.5:7b",
@@ -34,6 +37,7 @@ CURATED_CATALOG: tuple[dict[str, str], ...] = (
         "grade": "agent",
         "size_hint": "~4.7 GB",
         "note": "Better general agent",
+        "num_ctx": 2048,
     },
     {
         "id": "qwen2.5-coder:7b",
@@ -41,6 +45,7 @@ CURATED_CATALOG: tuple[dict[str, str], ...] = (
         "grade": "agent",
         "size_hint": "~4.7 GB",
         "note": "Developer-style roles",
+        "num_ctx": 2048,
     },
     {
         "id": "gemma4:e4b",
@@ -48,6 +53,7 @@ CURATED_CATALOG: tuple[dict[str, str], ...] = (
         "grade": "agent",
         "size_hint": "~9.6 GB",
         "note": "Gemma 4 E4B - needs Ollama 0.20+; heavy for 4 GB VRAM",
+        "num_ctx": 2048,
     },
     {
         "id": "qwen3.5:4b",
@@ -55,10 +61,28 @@ CURATED_CATALOG: tuple[dict[str, str], ...] = (
         "grade": "agent",
         "size_hint": "~3.4 GB",
         "note": "Qwen3.5 4B - solid mid-size; may split on 4 GB VRAM",
+        "num_ctx": 4096,
     },
 )
 
-_CURATED_IDS = frozenset(e["id"] for e in CURATED_CATALOG)
+_CURATED_IDS = frozenset(str(e["id"]) for e in CURATED_CATALOG)
+_CURATED_NUM_CTX: dict[str, int] = {
+    str(e["id"]): int(e["num_ctx"])
+    for e in CURATED_CATALOG
+    if e.get("num_ctx") is not None
+}
+
+
+def catalog_num_ctx(name: str) -> int | None:
+    """Per-tag num_ctx from curated catalog, or None if unknown."""
+    tag = (name or "").strip()
+    if tag in _CURATED_NUM_CTX:
+        return _CURATED_NUM_CTX[tag]
+    # bare name → try catalog ids that share prefix
+    for cid, nctx in _CURATED_NUM_CTX.items():
+        if cid == tag or cid.startswith(tag + ":") or tag.startswith(cid + ":"):
+            return nctx
+    return None
 
 
 @dataclass

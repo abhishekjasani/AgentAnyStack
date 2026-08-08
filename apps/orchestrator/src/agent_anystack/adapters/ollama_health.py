@@ -16,6 +16,7 @@ from agent_anystack.adapters.ollama_models import (
     OllamaModelManager,
     OllamaModelsError,
     assert_curated,
+    catalog_num_ctx,
 )
 
 # Rough VRAM need (MiB) for curated tags — advisory for UI tags.
@@ -488,7 +489,10 @@ async def verify_model_gpu(
                     "prompt": "hi",
                     "stream": False,
                     "keep_alive": "5m",
-                    "options": {"num_predict": 1},
+                    "options": {
+                        "num_predict": 1,
+                        "num_ctx": catalog_num_ctx(tag) or 4096,
+                    },
                 },
             )
     except httpx.ConnectError as exc:

@@ -94,13 +94,22 @@
               <option value="strict">strict (org admin only)</option>
             </select>
           </label>
+          <label>Default num_ctx (stack fallback)
+            <input name="default_num_ctx" type="number" min="512" max="131072" required />
+          </label>
+          <label>Default max input tokens (-1 = derive from num_ctx)
+            <input name="default_max_input_tokens" type="number" min="-1" max="200000" required />
+          </label>
+          <label>Default max output tokens (-1 = omit)
+            <input name="default_max_output_tokens" type="number" min="-1" max="100000" required />
+          </label>
           <p class="desk-meta">
             Org ceiling (read-only from <code>org.yaml</code>):
             <span id="office-config-org"></span>
           </p>
           <p class="stub-note">
-            TODO later: extract temperature, Q&amp;A phrase style, soft_job_max_tokens,
-            default_project_id, Stacks restart-on-flush.
+            Per-model num_ctx lives on the Stacks catalog. Agents may only tighten
+            max input/output (-1 inherits these stack defaults).
           </p>
           <p id="office-config-error" class="error" hidden></p>
           <p id="office-config-ok" class="desk-meta" hidden></p>
@@ -157,6 +166,12 @@
             </select>
           </label>
           <p id="create-model-hint" class="desk-meta"></p>
+          <label>Max input tokens (-1 = inherit stack)
+            <input name="max_input_tokens" type="number" min="-1" max="200000" value="-1" />
+          </label>
+          <label>Max output tokens (-1 = inherit stack)
+            <input name="max_output_tokens" type="number" min="-1" max="100000" value="-1" />
+          </label>
           <label>Persona (AGENT.md)
             <textarea name="persona_markdown" rows="8" placeholder="# Name&#10;&#10;## Mission&#10;…"></textarea>
           </label>

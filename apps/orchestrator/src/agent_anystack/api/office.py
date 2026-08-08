@@ -52,6 +52,8 @@ def get_office_qa(
     settings: Settings = Depends(get_settings),
     repo: OfficeRepository = Depends(get_office_repo),
 ) -> OfficeQaService:
+    from agent_anystack.limits import resolve_run_limits
+
     orc = repo.load_orchestrator()
     journal = RunJournal(
         journal_path_from_database_url(settings.database_url, Path("./data"))
@@ -59,18 +61,25 @@ def get_office_qa(
     okf = OkfStore(sqlite_path_from_database_url(settings.database_url))
     adapter = None
     model = None
+    num_ctx = None
+    max_tokens = None
     if orc.office_qa_llm:
         adapter = OpenAICompatibleAdapter(
             settings.openai_compatible_base_url,
             timeout=settings.openai_compatible_timeout,
         )
         model = orc.model
+        limits = resolve_run_limits(model=orc.model, orc=orc, agent=None)
+        num_ctx = limits.num_ctx
+        max_tokens = limits.max_output_tokens
     return OfficeQaService(
         journal,
         okf,
         adapter=adapter,
         phrase_model=model,
         use_llm_phrase=orc.office_qa_llm,
+        num_ctx=num_ctx,
+        max_tokens=max_tokens,
     )
 
 

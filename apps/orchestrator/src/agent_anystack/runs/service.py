@@ -12,6 +12,7 @@ from agent_anystack.channel_history import ChannelHistoryStore
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.envelope import build_office_envelope
 from agent_anystack.hitl.autonomy import compute_effective
+from agent_anystack.limits import resolve_run_limits, truncate_messages_to_input
 from agent_anystack.memory import ExtractJob, OkfStore, pack_memory_sections
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
@@ -76,6 +77,8 @@ class ChatRunService:
             return
 
         org = self.repo.load_org()
+        orc = self.repo.load_orchestrator()
+        limits = resolve_run_limits(model=agent.model, orc=orc, agent=agent)
         run_id = new_run_id()
         started = utc_now()
         eff = compute_effective(org, agent)
@@ -86,6 +89,9 @@ class ChatRunService:
             "agent_id": agent.id,
             "user_id": user_id,
             "model": agent.model,
+            "num_ctx": limits.num_ctx,
+            "max_input_tokens": limits.max_input_tokens,
+            "max_output_tokens": limits.max_output_tokens,
         }
 
         envelope = build_office_envelope(
@@ -106,21 +112,28 @@ class ChatRunService:
                 )
             except ValueError:
                 recent_messages = []
+        pack_budget = min(self.pack_token_budget, limits.max_input_tokens)
         memory_sections = pack_memory_sections(
             user_id=user_id,
             gold=gold_notes,
             team_facts=team_facts,
-            pack_token_budget=self.pack_token_budget,
+            pack_token_budget=pack_budget,
             recent_messages=recent_messages,
             recent_history_days=self.recent_history_days,
-            recent_history_char_budget=self.recent_history_char_budget,
+            recent_history_char_budget=min(
+                self.recent_history_char_budget,
+                pack_budget * 2,
+            ),
         )
         parts = [envelope, persona, *memory_sections]
         system = "\n\n---\n\n".join(parts)
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": message},
-        ]
+        messages: list[dict[str, Any]] = truncate_messages_to_input(
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": message},
+            ],
+            max_input_tokens=limits.max_input_tokens,
+        )
 
         status = "ok"
         error: str | None = None
@@ -132,6 +145,8 @@ class ChatRunService:
                 agent=agent,
                 user_id=user_id,
                 run_id=run_id,
+                num_ctx=limits.num_ctx,
+                max_tokens=limits.max_output_tokens,
             ):
                 if event.get("type") == "token":
                     assistant_parts.append(event.get("text") or "")
@@ -189,6 +204,8 @@ class ChatRunService:
         agent: AgentConfig,
         user_id: str,
         run_id: str,
+        num_ctx: int | None = None,
+        max_tokens: int | None = None,
     ) -> AsyncIterator[dict]:
         """Tool loop for gold CRUD; then emit assistant text as tokens."""
         for _round in range(MAX_TOOL_ROUNDS):
@@ -197,6 +214,8 @@ class ChatRunService:
                     model=model,
                     messages=messages,
                     tools=GOLD_TOOL_SCHEMAS,
+                    num_ctx=num_ctx,
+                    max_tokens=max_tokens,
                 )
             except StackError as exc:
                 # Some hosts reject tools — fall back to plain stream once.
@@ -204,6 +223,8 @@ class ChatRunService:
                     async for token in self.adapter.stream_chat(
                         model=model,
                         messages=messages,
+                        num_ctx=num_ctx,
+                        max_tokens=max_tokens,
                     ):
                         yield {"type": "token", "text": token}
                     return

@@ -60,12 +60,24 @@ def get_chat_service(
 
 
 async def _background_okf_extract(job: ExtractJob, settings: Settings) -> None:
+    from agent_anystack.api.agents import get_office_repo
+    from agent_anystack.limits import resolve_run_limits
+
     store = OkfStore(sqlite_path_from_database_url(settings.database_url))
     adapter = OpenAICompatibleAdapter(
         settings.openai_compatible_base_url,
         timeout=settings.openai_compatible_timeout,
     )
-    await run_okf_extract(job, okf=store, adapter=adapter)
+    repo = get_office_repo(settings)
+    orc = repo.load_orchestrator()
+    limits = resolve_run_limits(model=job.model, orc=orc, agent=None)
+    await run_okf_extract(
+        job,
+        okf=store,
+        adapter=adapter,
+        num_ctx=limits.num_ctx,
+        max_tokens=limits.max_output_tokens,
+    )
 
 
 @router.post("/agents/{agent_id}/chat")

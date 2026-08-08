@@ -3,9 +3,9 @@
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-    
+
 class RiskClass(str, Enum):
     read_draft = "read_draft"
     system_write = "system_write"
@@ -40,6 +40,8 @@ class ToolsConfig(BaseModel):
 
 
 class AgentConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     id: str
     name: str
     team: str
@@ -52,6 +54,9 @@ class AgentConfig(BaseModel):
     system_prompt: str | None = None
     registrations: Registrations = Field(default_factory=Registrations)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
+    # Advanced: -1 = inherit stack envelope (tighten-only when > 0).
+    max_input_tokens: int = Field(default=-1, ge=-1, le=200_000)
+    max_output_tokens: int = Field(default=-1, ge=-1, le=100_000)
 
 
 class AgentSummary(BaseModel):
@@ -62,6 +67,8 @@ class AgentSummary(BaseModel):
     team: str
     stack: str
     model: str
+    max_input_tokens: int = -1
+    max_output_tokens: int = -1
 
 
 class CreateAgentRequest(BaseModel):
@@ -77,3 +84,5 @@ class CreateAgentRequest(BaseModel):
     autonomy: AgentAutonomy | None = None
     workspace: Workspace | None = None
     tools_mode: Literal["none", "mediated", "worker"] = "none"
+    max_input_tokens: int = Field(default=-1, ge=-1, le=200_000)
+    max_output_tokens: int = Field(default=-1, ge=-1, le=100_000)
