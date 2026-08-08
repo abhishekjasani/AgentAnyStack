@@ -507,8 +507,16 @@ async def verify_model_gpu(
         ) from exc
 
     if resp.status_code >= 400:
+        body = (resp.text or "")[:400]
+        hint = ""
+        if "timed out waiting for llama-server" in body.lower():
+            hint = (
+                " — first CUDA load hung (often Docker/WSL GPU). "
+                "Flush, wait, retry once; if it persists reboot Windows, "
+                "or confirm OLLAMA_CONTEXT_LENGTH/num_ctx is ≤2048 on 4GB VRAM"
+            )
         raise OllamaModelsError(
-            f"Ollama generate failed ({resp.status_code}): {resp.text[:400]}",
+            f"Ollama generate failed ({resp.status_code}): {body}{hint}",
             code="verify_http",
         )
 
