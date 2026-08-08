@@ -25,6 +25,7 @@ _CURATED_VRAM_MIB: dict[str, int] = {
     "qwen2.5:7b": 5000,
     "qwen2.5-coder:7b": 5000,
     "gemma4:e4b": 9600,
+    "qwen3.5:4b": 3600,
 }
 
 

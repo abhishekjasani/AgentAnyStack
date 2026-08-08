@@ -47,7 +47,14 @@ CURATED_CATALOG: tuple[dict[str, str], ...] = (
         "label": "gemma4:e4b",
         "grade": "agent",
         "size_hint": "~9.6 GB",
-        "note": "Gemma 4 E4B — needs Ollama 0.20+; heavy for 4 GB VRAM",
+        "note": "Gemma 4 E4B - needs Ollama 0.20+; heavy for 4 GB VRAM",
+    },
+    {
+        "id": "qwen3.5:4b",
+        "label": "qwen3.5:4b",
+        "grade": "agent",
+        "size_hint": "~3.4 GB",
+        "note": "Qwen3.5 4B - solid mid-size; may split on 4 GB VRAM",
     },
 )
 
