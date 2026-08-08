@@ -194,7 +194,7 @@
       form.recent_history_days.value = orc.recent_history_days ?? 7;
       form.recent_history_char_budget.value = orc.recent_history_char_budget ?? 6000;
       form.approver_mode.value = orc.approver_mode || "permissive";
-      form.default_num_ctx.value = orc.default_num_ctx ?? 4096;
+      form.default_num_ctx.value = orc.default_num_ctx ?? 2048;
       form.default_max_input_tokens.value = orc.default_max_input_tokens ?? -1;
       form.default_max_output_tokens.value = orc.default_max_output_tokens ?? 1024;
       $("#office-config-org").textContent =

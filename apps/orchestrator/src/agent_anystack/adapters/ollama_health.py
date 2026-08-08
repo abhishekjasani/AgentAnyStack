@@ -491,7 +491,7 @@ async def verify_model_gpu(
                     "keep_alive": "5m",
                     "options": {
                         "num_predict": 1,
-                        "num_ctx": catalog_num_ctx(tag) or 4096,
+                        "num_ctx": catalog_num_ctx(tag) or 2048,
                     },
                 },
             )

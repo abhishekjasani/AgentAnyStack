@@ -21,7 +21,7 @@ CURATED_CATALOG: tuple[dict[str, Any], ...] = (
         "grade": "demo",
         "size_hint": "~2 GB",
         "note": "Chat / summarize only",
-        "num_ctx": 4096,
+        "num_ctx": 2048,
     },
     {
         "id": "llama3.2",
@@ -29,7 +29,7 @@ CURATED_CATALOG: tuple[dict[str, Any], ...] = (
         "grade": "demo",
         "size_hint": "~2 GB",
         "note": "Default create-agent model",
-        "num_ctx": 4096,
+        "num_ctx": 2048,
     },
     {
         "id": "qwen2.5:7b",
@@ -61,7 +61,7 @@ CURATED_CATALOG: tuple[dict[str, Any], ...] = (
         "grade": "agent",
         "size_hint": "~3.4 GB",
         "note": "Qwen3.5 4B - solid mid-size; may split on 4 GB VRAM",
-        "num_ctx": 4096,
+        "num_ctx": 2048,
     },
 )
 

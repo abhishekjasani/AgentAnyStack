@@ -28,6 +28,6 @@ gold_max_chars: 64000
 recent_history_days: 7
 recent_history_char_budget: 6000
 approver_mode: permissive
-default_num_ctx: 4096
+default_num_ctx: 2048
 default_max_input_tokens: -1
 default_max_output_tokens: 1024

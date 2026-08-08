@@ -33,6 +33,15 @@ services:
               count: all
               capabilities: [gpu]
     environment:
-      # Hint for operators; Ollama auto-detects CUDA when devices are present
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      # Avoid dual CUDA+Vulkan discovery hangs (falls back to CPU with vram=0).
+      OLLAMA_VULKAN: "false"
+      # Probe one CUDA stack — RTX 40/50-class / Ada laptop often needs v13.
+      OLLAMA_LLM_LIBRARY: cuda_v13
+      # First CUDA load on small VRAM can exceed the 5m default.
+      OLLAMA_LOAD_TIMEOUT: 15m
+      # Cap runner default context (model GGUF may advertise 128k).
+      # 2048 matches catalog default_num_ctx — 4GB VRAM cannot afford larger KV.
+      # Per-request options.num_ctx can still tighten further.
+      OLLAMA_CONTEXT_LENGTH: "2048"
