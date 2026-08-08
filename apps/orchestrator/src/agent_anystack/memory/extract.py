@@ -75,7 +75,6 @@ async def run_okf_extract(
     *,
     okf: OkfStore,
     adapter: OpenAICompatibleAdapter,
-    num_ctx: int | None = None,
     max_tokens: int | None = None,
 ) -> int:
     """
@@ -102,7 +101,6 @@ async def run_okf_extract(
                 },
             ],
             temperature=0.0,
-            num_ctx=num_ctx,
             max_tokens=max_tokens,
         )
         candidates.extend(_parse_facts_json(raw))

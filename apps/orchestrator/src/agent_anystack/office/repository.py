@@ -60,8 +60,8 @@ class OfficeRepository:
 #   - OKF post-run extract (when okf_extract_enabled)
 #   - Office Q&A phrasing (when office_qa_llm)
 #
-# Stack envelope: default_num_ctx / default_max_input_tokens / default_max_output_tokens
-# (per-model num_ctx on Stacks catalog; agents tighten max_input/output only, -1 inherit)
+# Token envelope: default_max_input_tokens / default_max_output_tokens
+# (agents tighten max_input/output only, -1 inherit; Ollama KV via OLLAMA_CONTEXT_LENGTH)
 #
 # TODO: extract_temperature / soft-job sampling policy (ORCHESTRATOR.md §5)
 # TODO: office_qa_phrase_style (short | formal)

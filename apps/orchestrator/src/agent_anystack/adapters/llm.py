@@ -19,7 +19,6 @@ class StackAdapter(Protocol):
         *,
         model: str,
         messages: list[dict[str, Any]],
-        num_ctx: int | None = None,
         max_tokens: int | None = None,
     ) -> AsyncIterator[str]:
         """Yield assistant text deltas. Raises StackError on failure."""
@@ -50,18 +49,10 @@ class ChatTurnResult:
 def _apply_limits(
     payload: dict[str, Any],
     *,
-    num_ctx: int | None,
     max_tokens: int | None,
 ) -> None:
     if max_tokens is not None and max_tokens > 0:
         payload["max_tokens"] = int(max_tokens)
-    if num_ctx is not None and num_ctx > 0:
-        # Ollama OpenAI-compatible path honors options.num_ctx for load/KV size.
-        opts = payload.get("options")
-        if not isinstance(opts, dict):
-            opts = {}
-        opts["num_ctx"] = int(num_ctx)
-        payload["options"] = opts
 
 
 class OpenAICompatibleAdapter:
@@ -76,7 +67,6 @@ class OpenAICompatibleAdapter:
         *,
         model: str,
         messages: list[dict[str, Any]],
-        num_ctx: int | None = None,
         max_tokens: int | None = None,
     ) -> AsyncIterator[str]:
         url = f"{self.base_url}/chat/completions"
@@ -85,7 +75,7 @@ class OpenAICompatibleAdapter:
             "messages": messages,
             "stream": True,
         }
-        _apply_limits(payload, num_ctx=num_ctx, max_tokens=max_tokens)
+        _apply_limits(payload, max_tokens=max_tokens)
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 async with client.stream("POST", url, json=payload) as resp:
@@ -137,7 +127,6 @@ class OpenAICompatibleAdapter:
         model: str,
         messages: list[dict[str, Any]],
         temperature: float = 0.0,
-        num_ctx: int | None = None,
         max_tokens: int | None = None,
     ) -> str:
         """Non-streaming completion (extractor). Returns assistant text."""
@@ -145,7 +134,6 @@ class OpenAICompatibleAdapter:
             model=model,
             messages=messages,
             temperature=temperature,
-            num_ctx=num_ctx,
             max_tokens=max_tokens,
         )
         return turn.content.strip()
@@ -157,7 +145,6 @@ class OpenAICompatibleAdapter:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
-        num_ctx: int | None = None,
         max_tokens: int | None = None,
     ) -> ChatTurnResult:
         """Non-streaming turn — text and/or tool_calls (OpenAI tools shape)."""
@@ -170,7 +157,7 @@ class OpenAICompatibleAdapter:
         }
         if tools:
             payload["tools"] = tools
-        _apply_limits(payload, num_ctx=num_ctx, max_tokens=max_tokens)
+        _apply_limits(payload, max_tokens=max_tokens)
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 resp = await client.post(url, json=payload)

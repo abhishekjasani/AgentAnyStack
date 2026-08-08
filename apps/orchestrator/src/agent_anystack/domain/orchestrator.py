@@ -25,9 +25,7 @@ class OrchestratorConfig(BaseModel):
     recent_history_days: int = Field(default=7, ge=0, le=90)
     recent_history_char_budget: int = Field(default=6_000, ge=0, le=100_000)
     approver_mode: str = Field(default="permissive")
-    # Stack envelope for Ollama cold-start (per-model catalog overrides when set).
-    default_num_ctx: int = Field(default=2048, ge=512, le=131_072)
-    # -1 = derive max_input from num_ctx - max_output; else absolute ceiling.
+    # -1 = use pack_token_budget as max_input ceiling; else absolute ceiling.
     default_max_input_tokens: int = Field(default=-1, ge=-1, le=200_000)
     # Soft default max_tokens; -1 = omit max_tokens on the wire.
     default_max_output_tokens: int = Field(default=1024, ge=-1, le=100_000)
@@ -55,6 +53,5 @@ class OrchestratorConfigUpdate(BaseModel):
     recent_history_days: int | None = Field(default=None, ge=0, le=90)
     recent_history_char_budget: int | None = Field(default=None, ge=0, le=100_000)
     approver_mode: str | None = None
-    default_num_ctx: int | None = Field(default=None, ge=512, le=131_072)
     default_max_input_tokens: int | None = Field(default=None, ge=-1, le=200_000)
     default_max_output_tokens: int | None = Field(default=None, ge=-1, le=100_000)

@@ -89,7 +89,6 @@ class ChatRunService:
             "agent_id": agent.id,
             "user_id": user_id,
             "model": agent.model,
-            "num_ctx": limits.num_ctx,
             "max_input_tokens": limits.max_input_tokens,
             "max_output_tokens": limits.max_output_tokens,
         }
@@ -145,7 +144,6 @@ class ChatRunService:
                 agent=agent,
                 user_id=user_id,
                 run_id=run_id,
-                num_ctx=limits.num_ctx,
                 max_tokens=limits.max_output_tokens,
             ):
                 if event.get("type") == "token":
@@ -204,7 +202,6 @@ class ChatRunService:
         agent: AgentConfig,
         user_id: str,
         run_id: str,
-        num_ctx: int | None = None,
         max_tokens: int | None = None,
     ) -> AsyncIterator[dict]:
         """Tool loop for gold CRUD; then emit assistant text as tokens."""
@@ -214,7 +211,6 @@ class ChatRunService:
                     model=model,
                     messages=messages,
                     tools=GOLD_TOOL_SCHEMAS,
-                    num_ctx=num_ctx,
                     max_tokens=max_tokens,
                 )
             except StackError as exc:
@@ -223,7 +219,6 @@ class ChatRunService:
                     async for token in self.adapter.stream_chat(
                         model=model,
                         messages=messages,
-                        num_ctx=num_ctx,
                         max_tokens=max_tokens,
                     ):
                         yield {"type": "token", "text": token}

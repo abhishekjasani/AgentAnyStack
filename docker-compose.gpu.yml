@@ -42,8 +42,7 @@ services:
       # First CUDA load on small VRAM can exceed the 5m default.
       OLLAMA_LOAD_TIMEOUT: 15m
       # Cap runner default context (model GGUF may advertise 128k).
-      # 2048 matches catalog default_num_ctx — 4GB VRAM cannot afford larger KV.
-      # Per-request options.num_ctx can still tighten further.
+      # App no longer sends per-request options.num_ctx — this is the KV size.
       OLLAMA_CONTEXT_LENGTH: "2048"
       # Device-memory fitter can hang for minutes on small VRAM + Docker/WSL CUDA
       # (GPU stays ~0% / ~70MiB while "fitting params" / load_tensors).

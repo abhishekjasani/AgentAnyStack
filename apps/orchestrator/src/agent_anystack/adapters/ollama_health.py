@@ -16,7 +16,6 @@ from agent_anystack.adapters.ollama_models import (
     OllamaModelManager,
     OllamaModelsError,
     assert_curated,
-    catalog_num_ctx,
 )
 
 # Rough VRAM need (MiB) for curated tags — advisory for UI tags.
@@ -491,7 +490,6 @@ async def verify_model_gpu(
                     "keep_alive": "5m",
                     "options": {
                         "num_predict": 1,
-                        "num_ctx": catalog_num_ctx(tag) or 2048,
                     },
                 },
             )
@@ -513,7 +511,7 @@ async def verify_model_gpu(
             hint = (
                 " — first CUDA load hung (often Docker/WSL GPU). "
                 "Flush, wait, retry once; if it persists reboot Windows, "
-                "or confirm OLLAMA_CONTEXT_LENGTH/num_ctx is ≤2048 on 4GB VRAM"
+                "or confirm OLLAMA_CONTEXT_LENGTH is ≤2048 on 4GB VRAM"
             )
         raise OllamaModelsError(
             f"Ollama generate failed ({resp.status_code}): {body}{hint}",

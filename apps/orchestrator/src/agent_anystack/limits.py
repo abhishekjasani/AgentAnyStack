@@ -1,19 +1,19 @@
-"""Effective run limits: stack num_ctx + agent max_input/max_output (-1 = inherit)."""
+"""Effective run limits: stack + agent max_input/max_output (-1 = inherit).
+
+Local Ollama context/KV is owned by the server (e.g. OLLAMA_CONTEXT_LENGTH),
+not per-request options.num_ctx — that path forced reloads on small GPUs.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from agent_anystack.adapters.ollama_models import catalog_num_ctx
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.domain.orchestrator import OrchestratorConfig
-
-_SLACK_TOKENS = 64
 
 
 @dataclass(frozen=True)
 class RunLimits:
-    num_ctx: int
     max_input_tokens: int
     max_output_tokens: int | None  # None = omit max_tokens on wire
 
@@ -24,37 +24,38 @@ def resolve_run_limits(
     orc: OrchestratorConfig,
     agent: AgentConfig | None = None,
 ) -> RunLimits:
-    """Stack owns num_ctx (per-model catalog, else orc.default_num_ctx).
+    """Stack defaults for max_input / max_output; agent may tighten when > 0.
 
-    Agent may only tighten max_input / max_output when > 0; -1 inherits stack.
+    -1 on stack max_input → use pack_token_budget as the input ceiling.
+    -1 / unset on max_output → omit max_tokens on the wire.
+    `model` is unused (kept for call-site stability).
     """
-    num_ctx = catalog_num_ctx(model) or orc.default_num_ctx
-    num_ctx = max(512, min(int(num_ctx), 131_072))
+    _ = model
 
     stack_out = orc.default_max_output_tokens
     if agent is not None and agent.max_output_tokens is not None and agent.max_output_tokens > 0:
-        max_out: int | None = min(agent.max_output_tokens, stack_out if stack_out > 0 else agent.max_output_tokens)
+        max_out: int | None = min(
+            agent.max_output_tokens,
+            stack_out if stack_out > 0 else agent.max_output_tokens,
+        )
     elif stack_out > 0:
         max_out = stack_out
     else:
         max_out = None
 
-    out_for_budget = max_out if max_out is not None else min(1024, num_ctx // 4)
-    derived_in = max(512, num_ctx - out_for_budget - _SLACK_TOKENS)
-
     stack_in = orc.default_max_input_tokens
     if stack_in > 0:
-        stack_in = min(stack_in, derived_in)
+        base_in = stack_in
     else:
-        stack_in = derived_in
+        base_in = max(512, int(orc.pack_token_budget))
 
     if agent is not None and agent.max_input_tokens is not None and agent.max_input_tokens > 0:
-        max_in = min(agent.max_input_tokens, stack_in)
+        max_in = min(agent.max_input_tokens, base_in)
     else:
-        max_in = stack_in
+        max_in = base_in
 
-    max_in = max(256, min(max_in, derived_in))
-    return RunLimits(num_ctx=num_ctx, max_input_tokens=max_in, max_output_tokens=max_out)
+    max_in = max(256, max_in)
+    return RunLimits(max_input_tokens=max_in, max_output_tokens=max_out)
 
 
 def approx_tokens(text: str) -> int:

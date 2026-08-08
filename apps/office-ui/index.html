@@ -94,10 +94,7 @@
               <option value="strict">strict (org admin only)</option>
             </select>
           </label>
-          <label>Default num_ctx (stack fallback)
-            <input name="default_num_ctx" type="number" min="512" max="131072" required />
-          </label>
-          <label>Default max input tokens (-1 = derive from num_ctx)
+          <label>Default max input tokens (-1 = use pack token budget)
             <input name="default_max_input_tokens" type="number" min="-1" max="200000" required />
           </label>
           <label>Default max output tokens (-1 = omit)
@@ -108,8 +105,8 @@
             <span id="office-config-org"></span>
           </p>
           <p class="stub-note">
-            Per-model num_ctx lives on the Stacks catalog. Agents may only tighten
-            max input/output (-1 inherits these stack defaults).
+            Agents may tighten max input/output (-1 inherits these stack defaults).
+            Local Ollama context/KV is set by <code>OLLAMA_CONTEXT_LENGTH</code> in compose, not here.
           </p>
           <p id="office-config-error" class="error" hidden></p>
           <p id="office-config-ok" class="desk-meta" hidden></p>

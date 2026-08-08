@@ -75,7 +75,6 @@ async def _background_okf_extract(job: ExtractJob, settings: Settings) -> None:
         job,
         okf=store,
         adapter=adapter,
-        num_ctx=limits.num_ctx,
         max_tokens=limits.max_output_tokens,
     )
 

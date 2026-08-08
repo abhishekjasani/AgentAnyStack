@@ -61,7 +61,6 @@ def get_office_qa(
     okf = OkfStore(sqlite_path_from_database_url(settings.database_url))
     adapter = None
     model = None
-    num_ctx = None
     max_tokens = None
     if orc.office_qa_llm:
         adapter = OpenAICompatibleAdapter(
@@ -70,7 +69,6 @@ def get_office_qa(
         )
         model = orc.model
         limits = resolve_run_limits(model=orc.model, orc=orc, agent=None)
-        num_ctx = limits.num_ctx
         max_tokens = limits.max_output_tokens
     return OfficeQaService(
         journal,
@@ -78,7 +76,6 @@ def get_office_qa(
         adapter=adapter,
         phrase_model=model,
         use_llm_phrase=orc.office_qa_llm,
-        num_ctx=num_ctx,
         max_tokens=max_tokens,
     )
 
