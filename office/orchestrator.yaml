@@ -17,8 +17,8 @@
 
 id: office
 name: Office
-model: qwen3.5:4b
-office_qa_llm: false
+model: llama3.2:3b
+office_qa_llm: true
 okf_extract_enabled: true
 pack_token_budget: 8000
 gold_max_chars: 64000

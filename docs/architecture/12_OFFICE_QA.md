@@ -7,17 +7,24 @@ sequenceDiagram
     participant UI as Office UI
     participant API as POST /office/ask
     participant QA as OfficeQaService
+    participant R as OkfRetriever
+    participant S as OkfSoftAnswer
     participant J as RunJournal
     participant OKF as OkfStore
 
     UI->>API: message + team
-    API->>QA: classify status | knowledge | work
+    API->>QA: classify chitchat | status | knowledge | work
     alt status
         QA->>J: recent(team)
         QA-->>UI: answer + run_id citations
-    else knowledge
-        QA->>OKF: list_team_facts + match
+    else knowledge + office_qa_llm
+        QA->>R: PassThrough (capped room)
+        R->>OKF: list_team_facts
+        QA->>S: cite-bound phrase (OFFICE_MODEL)
         QA-->>UI: answer + fact_id citations
+    else knowledge
+        QA->>R: TokenOverlap top-K
+        QA-->>UI: fact list or empty
     else work
         QA-->>UI: use Team → Chat (read-only office)
     end
@@ -26,17 +33,22 @@ sequenceDiagram
 | Ask | Source | LLM? |
 | --- | --- | --- |
 | Status (“what’s running?”) | `journal.jsonl` | No |
-| Knowledge (“commission rule?”) | Team OKF match | Optional phrase (`OFFICE_QA_LLM` + `OFFICE_MODEL`) — must cite `fact_id` |
+| Knowledge | Retriever → optional soft phrase | Soft: `office_qa_llm` + `model` — must cite `fact_id` |
 | Work (“build the hero”) | — | Refuse; route to desk chat |
-| Empty | No rows / no match | Say so — never invent |
+| Chitchat (“hi”) | Fixed greeting | No OKF dump |
+| Empty retrieve | — | “Nothing found” — never invent |
+
+**Soft LLM layer (v0):** `OkfSoftAnswer` phrases only the **retrieved slice**. Retriever today = `PassThroughRetriever` (entire team OKF, max 80 facts / pack char budget). Later: filter → FTS/vector top-K, same soft hop.
 
 **Rules:** empty → say so; never invent; read-only (no OKF write). Product intent: [ORCHESTRATOR.md](../ORCHESTRATOR.md) §2.9.
 
 | Piece | Path |
 | --- | --- |
 | Service | `office_qa.py` |
+| Retriever / soft | `memory/okf_retrieve.py`, `memory/okf_soft.py` |
 | HTTP | `api/office.py` → `POST /office/ask` |
-| UI | nav **Office** |
+| UI | nav **Office** / Chat Office chip |
+| Config | `office_qa_llm`, `model` in `office/orchestrator.yaml` |
 
 ---
 

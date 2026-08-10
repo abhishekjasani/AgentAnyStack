@@ -3,6 +3,12 @@
 from agent_anystack.memory.export import ExportResult, export_okf_to_memory
 from agent_anystack.memory.extract import ExtractJob, run_okf_extract
 from agent_anystack.memory.fact import CreateOkfFactRequest, OkfFact
+from agent_anystack.memory.okf_retrieve import (
+    OkfRetriever,
+    PassThroughRetriever,
+    TokenOverlapRetriever,
+)
+from agent_anystack.memory.okf_soft import OkfSoftAnswer, SoftAnswerResult
 from agent_anystack.memory.pack import pack_memory_sections
 from agent_anystack.memory.store import OkfStore, sqlite_path_from_database_url
 
@@ -11,7 +17,12 @@ __all__ = [
     "ExportResult",
     "ExtractJob",
     "OkfFact",
+    "OkfRetriever",
+    "OkfSoftAnswer",
     "OkfStore",
+    "PassThroughRetriever",
+    "SoftAnswerResult",
+    "TokenOverlapRetriever",
     "export_okf_to_memory",
     "pack_memory_sections",
     "run_okf_extract",

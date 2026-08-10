@@ -1,4 +1,4 @@
-"""Office Q&A — front desk: status + cited knowledge (no desk agent)."""
+"""Office Q&A — front desk: status + OKF retrieve → optional soft LLM phrase."""
 
 from __future__ import annotations
 
@@ -8,6 +8,12 @@ from enum import Enum
 
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.memory.fact import OkfFact
+from agent_anystack.memory.okf_retrieve import (
+    PassThroughRetriever,
+    TokenOverlapRetriever,
+    tokenize,
+)
+from agent_anystack.memory.okf_soft import OkfSoftAnswer
 from agent_anystack.memory.store import OkfStore
 from agent_anystack.runs.journal import JournalEntry, RunJournal
 
@@ -17,6 +23,10 @@ _STATUS_HINTS = re.compile(
 )
 _WORK_HINTS = re.compile(
     r"\b(build|implement|deploy|send|email|call|refactor|fix|write\s+code|create\s+pr)\b",
+    re.I,
+)
+_CHITCHAT = re.compile(
+    r"^(hi|hello|hey|yo|sup|thanks|thank\s+you|ok|okay|bye)[\s!.?]*$",
     re.I,
 )
 
@@ -43,13 +53,26 @@ class OfficeAskResult:
 
 
 def classify_office_ask(message: str) -> OfficeAskKind:
+    if _is_chitchat(message):
+        return OfficeAskKind.empty
     if _WORK_HINTS.search(message) and not _STATUS_HINTS.search(message):
-        # work-like without status → route to agent
         if not _looks_like_knowledge(message):
             return OfficeAskKind.work
     if _STATUS_HINTS.search(message):
         return OfficeAskKind.status
     return OfficeAskKind.knowledge
+
+
+def _is_chitchat(message: str) -> bool:
+    t = (message or "").strip()
+    if not t:
+        return True
+    if _CHITCHAT.match(t):
+        return True
+    # Very short with no ≥3-letter tokens (e.g. "hi", "ok") — not knowledge lookup.
+    if len(t) <= 12 and not tokenize(t):
+        return True
+    return False
 
 
 def _looks_like_knowledge(message: str) -> bool:
@@ -62,21 +85,16 @@ def _looks_like_knowledge(message: str) -> bool:
     )
 
 
-def _tokenize(text: str) -> set[str]:
-    return {t for t in re.findall(r"[a-z0-9]{3,}", text.lower()) if t}
-
-
 def match_facts(query: str, facts: list[OkfFact], *, limit: int = 8) -> list[OkfFact]:
-    q = _tokenize(query)
+    """Token overlap helper (tests / callers). Empty query → [] (no room dump)."""
+    q = tokenize(query)
     if not q:
-        return facts[:limit]
+        return []
     scored: list[tuple[int, OkfFact]] = []
     for fact in facts:
-        body_tokens = _tokenize(fact.body)
-        score = len(q & body_tokens)
+        score = len(q & tokenize(fact.body))
         if score > 0:
             scored.append((score, fact))
-    scored.sort(key=lambda x: (-x[0], x[1].created), reverse=False)
     scored.sort(key=lambda x: -x[0])
     return [f for _, f in scored[:limit]]
 
@@ -135,6 +153,11 @@ _WORK_ANSWER = (
     "Open Team → pick a desk → Chat. Office Q&A is read-only status and knowledge."
 )
 
+_CHITCHAT_ANSWER = (
+    "Hello — I'm the office front desk. Ask about team knowledge or recent run status. "
+    "For build/work, open a desk on Team → Chat."
+)
+
 
 class OfficeQaService:
     def __init__(
@@ -146,6 +169,7 @@ class OfficeQaService:
         phrase_model: str | None = None,
         use_llm_phrase: bool = False,
         max_tokens: int | None = None,
+        pack_char_budget: int | None = None,
     ) -> None:
         self.journal = journal
         self.okf = okf
@@ -153,9 +177,28 @@ class OfficeQaService:
         self.phrase_model = phrase_model
         self.use_llm_phrase = use_llm_phrase
         self.max_tokens = max_tokens
+        # Soft path: hand entire room (capped) to OFFICE_MODEL.
+        max_chars = pack_char_budget if pack_char_budget and pack_char_budget > 0 else None
+        self._pass_through = PassThroughRetriever(
+            okf, max_facts=80, max_chars=max_chars
+        )
+        # Deterministic path when soft LLM off.
+        self._overlap = TokenOverlapRetriever(okf, max_facts=8)
+        self._soft: OkfSoftAnswer | None = None
+        if use_llm_phrase and adapter and phrase_model:
+            self._soft = OkfSoftAnswer(
+                adapter, model=phrase_model, max_tokens=max_tokens
+            )
 
     async def ask(self, *, message: str, team: str) -> OfficeAskResult:
         kind = classify_office_ask(message)
+        if kind == OfficeAskKind.empty and _is_chitchat(message):
+            return OfficeAskResult(
+                kind=OfficeAskKind.empty,
+                answer=_CHITCHAT_ANSWER,
+                citations=[],
+                team=team,
+            )
         if kind == OfficeAskKind.work:
             return OfficeAskResult(
                 kind=OfficeAskKind.work,
@@ -169,48 +212,21 @@ class OfficeQaService:
             result.team = team
             return result
 
-        facts = match_facts(message, self.okf.list_team_facts(team))
-        result = format_knowledge(facts, team=team)
-        if (
-            result.kind == OfficeAskKind.knowledge
-            and self.use_llm_phrase
-            and self.adapter
-            and self.phrase_model
-            and facts
-        ):
-            phrased = await self._phrase_with_citations(message, facts)
-            if phrased:
-                result.answer = phrased
-        return result
+        # Knowledge: soft LLM gets pass-through slice; else token overlap only.
+        if self._soft is not None:
+            facts = self._pass_through.retrieve(message, team=team)
+            if not facts:
+                return format_knowledge([], team=team)
+            soft = await self._soft.answer(message, facts)
+            if soft:
+                return OfficeAskResult(
+                    kind=OfficeAskKind.knowledge,
+                    answer=soft.text,
+                    citations=[Citation(fact_id=i) for i in soft.cited_ids],
+                    team=team,
+                )
+            # Model failed citation check — fall back to deterministic list of same slice.
+            return format_knowledge(facts[:8], team=team)
 
-    async def _phrase_with_citations(
-        self,
-        question: str,
-        facts: list[OkfFact],
-    ) -> str | None:
-        assert self.adapter and self.phrase_model
-        catalog = "\n".join(f"- [{f.id}] {f.body}" for f in facts)
-        system = (
-            "You are the office front desk. Answer ONLY using the listed facts. "
-            "Every claim must include a citation like [fact-xxx]. "
-            "If the facts do not answer the question, say so. Do not invent."
-        )
-        try:
-            text = await self.adapter.complete_chat(
-                model=self.phrase_model,
-                messages=[
-                    {"role": "system", "content": system},
-                    {
-                        "role": "user",
-                        "content": f"Question: {question}\n\nFacts:\n{catalog}",
-                    },
-                ],
-                temperature=0.0,
-                max_tokens=self.max_tokens,
-            )
-        except Exception:  # noqa: BLE001 — fall back to deterministic list
-            return None
-        # Require at least one known fact id in the phrase
-        if not any(f.id in text for f in facts):
-            return None
-        return text.strip() or None
+        facts = self._overlap.retrieve(message, team=team)
+        return format_knowledge(facts, team=team)

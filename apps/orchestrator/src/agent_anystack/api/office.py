@@ -77,6 +77,7 @@ def get_office_qa(
         phrase_model=model,
         use_llm_phrase=orc.office_qa_llm,
         max_tokens=max_tokens,
+        pack_char_budget=max(2000, orc.pack_token_budget * 4),
     )
 
 
