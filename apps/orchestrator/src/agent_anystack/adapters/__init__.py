@@ -1,5 +1,6 @@
-"""Stack adapters — re-export from llm (single module for concrete classes)."""
+"""Stack adapters — re-export concrete classes."""
 
+from agent_anystack.adapters.bedrock import BedrockAdapter
 from agent_anystack.adapters.llm import (
     ChatTurnResult,
     OpenAICompatibleAdapter,
@@ -9,6 +10,7 @@ from agent_anystack.adapters.llm import (
 )
 
 __all__ = [
+    "BedrockAdapter",
     "ChatTurnResult",
     "OpenAICompatibleAdapter",
     "StackAdapter",

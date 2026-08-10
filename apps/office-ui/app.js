@@ -145,6 +145,25 @@
     return li;
   }
 
+  function toggleStackModelFields(prefix, stack) {
+    const isBedrock = stack === "bedrock";
+    const ollamaWrap = $(`#${prefix}-model-ollama-wrap`);
+    const bedrockWrap = $(`#${prefix}-model-bedrock-wrap`);
+    const ollamaSel = $(`#${prefix}-model`);
+    const bedrockInp = $(`#${prefix}-model-bedrock`);
+    const hint = $(`#${prefix}-model-hint`);
+    if (ollamaWrap) ollamaWrap.hidden = isBedrock;
+    if (bedrockWrap) bedrockWrap.hidden = !isBedrock;
+    if (ollamaSel) ollamaSel.required = !isBedrock;
+    if (bedrockInp) bedrockInp.required = isBedrock;
+    if (hint) {
+      hint.hidden = isBedrock;
+      if (isBedrock) {
+        hint.textContent = "";
+      }
+    }
+  }
+
   function openAgentConfig(agentId) {
     configuringAgentId = agentId;
     showView("agent-config");
@@ -174,6 +193,7 @@
       $("#agent-config-team-label").textContent = a.team;
       form.name.value = a.name || "";
       form.stack.value = a.stack || "openai-compatible";
+      toggleStackModelFields("agent-config", form.stack.value);
       form.autonomy_default.value = a.autonomy?.default ?? 50;
       form.autonomy_max.value =
         a.autonomy?.max != null && a.autonomy.max !== "" ? a.autonomy.max : "";
@@ -182,11 +202,15 @@
       form.persona_markdown.value = a.persona_markdown || "";
       $("#agent-config-org").textContent =
         `Org ceiling: max ${org.max_autonomy ?? "—"} · default ${org.autonomy?.default ?? "—"}`;
-      await fillModelSelect(
-        $("#agent-config-model"),
-        a.model,
-        $("#agent-config-model-hint")
-      );
+      if (a.stack === "bedrock") {
+        $("#agent-config-model-bedrock").value = a.model || "";
+      } else {
+        await fillModelSelect(
+          $("#agent-config-model"),
+          a.model,
+          $("#agent-config-model-hint")
+        );
+      }
       await loadProjectsInto(
         $("#agent-config-project"),
         $("#agent-config-project-hint"),
@@ -1099,6 +1123,26 @@
   $("#btn-back-team").addEventListener("click", () => showView("team"));
   $("#btn-back-office-team").addEventListener("click", () => showView("team"));
   $("#btn-back-agent-team").addEventListener("click", () => showView("team"));
+  const createStack = $("#create-stack");
+  if (createStack) {
+    createStack.addEventListener("change", () => {
+      toggleStackModelFields("create", createStack.value);
+    });
+    toggleStackModelFields("create", createStack.value);
+  }
+  const agentStack = $("#agent-config-stack");
+  if (agentStack) {
+    agentStack.addEventListener("change", () => {
+      toggleStackModelFields("agent-config", agentStack.value);
+      if (agentStack.value !== "bedrock") {
+        fillModelSelect(
+          $("#agent-config-model"),
+          $("#agent-config-model").value,
+          $("#agent-config-model-hint")
+        );
+      }
+    });
+  }
   const btnCreateProject = $("#btn-create-project");
   if (btnCreateProject) {
     btnCreateProject.addEventListener("click", () => createProjectFromForm());
@@ -1131,10 +1175,15 @@
     };
     const maxRaw = String(form.autonomy_max.value || "").trim();
     if (maxRaw !== "") autonomy.max = Number(maxRaw);
+    const stack = String(form.stack.value || "openai-compatible");
+    const model =
+      stack === "bedrock"
+        ? String(form.model_bedrock.value || "").trim()
+        : String(form.model.value || "").trim();
     const body = {
       name: String(form.name.value || "").trim(),
-      stack: String(form.stack.value || "openai-compatible"),
-      model: String(form.model.value || "").trim(),
+      stack,
+      model,
       autonomy,
       max_input_tokens: Number(form.max_input_tokens.value),
       max_output_tokens: Number(form.max_output_tokens.value),
@@ -1487,12 +1536,25 @@
     };
     const maxRaw = String(fd.get("autonomy_max") || "").trim();
     if (maxRaw !== "") autonomy.max = Number(maxRaw);
+    const stack = String(fd.get("stack") || "openai-compatible");
+    const model =
+      stack === "bedrock"
+        ? String(fd.get("model_bedrock") || "").trim()
+        : String(fd.get("model") || "").trim();
+    if (!model) {
+      err.textContent =
+        stack === "bedrock"
+          ? "Enter a Bedrock model id (e.g. amazon.nova-lite-v1:0)."
+          : "Select a model.";
+      err.hidden = false;
+      return;
+    }
     const body = {
       id: String(fd.get("id") || "").trim(),
       name: String(fd.get("name") || "").trim(),
       team: String(fd.get("team") || "").trim(),
-      stack: String(fd.get("stack") || "openai-compatible"),
-      model: String(fd.get("model") || "").trim(),
+      stack,
+      model,
       autonomy,
       max_input_tokens: Number(fd.get("max_input_tokens") ?? -1),
       max_output_tokens: Number(fd.get("max_output_tokens") ?? -1),

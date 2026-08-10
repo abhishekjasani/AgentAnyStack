@@ -58,6 +58,9 @@ def get_chat_service(
         recent_history_char_budget=orc.recent_history_char_budget,
         office_model=orc.model,
         openai_compatible_timeout=settings.openai_compatible_timeout,
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
+        aws_region=settings.aws_region,
     )
 
 

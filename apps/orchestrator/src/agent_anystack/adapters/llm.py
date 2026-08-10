@@ -1,4 +1,4 @@
-"""Stack adapters — one module; add Anthropic/Cursor classes here when shipped.
+"""Stack adapters — OpenAI-compatible + Bedrock (see adapters.bedrock).
 
 OpenAI-compatible covers Ollama, vLLM, LM Studio, etc. — switch host via base_url only.
 """

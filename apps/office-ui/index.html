@@ -176,18 +176,23 @@
             <p id="create-project-ok" class="desk-meta" hidden></p>
           </details>
           <label>Stack
-            <select name="stack">
+            <select name="stack" id="create-stack">
               <option value="openai-compatible" selected>openai-compatible (Ollama)</option>
+              <option value="bedrock">bedrock (AWS)</option>
               <option value="cursor">cursor</option>
               <option value="claude">claude</option>
             </select>
           </label>
-          <label>Model
+          <label id="create-model-ollama-wrap">Model
             <select name="model" id="create-model" required aria-label="Pulled local model">
               <option value="">Loading models…</option>
             </select>
           </label>
           <p id="create-model-hint" class="desk-meta"></p>
+          <label id="create-model-bedrock-wrap" hidden>Bedrock model id
+            <input name="model_bedrock" id="create-model-bedrock" type="text"
+              placeholder="amazon.nova-lite-v1:0" />
+          </label>
           <label>Autonomy default (0–100)
             <input name="autonomy_default" type="number" min="0" max="100" value="50" required />
           </label>
@@ -235,18 +240,23 @@
           </label>
           <p id="agent-config-project-hint" class="desk-meta"></p>
           <label>Stack
-            <select name="stack">
+            <select name="stack" id="agent-config-stack">
               <option value="openai-compatible">openai-compatible (Ollama)</option>
+              <option value="bedrock">bedrock (AWS)</option>
               <option value="cursor">cursor</option>
               <option value="claude">claude</option>
             </select>
           </label>
-          <label>Model
+          <label id="agent-config-model-ollama-wrap">Model
             <select name="model" id="agent-config-model" required aria-label="Desk model">
               <option value="">Loading models…</option>
             </select>
           </label>
           <p id="agent-config-model-hint" class="desk-meta"></p>
+          <label id="agent-config-model-bedrock-wrap" hidden>Bedrock model id
+            <input name="model_bedrock" id="agent-config-model-bedrock" type="text"
+              placeholder="amazon.nova-lite-v1:0" />
+          </label>
           <label>Autonomy default (0–100)
             <input name="autonomy_default" type="number" min="0" max="100" required />
           </label>

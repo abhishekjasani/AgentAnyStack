@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_anystack.adapters import StackError
+from agent_anystack.adapters.bedrock import BedrockAdapter
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.channel_history import ChannelHistoryStore
 from agent_anystack.domain.agent import AgentConfig
@@ -18,7 +19,7 @@ from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
 from agent_anystack.tools.gold import GOLD_TOOL_SCHEMAS, execute_gold_tool
 
-SUPPORTED_STACKS = frozenset({"openai-compatible"})
+SUPPORTED_STACKS = frozenset({"openai-compatible", "bedrock"})
 MAX_TOOL_ROUNDS = 6
 _TOKEN_CHUNK = 48
 
@@ -39,11 +40,20 @@ class ChatRunService:
         recent_history_char_budget: int = 6_000,
         office_model: str = "llama3.2",
         openai_compatible_timeout: float = 300.0,
+        aws_access_key_id: str = "",
+        aws_secret_access_key: str = "",
+        aws_region: str = "us-east-1",
     ) -> None:
         self.repo = repo
         self.journal = journal
         self.adapter = OpenAICompatibleAdapter(
             openai_compatible_base_url,
+            timeout=openai_compatible_timeout,
+        )
+        self.bedrock = BedrockAdapter(
+            access_key_id=aws_access_key_id,
+            secret_access_key=aws_secret_access_key,
+            region=aws_region,
             timeout=openai_compatible_timeout,
         )
         self.okf = okf
@@ -55,6 +65,11 @@ class ChatRunService:
         self.recent_history_days = recent_history_days
         self.recent_history_char_budget = recent_history_char_budget
         self.office_model = office_model
+
+    def _adapter_for(self, stack: str) -> OpenAICompatibleAdapter | BedrockAdapter:
+        if stack == "bedrock":
+            return self.bedrock
+        return self.adapter
 
     async def stream_agent_chat(
         self,
@@ -141,8 +156,10 @@ class ChatRunService:
         status = "ok"
         error: str | None = None
         assistant_parts: list[str] = []
+        adapter = self._adapter_for(agent.stack)
         try:
             async for event in self._run_with_gold_tools(
+                adapter=adapter,
                 model=agent.model,
                 messages=messages,
                 agent=agent,
@@ -202,6 +219,7 @@ class ChatRunService:
     async def _run_with_gold_tools(
         self,
         *,
+        adapter: OpenAICompatibleAdapter | BedrockAdapter,
         model: str,
         messages: list[dict[str, Any]],
         agent: AgentConfig,
@@ -212,7 +230,7 @@ class ChatRunService:
         """Tool loop for gold CRUD; then emit assistant text as tokens."""
         for _round in range(MAX_TOOL_ROUNDS):
             try:
-                turn = await self.adapter.complete_chat_turn(
+                turn = await adapter.complete_chat_turn(
                     model=model,
                     messages=messages,
                     tools=GOLD_TOOL_SCHEMAS,
@@ -221,7 +239,7 @@ class ChatRunService:
             except StackError as exc:
                 # Some hosts reject tools — fall back to plain stream once.
                 if _round == 0 and _looks_like_tools_unsupported(exc):
-                    async for token in self.adapter.stream_chat(
+                    async for token in adapter.stream_chat(
                         model=model,
                         messages=messages,
                         max_tokens=max_tokens,
@@ -291,11 +309,15 @@ def _chunk_text(text: str, size: int) -> list[str]:
 
 def _looks_like_tools_unsupported(exc: StackError) -> bool:
     msg = str(exc).lower()
-    return "tool" in msg and (
-        "not support" in msg
-        or "unsupported" in msg
-        or "unknown field" in msg
-        or "does not support" in msg
+    return (
+        ("tool" in msg and (
+            "not support" in msg
+            or "unsupported" in msg
+            or "unknown field" in msg
+            or "does not support" in msg
+        ))
+        or "toolconfig" in msg
+        or "tool use" in msg
     )
 
 

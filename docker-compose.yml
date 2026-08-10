@@ -21,6 +21,10 @@ services:
       OPENAI_COMPATIBLE_BASE_URL: http://ollama:11434/v1
       # Cold GPU reload + first token can exceed 5m on small VRAM Docker/WSL.
       OPENAI_COMPATIBLE_TIMEOUT: "900"
+      # Bedrock desk stack (optional — from host .env)
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
     volumes:
       - ./office:/office
       - ./projects:/projects

@@ -85,6 +85,20 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("OLLAMA_CONTAINER_NAME"),
     )
 
+    # Bedrock desk stack — Access Key ID + Secret + Region (platform env only).
+    aws_access_key_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("AWS_ACCESS_KEY_ID"),
+    )
+    aws_secret_access_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("AWS_SECRET_ACCESS_KEY"),
+    )
+    aws_region: str = Field(
+        default="us-east-1",
+        validation_alias=AliasChoices("AWS_REGION", "AWS_DEFAULT_REGION"),
+    )
+
     # TODO: platform settings read-only UI (IMPLEMENTATION.md §7.1)
     # TODO: multi-admin / edition switch for org_admins
 
