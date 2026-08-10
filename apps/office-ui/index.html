@@ -411,8 +411,9 @@
 
         <h2 class="memory-h2">AWS Bedrock</h2>
         <p class="lede">
-          Write-only credentials (never returned by GET). Verify an inference id into the
-          catalog, then pick it when creating a <code>bedrock</code> desk.
+          Write-only credentials (never returned by GET). <strong>Test</strong> checks
+          keys via STS only (no model). Verify an inference id into the catalog, then
+          pick it when creating a <code>bedrock</code> desk.
         </p>
         <p id="bedrock-status" class="desk-meta"></p>
         <form id="bedrock-creds-form" class="form memory-form">
@@ -435,7 +436,7 @@
           <p id="bedrock-creds-ok" class="desk-meta" hidden></p>
           <div class="form-actions memory-actions">
             <button type="submit" class="btn primary">Save credentials</button>
-            <button type="button" class="btn ghost" id="bedrock-test">Test</button>
+            <button type="button" class="btn ghost" id="bedrock-test" title="STS GetCallerIdentity — credentials only">Test</button>
           </div>
         </form>
         <form id="bedrock-model-form" class="form memory-form">

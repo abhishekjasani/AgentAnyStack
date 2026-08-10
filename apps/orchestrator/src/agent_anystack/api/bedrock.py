@@ -124,28 +124,21 @@ async def bedrock_test(
     settings: Settings = Depends(get_settings),
     _user_id: str = Depends(get_user_id),
 ) -> dict[str, Any]:
-    """Probe credentials via a tiny Converse call (uses first catalog model or amazon.titan-text-lite)."""
+    """Creds-only probe via STS GetCallerIdentity (no Converse / model)."""
     adapter = _adapter_from_store(store, settings)
     if not adapter.configured():
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail="Bedrock not configured — PUT credentials first (or set AWS_* env).",
         )
-    models = store.list_models()
-    model_id = models[0].id if models else "amazon.titan-text-lite-v1"
     try:
-        text = await adapter.complete_chat(
-            model=model_id,
-            messages=[{"role": "user", "content": "Reply with OK only."}],
-            temperature=0.0,
-            max_tokens=8,
-        )
+        ident = await adapter.test_credentials()
     except StackError as exc:
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY,
             detail={"ok": False, "message": str(exc), "code": exc.code},
         ) from exc
-    return {"ok": True, "model": model_id, "sample": (text or "")[:80]}
+    return {"ok": True, **ident}
 
 
 @router.get("/stacks/bedrock/models")

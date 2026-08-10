@@ -1,6 +1,6 @@
 [project]
 name = "agent-anystack"
-version = "0.2.2"
+version = "0.2.3"
 description = "AgentAnyStack orchestrator — office backbone for agents"
 requires-python = ">=3.12"
 dependencies = [

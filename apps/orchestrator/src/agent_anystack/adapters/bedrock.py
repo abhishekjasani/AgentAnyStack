@@ -34,7 +34,7 @@ class BedrockAdapter:
     def configured(self) -> bool:
         return bool(self.access_key_id and self.secret_access_key)
 
-    def _client(self) -> Any:
+    def _boto_kwargs(self) -> dict[str, Any]:
         if not self.configured():
             raise StackError(
                 "Bedrock not configured — set AWS_ACCESS_KEY_ID, "
@@ -43,7 +43,6 @@ class BedrockAdapter:
                 code="bedrock_not_configured",
             )
         try:
-            import boto3
             from botocore.config import Config
         except ImportError as exc:
             raise StackError(
@@ -62,7 +61,40 @@ class BedrockAdapter:
         }
         if self.session_token:
             kwargs["aws_session_token"] = self.session_token
-        return boto3.client("bedrock-runtime", **kwargs)
+        return kwargs
+
+    def _client(self, service: str = "bedrock-runtime") -> Any:
+        try:
+            import boto3
+        except ImportError as exc:
+            raise StackError(
+                "boto3 is required for the bedrock stack.",
+                code="bedrock_missing_dep",
+            ) from exc
+        return boto3.client(service, **self._boto_kwargs())
+
+    async def test_credentials(self) -> dict[str, str]:
+        """Validate access key / secret / session token via STS GetCallerIdentity (no model)."""
+
+        def _run() -> dict[str, str]:
+            client = self._client("sts")
+            ident = client.get_caller_identity()
+            return {
+                "account": str(ident.get("Account") or ""),
+                "arn": str(ident.get("Arn") or ""),
+                "user_id": str(ident.get("UserId") or ""),
+                "region": self.region,
+            }
+
+        try:
+            return await asyncio.to_thread(_run)
+        except StackError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise StackError(
+                f"AWS credential check failed: {exc}",
+                code="bedrock_creds_invalid",
+            ) from exc
 
     async def stream_chat(
         self,

@@ -1329,7 +1329,8 @@
             : detail || `test ${res.status}`;
         throw new Error(msg);
       }
-      ok.textContent = `Test OK · model ${data.model}`;
+      const arn = data.arn ? String(data.arn).split("/").pop() : "";
+      ok.textContent = `Creds OK · account ${data.account || "?"} · ${arn || data.region || ""}`;
       ok.hidden = false;
     } catch (e) {
       err.textContent = String(e.message || e);
