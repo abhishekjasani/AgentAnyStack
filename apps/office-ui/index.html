@@ -416,13 +416,17 @@
         </p>
         <p id="bedrock-status" class="desk-meta"></p>
         <form id="bedrock-creds-form" class="form memory-form">
-          <label>Access Key ID
+          <label>AWS access key ID
             <input name="access_key_id" type="password" autocomplete="off"
               placeholder="leave blank to keep existing" />
           </label>
-          <label>Secret Access Key
+          <label>AWS secret access key
             <input name="secret_access_key" type="password" autocomplete="off"
               placeholder="leave blank to keep existing" />
+          </label>
+          <label>AWS session token (STS / temporary)
+            <input name="session_token" type="password" autocomplete="off"
+              placeholder="optional; leave blank to keep existing" />
           </label>
           <label>Region
             <input name="region" type="text" value="us-east-1" placeholder="us-east-1" />

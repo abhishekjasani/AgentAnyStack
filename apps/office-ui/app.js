@@ -223,6 +223,7 @@
         s.source ? `source=${s.source}` : null,
         s.region ? `region ${s.region}` : null,
         s.access_key_hint ? `key ${s.access_key_hint}` : null,
+        s.has_session_token ? "session token set" : null,
         s.updated_at ? `updated ${s.updated_at}` : null,
       ].filter(Boolean);
       el.textContent = bits.join(" · ");
@@ -1284,9 +1285,11 @@
     const body = {};
     const ak = String(form.access_key_id.value || "").trim();
     const sk = String(form.secret_access_key.value || "").trim();
+    const st = String(form.session_token.value || "").trim();
     const region = String(form.region.value || "").trim();
     if (ak) body.access_key_id = ak;
     if (sk) body.secret_access_key = sk;
+    if (st) body.session_token = st;
     if (region) body.region = region;
     try {
       const res = await api("/stacks/bedrock", {
@@ -1300,6 +1303,7 @@
       }
       form.access_key_id.value = "";
       form.secret_access_key.value = "";
+      form.session_token.value = "";
       ok.textContent = "Credentials saved (not shown again).";
       ok.hidden = false;
       await loadBedrockStatus();

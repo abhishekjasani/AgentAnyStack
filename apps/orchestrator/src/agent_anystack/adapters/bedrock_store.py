@@ -33,6 +33,7 @@ class BedrockCreds:
     access_key_id: str
     secret_access_key: str
     region: str
+    session_token: str = ""
     updated_at: str | None = None
 
     def configured(self) -> bool:
@@ -72,6 +73,7 @@ class BedrockProviderStore:
             "configured": creds.configured(),
             "region": creds.region,
             "access_key_hint": (f"…{key[-4:]}" if len(key) >= 4 else None),
+            "has_session_token": bool(creds.session_token.strip()),
             "updated_at": creds.updated_at,
         }
 
@@ -88,6 +90,7 @@ class BedrockProviderStore:
             access_key_id=str(data.get("access_key_id") or ""),
             secret_access_key=str(data.get("secret_access_key") or ""),
             region=str(data.get("region") or "us-east-1").strip() or "us-east-1",
+            session_token=str(data.get("session_token") or ""),
             updated_at=data.get("updated_at"),
         )
 
@@ -97,8 +100,10 @@ class BedrockProviderStore:
         access_key_id: str | None = None,
         secret_access_key: str | None = None,
         region: str | None = None,
+        session_token: str | None = None,
     ) -> dict[str, Any]:
-        """Write-only upsert. Empty/None fields leave existing values unchanged."""
+        """Write-only upsert. Empty/None for id/secret/region leave existing;
+        session_token None = leave; str (incl. empty) = set/clear."""
         cur = self.load_creds()
         new_id = (access_key_id if access_key_id is not None else cur.access_key_id).strip()
         new_secret = (
@@ -109,6 +114,10 @@ class BedrockProviderStore:
         new_region = (
             (region if region is not None else cur.region).strip() or "us-east-1"
         )
+        if session_token is None:
+            new_session = cur.session_token
+        else:
+            new_session = session_token.strip()
         if not new_id or not new_secret:
             raise ValueError(
                 "access_key_id and secret_access_key are required "
@@ -117,6 +126,7 @@ class BedrockProviderStore:
         payload = {
             "access_key_id": new_id,
             "secret_access_key": new_secret,
+            "session_token": new_session,
             "region": new_region,
             "updated_at": utc_now_iso(),
         }
@@ -190,14 +200,16 @@ def resolve_creds(
     *,
     env_access_key_id: str = "",
     env_secret_access_key: str = "",
+    env_session_token: str = "",
     env_region: str = "us-east-1",
 ) -> BedrockCreds:
-    """Prefer UI-stored creds; fall back to platform env."""
+    """Prefer UI-stored creds; fall back to platform env (Settings / AWS_*)."""
     stored = store.load_creds()
     if stored.configured():
         return stored
     return BedrockCreds(
         access_key_id=(env_access_key_id or "").strip(),
         secret_access_key=(env_secret_access_key or "").strip(),
+        session_token=(env_session_token or "").strip(),
         region=(env_region or "us-east-1").strip() or "us-east-1",
     )

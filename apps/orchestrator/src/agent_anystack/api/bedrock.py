@@ -22,10 +22,11 @@ router = APIRouter(tags=["bedrock"])
 
 
 class BedrockCredsPut(BaseModel):
-    """Write-only. Omit or blank a field to leave the stored value unchanged."""
+    """Write-only. Omit or blank id/secret to leave stored; session_token sent when set."""
 
     access_key_id: str | None = Field(default=None, max_length=128)
     secret_access_key: str | None = Field(default=None, max_length=256)
+    session_token: str | None = Field(default=None, max_length=4096)
     region: str | None = Field(default=None, max_length=64)
 
 
@@ -46,11 +47,13 @@ def _adapter_from_store(
         store,
         env_access_key_id=settings.aws_access_key_id,
         env_secret_access_key=settings.aws_secret_access_key,
+        env_session_token=settings.aws_session_token,
         env_region=settings.aws_region,
     )
     return BedrockAdapter(
         access_key_id=creds.access_key_id,
         secret_access_key=creds.secret_access_key,
+        session_token=creds.session_token,
         region=creds.region,
         timeout=min(120.0, settings.openai_compatible_timeout),
     )
@@ -76,6 +79,9 @@ async def bedrock_status(
                 "configured": True,
                 "region": (settings.aws_region or "us-east-1").strip() or "us-east-1",
                 "access_key_hint": None,
+                "has_session_token": bool(
+                    (settings.aws_session_token or "").strip()
+                ),
                 "source": "env",
             }
         else:
@@ -96,13 +102,16 @@ async def bedrock_put_creds(
         # Treat blank strings as "omit" so UI can leave fields empty on rotate region-only.
         ak = body.access_key_id
         sk = body.secret_access_key
+        st = body.session_token
         if ak is not None and not ak.strip():
             ak = None
         if sk is not None and not sk.strip():
             sk = None
+        # session_token: omit from body = leave; non-empty = set; explicit "" clears
         return store.put_creds(
             access_key_id=ak,
             secret_access_key=sk,
+            session_token=st,
             region=body.region,
         )
     except ValueError as exc:

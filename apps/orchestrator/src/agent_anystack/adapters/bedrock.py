@@ -1,4 +1,4 @@
-"""AWS Bedrock Runtime adapter — Access Key ID + Secret + Region (SigV4 via boto3).
+"""AWS Bedrock Runtime adapter — Access Key ID + Secret + optional Session Token + Region.
 
 Uses Converse / ConverseStream. Desk stack=`bedrock`; Office soft jobs stay openai-compatible.
 """
@@ -14,7 +14,7 @@ from agent_anystack.adapters.llm import ChatTurnResult, StackError, ToolCallRequ
 
 
 class BedrockAdapter:
-    """Bedrock Converse API — auth: access_key_id + secret_access_key + region."""
+    """Bedrock Converse API — auth via IAM access key (+ session token for STS)."""
 
     def __init__(
         self,
@@ -22,10 +22,12 @@ class BedrockAdapter:
         access_key_id: str,
         secret_access_key: str,
         region: str,
+        session_token: str = "",
         timeout: float = 300.0,
     ) -> None:
         self.access_key_id = (access_key_id or "").strip()
         self.secret_access_key = (secret_access_key or "").strip()
+        self.session_token = (session_token or "").strip()
         self.region = (region or "").strip() or "us-east-1"
         self.timeout = timeout
 
@@ -36,7 +38,8 @@ class BedrockAdapter:
         if not self.configured():
             raise StackError(
                 "Bedrock not configured — set AWS_ACCESS_KEY_ID, "
-                "AWS_SECRET_ACCESS_KEY, and AWS_REGION.",
+                "AWS_SECRET_ACCESS_KEY, AWS_REGION "
+                "(and AWS_SESSION_TOKEN when using temporary creds).",
                 code="bedrock_not_configured",
             )
         try:
@@ -47,17 +50,19 @@ class BedrockAdapter:
                 "boto3 is required for the bedrock stack.",
                 code="bedrock_missing_dep",
             ) from exc
-        return boto3.client(
-            "bedrock-runtime",
-            region_name=self.region,
-            aws_access_key_id=self.access_key_id,
-            aws_secret_access_key=self.secret_access_key,
-            config=Config(
+        kwargs: dict[str, Any] = {
+            "region_name": self.region,
+            "aws_access_key_id": self.access_key_id,
+            "aws_secret_access_key": self.secret_access_key,
+            "config": Config(
                 read_timeout=int(self.timeout),
                 connect_timeout=min(60, int(self.timeout)),
                 retries={"max_attempts": 2},
             ),
-        )
+        }
+        if self.session_token:
+            kwargs["aws_session_token"] = self.session_token
+        return boto3.client("bedrock-runtime", **kwargs)
 
     async def stream_chat(
         self,

@@ -47,6 +47,7 @@ class ChatRunService:
         openai_compatible_timeout: float = 300.0,
         aws_access_key_id: str = "",
         aws_secret_access_key: str = "",
+        aws_session_token: str = "",
         aws_region: str = "us-east-1",
         database_url: str = "sqlite:///./data/office.db",
     ) -> None:
@@ -58,6 +59,7 @@ class ChatRunService:
         )
         self._env_aws_access_key_id = aws_access_key_id
         self._env_aws_secret_access_key = aws_secret_access_key
+        self._env_aws_session_token = aws_session_token
         self._env_aws_region = aws_region
         self._openai_compatible_timeout = openai_compatible_timeout
         self._bedrock_store = BedrockProviderStore(bedrock_data_dir(database_url))
@@ -76,11 +78,13 @@ class ChatRunService:
             self._bedrock_store,
             env_access_key_id=self._env_aws_access_key_id,
             env_secret_access_key=self._env_aws_secret_access_key,
+            env_session_token=self._env_aws_session_token,
             env_region=self._env_aws_region,
         )
         return BedrockAdapter(
             access_key_id=creds.access_key_id,
             secret_access_key=creds.secret_access_key,
+            session_token=creds.session_token,
             region=creds.region,
             timeout=self._openai_compatible_timeout,
         )
