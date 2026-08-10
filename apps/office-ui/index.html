@@ -188,6 +188,16 @@
             </select>
           </label>
           <p id="create-model-hint" class="desk-meta"></p>
+          <label>Autonomy default (0–100)
+            <input name="autonomy_default" type="number" min="0" max="100" value="50" required />
+          </label>
+          <label>Autonomy max (blank = inherit org ceiling)
+            <input name="autonomy_max" type="number" min="0" max="100" placeholder="optional" />
+          </label>
+          <p class="desk-meta">
+            Effective autonomy drives Approvals gate for <code>external_send</code>
+            (≤20 deny · 21–79 HITL · ≥80 auto-allow).
+          </p>
           <label>Max input tokens (-1 = inherit stack)
             <input name="max_input_tokens" type="number" min="-1" max="200000" value="-1" />
           </label>
@@ -200,6 +210,63 @@
           <p id="create-error" class="error" hidden></p>
           <div class="form-actions">
             <button type="submit" class="btn primary">Save desk</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="view-agent-config" class="view" aria-labelledby="agent-config-title" hidden>
+        <header class="view-head">
+          <div>
+            <h1 id="agent-config-title">Configure desk</h1>
+            <p class="lede">
+              Edits <code>agent.yaml</code> (+ <code>AGENT.md</code>). Id and team stay fixed.
+            </p>
+          </div>
+          <button type="button" class="btn ghost" id="btn-back-agent-team">Back to Team</button>
+        </header>
+        <form id="agent-config-form" class="form">
+          <input type="hidden" name="agent_id" id="agent-config-id" />
+          <p class="desk-meta">Desk <code id="agent-config-id-label"></code> · team <code id="agent-config-team-label"></code></p>
+          <label>Name <input name="name" required maxlength="128" /></label>
+          <label>Project (working dir)
+            <select name="project_id" id="agent-config-project" required aria-label="Project working directory">
+              <option value="">Loading projects…</option>
+            </select>
+          </label>
+          <p id="agent-config-project-hint" class="desk-meta"></p>
+          <label>Stack
+            <select name="stack">
+              <option value="openai-compatible">openai-compatible (Ollama)</option>
+              <option value="cursor">cursor</option>
+              <option value="claude">claude</option>
+            </select>
+          </label>
+          <label>Model
+            <select name="model" id="agent-config-model" required aria-label="Desk model">
+              <option value="">Loading models…</option>
+            </select>
+          </label>
+          <p id="agent-config-model-hint" class="desk-meta"></p>
+          <label>Autonomy default (0–100)
+            <input name="autonomy_default" type="number" min="0" max="100" required />
+          </label>
+          <label>Autonomy max (blank = no desk ceiling)
+            <input name="autonomy_max" type="number" min="0" max="100" placeholder="optional" />
+          </label>
+          <p class="desk-meta" id="agent-config-org"></p>
+          <label>Max input tokens (-1 = inherit stack)
+            <input name="max_input_tokens" type="number" min="-1" max="200000" required />
+          </label>
+          <label>Max output tokens (-1 = inherit stack)
+            <input name="max_output_tokens" type="number" min="-1" max="100000" required />
+          </label>
+          <label>Persona (AGENT.md)
+            <textarea name="persona_markdown" rows="8"></textarea>
+          </label>
+          <p id="agent-config-error" class="error" hidden></p>
+          <p id="agent-config-ok" class="desk-meta" hidden></p>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Save desk config</button>
           </div>
         </form>
       </section>

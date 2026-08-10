@@ -7,7 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from agent_anystack.api.deps import get_user_id
 from agent_anystack.api.projects import get_project_registry
 from agent_anystack.config import Settings, get_settings
-from agent_anystack.domain.agent import AgentConfig, AgentSummary, CreateAgentRequest, Workspace
+from agent_anystack.domain.agent import (
+    AgentConfig,
+    AgentDetail,
+    AgentSummary,
+    CreateAgentRequest,
+    UpdateAgentRequest,
+    Workspace,
+)
 from agent_anystack.domain.org import OrgConfig
 from agent_anystack.office import (
     AgentExistsError,
@@ -53,16 +60,19 @@ async def list_agents(
     return repo.list_agent_summaries()
 
 
-@router.get("/agents/{agent_id}", response_model=AgentConfig)
+@router.get("/agents/{agent_id}", response_model=AgentDetail)
 async def get_agent(
     agent_id: str,
     repo: OfficeRepository = Depends(get_office_repo),
     _user_id: str = Depends(get_user_id),
-) -> AgentConfig:
+) -> AgentDetail:
     agent = repo.get_agent(agent_id)
     if agent is None:
         raise HTTPException(status_code=404, detail=f"agent not found: {agent_id}")
-    return agent
+    return AgentDetail(
+        **agent.model_dump(),
+        persona_markdown=repo.read_persona(agent),
+    )
 
 
 @router.post(
@@ -102,6 +112,44 @@ async def create_agent(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put("/agents/{agent_id}", response_model=AgentDetail)
+async def update_agent(
+    agent_id: str,
+    body: UpdateAgentRequest,
+    repo: OfficeRepository = Depends(get_office_repo),
+    registry: ProjectRegistry = Depends(get_project_registry),
+    _user_id: str = Depends(get_user_id),
+) -> AgentDetail:
+    """Patch desk agent.yaml (+ AGENT.md if persona_markdown set)."""
+    patch = body
+    if body.workspace is not None:
+        try:
+            project = registry.require_active(body.workspace.project_id)
+        except ProjectNotFoundError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{exc}. Create a project first (POST /projects), then bind "
+                    "workspace.project_id on the agent."
+                ),
+            ) from exc
+        patch = body.model_copy(
+            update={
+                "workspace": Workspace(project_id=project.id, path=project.path),
+            }
+        )
+    try:
+        agent = repo.update_agent(agent_id, patch)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AutonomyCeilingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return AgentDetail(
+        **agent.model_dump(),
+        persona_markdown=repo.read_persona(agent),
+    )
 
 
 @router.delete("/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)

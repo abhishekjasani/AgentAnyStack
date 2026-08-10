@@ -21,6 +21,7 @@
     });
     if (name === "team") loadTeam();
     if (name === "office-config") loadOfficeConfigForm();
+    if (name === "agent-config") loadAgentConfigForm();
     if (name === "chat") loadChannel({ keepRoute: true });
     if (name === "memory") {
       loadMemory();
@@ -36,6 +37,7 @@
 
   let channelAgents = [];
   let selectedAgentId = ""; // "" = office front desk
+  let configuringAgentId = "";
 
   async function loadTeam() {
     const list = $("#desk-list");
@@ -128,14 +130,115 @@
     chatBtn.className = "btn ghost";
     chatBtn.textContent = "Chat";
     chatBtn.addEventListener("click", () => openChannelChat(a));
+    const cfgBtn = document.createElement("button");
+    cfgBtn.type = "button";
+    cfgBtn.className = "btn ghost";
+    cfgBtn.textContent = "Configure";
+    cfgBtn.addEventListener("click", () => openAgentConfig(a.id));
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "btn danger";
     remove.textContent = "Remove";
     remove.addEventListener("click", () => removeAgent(a.id, a.name));
-    right.append(stack, chatBtn, remove);
+    right.append(stack, chatBtn, cfgBtn, remove);
     li.append(meta, right);
     return li;
+  }
+
+  function openAgentConfig(agentId) {
+    configuringAgentId = agentId;
+    showView("agent-config");
+  }
+
+  async function loadAgentConfigForm() {
+    const form = $("#agent-config-form");
+    const err = $("#agent-config-error");
+    const ok = $("#agent-config-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    if (!configuringAgentId) {
+      err.textContent = "No desk selected.";
+      err.hidden = false;
+      return;
+    }
+    try {
+      const [agentRes, orgRes] = await Promise.all([
+        api(`/agents/${encodeURIComponent(configuringAgentId)}`),
+        api("/org"),
+      ]);
+      if (!agentRes.ok) throw new Error(`GET agent ${agentRes.status}`);
+      const a = await agentRes.json();
+      const org = orgRes.ok ? await orgRes.json() : {};
+      form.agent_id.value = a.id;
+      $("#agent-config-id-label").textContent = a.id;
+      $("#agent-config-team-label").textContent = a.team;
+      form.name.value = a.name || "";
+      form.stack.value = a.stack || "openai-compatible";
+      form.autonomy_default.value = a.autonomy?.default ?? 50;
+      form.autonomy_max.value =
+        a.autonomy?.max != null && a.autonomy.max !== "" ? a.autonomy.max : "";
+      form.max_input_tokens.value = a.max_input_tokens ?? -1;
+      form.max_output_tokens.value = a.max_output_tokens ?? -1;
+      form.persona_markdown.value = a.persona_markdown || "";
+      $("#agent-config-org").textContent =
+        `Org ceiling: max ${org.max_autonomy ?? "—"} · default ${org.autonomy?.default ?? "—"}`;
+      await fillModelSelect(
+        $("#agent-config-model"),
+        a.model,
+        $("#agent-config-model-hint")
+      );
+      await loadProjectsInto(
+        $("#agent-config-project"),
+        $("#agent-config-project-hint"),
+        a.workspace?.project_id
+      );
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function loadProjectsInto(sel, hintEl, selectId, emptyHint) {
+    if (!sel) return;
+    const prev = selectId || sel.value;
+    sel.innerHTML = "";
+    if (hintEl) hintEl.textContent = "";
+    try {
+      const res = await api("/projects");
+      if (!res.ok) throw new Error(`GET /projects ${res.status}`);
+      const projects = await res.json();
+      if (!projects.length) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "No projects — create one first";
+        sel.appendChild(opt);
+        if (hintEl) {
+          hintEl.textContent =
+            emptyHint ||
+            "Every desk needs a working directory. Create a project first.";
+        }
+        return;
+      }
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Select a project…";
+      sel.appendChild(placeholder);
+      for (const p of projects) {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = `${p.name} (${p.path})`;
+        sel.appendChild(opt);
+      }
+      if (prev && [...sel.options].some((o) => o.value === prev)) {
+        sel.value = prev;
+      }
+    } catch (e) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "Failed to load projects";
+      sel.appendChild(opt);
+      if (hintEl) hintEl.textContent = String(e.message || e);
+    }
   }
 
   async function fillModelSelect(sel, preferred, hintEl) {
@@ -485,47 +588,12 @@
   }
 
   async function loadCreateProjects(selectId) {
-    const sel = $("#create-project");
-    const hint = $("#create-project-hint");
-    if (!sel) return;
-    const prev = selectId || sel.value;
-    sel.innerHTML = "";
-    if (hint) hint.textContent = "";
-    try {
-      const res = await api("/projects");
-      if (!res.ok) throw new Error(`GET /projects ${res.status}`);
-      const projects = await res.json();
-      if (!projects.length) {
-        const opt = document.createElement("option");
-        opt.value = "";
-        opt.textContent = "No projects — create one below";
-        sel.appendChild(opt);
-        if (hint) {
-          hint.textContent =
-            "Every desk needs a working directory. Create a project first.";
-        }
-        return;
-      }
-      const placeholder = document.createElement("option");
-      placeholder.value = "";
-      placeholder.textContent = "Select a project…";
-      sel.appendChild(placeholder);
-      for (const p of projects) {
-        const opt = document.createElement("option");
-        opt.value = p.id;
-        opt.textContent = `${p.name} (${p.path})`;
-        sel.appendChild(opt);
-      }
-      if (prev && [...sel.options].some((o) => o.value === prev)) {
-        sel.value = prev;
-      }
-    } catch (e) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "Failed to load projects";
-      sel.appendChild(opt);
-      if (hint) hint.textContent = String(e.message || e);
-    }
+    await loadProjectsInto(
+      $("#create-project"),
+      $("#create-project-hint"),
+      selectId,
+      "Every desk needs a working directory. Create a project first."
+    );
   }
 
   async function createProjectFromForm() {
@@ -1030,6 +1098,7 @@
   $("#btn-empty-create").addEventListener("click", () => showView("create"));
   $("#btn-back-team").addEventListener("click", () => showView("team"));
   $("#btn-back-office-team").addEventListener("click", () => showView("team"));
+  $("#btn-back-agent-team").addEventListener("click", () => showView("team"));
   const btnCreateProject = $("#btn-create-project");
   if (btnCreateProject) {
     btnCreateProject.addEventListener("click", () => createProjectFromForm());
@@ -1037,6 +1106,62 @@
   $("#btn-stacks-refresh").addEventListener("click", () => loadStacks());
   $("#btn-stacks-health").addEventListener("click", () => loadStacksHealth());
   $("#btn-stacks-flush").addEventListener("click", () => flushModels());
+
+  $("#agent-config-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const form = ev.target;
+    const err = $("#agent-config-error");
+    const ok = $("#agent-config-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    const id = String(form.agent_id.value || configuringAgentId || "").trim();
+    const projectId = String(form.project_id.value || "").trim();
+    if (!id) {
+      err.textContent = "No desk id.";
+      err.hidden = false;
+      return;
+    }
+    if (!projectId) {
+      err.textContent = "Select a project.";
+      err.hidden = false;
+      return;
+    }
+    const autonomy = {
+      default: Number(form.autonomy_default.value),
+    };
+    const maxRaw = String(form.autonomy_max.value || "").trim();
+    if (maxRaw !== "") autonomy.max = Number(maxRaw);
+    const body = {
+      name: String(form.name.value || "").trim(),
+      stack: String(form.stack.value || "openai-compatible"),
+      model: String(form.model.value || "").trim(),
+      autonomy,
+      max_input_tokens: Number(form.max_input_tokens.value),
+      max_output_tokens: Number(form.max_output_tokens.value),
+      workspace: { project_id: projectId, path: "." },
+      persona_markdown: String(form.persona_markdown.value || ""),
+    };
+    try {
+      const res = await api(`/agents/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = data.detail;
+        const msg = Array.isArray(detail)
+          ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
+          : detail || `save ${res.status}`;
+        throw new Error(msg);
+      }
+      ok.textContent = `Saved desk ${data.id}`;
+      ok.hidden = false;
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  });
 
   $("#office-config-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -1357,12 +1482,18 @@
       err.hidden = false;
       return;
     }
+    const autonomy = {
+      default: Number(fd.get("autonomy_default") ?? 50),
+    };
+    const maxRaw = String(fd.get("autonomy_max") || "").trim();
+    if (maxRaw !== "") autonomy.max = Number(maxRaw);
     const body = {
       id: String(fd.get("id") || "").trim(),
       name: String(fd.get("name") || "").trim(),
       team: String(fd.get("team") || "").trim(),
       stack: String(fd.get("stack") || "openai-compatible"),
       model: String(fd.get("model") || "").trim(),
+      autonomy,
       max_input_tokens: Number(fd.get("max_input_tokens") ?? -1),
       max_output_tokens: Number(fd.get("max_output_tokens") ?? -1),
       workspace: {
@@ -1389,6 +1520,7 @@
       }
       ev.target.reset();
       ev.target.team.value = "eng";
+      ev.target.autonomy_default.value = "50";
       ev.target.max_input_tokens.value = "-1";
       ev.target.max_output_tokens.value = "-1";
       await loadCreateModels();

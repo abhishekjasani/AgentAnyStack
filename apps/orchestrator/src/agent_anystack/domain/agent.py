@@ -89,3 +89,25 @@ class CreateAgentRequest(BaseModel):
     tools_mode: Literal["none", "mediated", "worker"] = "none"
     max_input_tokens: int = Field(default=-1, ge=-1, le=200_000)
     max_output_tokens: int = Field(default=-1, ge=-1, le=100_000)
+
+
+class UpdateAgentRequest(BaseModel):
+    """Partial desk update — id/team immutable; writes agent.yaml (+ AGENT.md if set)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    stack: str | None = None
+    model: str | None = Field(default=None, min_length=1)
+    autonomy: AgentAutonomy | None = None
+    workspace: Workspace | None = None
+    tools_mode: Literal["none", "mediated", "worker"] | None = None
+    max_input_tokens: int | None = Field(default=None, ge=-1, le=200_000)
+    max_output_tokens: int | None = Field(default=None, ge=-1, le=100_000)
+    persona_markdown: str | None = None
+
+
+class AgentDetail(AgentConfig):
+    """GET agent + AGENT.md body for Configure UI (not stored in agent.yaml)."""
+
+    persona_markdown: str = ""

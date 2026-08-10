@@ -12,6 +12,7 @@ from agent_anystack.domain.agent import (
     CreateAgentRequest,
     PersonaAxes,
     ToolsConfig,
+    UpdateAgentRequest,
 )
 from agent_anystack.domain.org import OrgConfig
 from agent_anystack.domain.orchestrator import (
@@ -193,16 +194,8 @@ class OfficeRepository:
         if self.get_agent(req.id) is not None:
             raise AgentExistsError(req.id)
 
-        org = self.load_org()
         autonomy = req.autonomy or AgentAutonomy()
-        if autonomy.max is not None and autonomy.max > org.max_autonomy:
-            raise AutonomyCeilingError(
-                f"agent.autonomy.max ({autonomy.max}) exceeds org.max_autonomy ({org.max_autonomy})"
-            )
-        if autonomy.default > org.max_autonomy:
-            raise AutonomyCeilingError(
-                f"agent.autonomy.default ({autonomy.default}) exceeds org.max_autonomy ({org.max_autonomy})"
-            )
+        self._validate_autonomy(autonomy)
 
         config = AgentConfig(
             id=req.id,
@@ -239,6 +232,62 @@ class OfficeRepository:
 
         # Primer for the creating user only; other users get lazy seed on first gold touch.
         self.ensure_gold_primer(config, user_id)
+
+        return config
+
+    def _validate_autonomy(self, autonomy: AgentAutonomy) -> None:
+        org = self.load_org()
+        if autonomy.max is not None and autonomy.max > org.max_autonomy:
+            raise AutonomyCeilingError(
+                f"agent.autonomy.max ({autonomy.max}) exceeds org.max_autonomy ({org.max_autonomy})"
+            )
+        if autonomy.default > org.max_autonomy:
+            raise AutonomyCeilingError(
+                f"agent.autonomy.default ({autonomy.default}) exceeds org.max_autonomy ({org.max_autonomy})"
+            )
+
+    def _write_agent_yaml(self, config: AgentConfig) -> None:
+        desk = self.agent_dir(config.team, config.id)
+        desk.mkdir(parents=True, exist_ok=True)
+        payload = config.model_dump(mode="json", exclude_none=True)
+        (desk / "agent.yaml").write_text(
+            yaml.safe_dump(payload, sort_keys=False, default_flow_style=False),
+            encoding="utf-8",
+        )
+
+    def update_agent(self, agent_id: str, req: UpdateAgentRequest) -> AgentConfig:
+        """Patch desk yaml; optional AGENT.md rewrite. Id and team stay fixed."""
+        agent = self.get_agent(agent_id)
+        if agent is None:
+            raise FileNotFoundError(f"agent not found: {agent_id}")
+
+        data = agent.model_dump(mode="json")
+        if req.name is not None:
+            data["name"] = req.name
+        if req.stack is not None:
+            data["stack"] = req.stack
+        if req.model is not None:
+            data["model"] = req.model
+        if req.autonomy is not None:
+            self._validate_autonomy(req.autonomy)
+            data["autonomy"] = req.autonomy.model_dump(mode="json")
+        if req.workspace is not None:
+            data["workspace"] = req.workspace.model_dump(mode="json")
+        if req.tools_mode is not None:
+            data["tools"] = {"mode": req.tools_mode}
+        if req.max_input_tokens is not None:
+            data["max_input_tokens"] = req.max_input_tokens
+        if req.max_output_tokens is not None:
+            data["max_output_tokens"] = req.max_output_tokens
+
+        config = AgentConfig.model_validate(data)
+        self._write_agent_yaml(config)
+
+        if req.persona_markdown is not None:
+            (self.agent_dir(config.team, config.id) / "AGENT.md").write_text(
+                req.persona_markdown,
+                encoding="utf-8",
+            )
 
         return config
 
