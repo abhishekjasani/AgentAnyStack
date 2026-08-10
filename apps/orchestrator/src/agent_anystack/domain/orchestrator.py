@@ -19,7 +19,12 @@ class OrchestratorConfig(BaseModel):
     # Soft LLM (OKF extract + optional Office Q&A phrasing) — not desk agent.model
     model: str = Field(default="llama3.2", min_length=1)
     office_qa_llm: bool = False
+    # Master: schedule post-desk OKF extract job.
     okf_extract_enabled: bool = True
+    # Soft LLM infer from user+assistant turn (Office model).
+    okf_extract_llm: bool = True
+    # Deterministic `remember: …` lines in the user message.
+    okf_extract_remember_lines: bool = True
     pack_token_budget: int = Field(default=8000, ge=500, le=200_000)
     gold_max_chars: int = Field(default=64_000, ge=1, le=1_000_000)
     recent_history_days: int = Field(default=7, ge=0, le=90)
@@ -48,6 +53,8 @@ class OrchestratorConfigUpdate(BaseModel):
     model: str | None = Field(default=None, min_length=1)
     office_qa_llm: bool | None = None
     okf_extract_enabled: bool | None = None
+    okf_extract_llm: bool | None = None
+    okf_extract_remember_lines: bool | None = None
     pack_token_budget: int | None = Field(default=None, ge=500, le=200_000)
     gold_max_chars: int | None = Field(default=None, ge=1, le=1_000_000)
     recent_history_days: int | None = Field(default=None, ge=0, le=90)

@@ -58,6 +58,7 @@ class OfficeRepository:
 #
 # Soft jobs using `model`:
 #   - OKF post-run extract (when okf_extract_enabled)
+#       okf_extract_llm / okf_extract_remember_lines
 #   - Office Q&A phrasing (when office_qa_llm)
 #
 # Token envelope: default_max_input_tokens / default_max_output_tokens

@@ -51,6 +51,8 @@ def get_chat_service(
         OkfStore(sqlite_path_from_database_url(settings.database_url)),
         pack_token_budget=orc.pack_token_budget,
         okf_extract_enabled=orc.okf_extract_enabled,
+        okf_extract_llm=orc.okf_extract_llm,
+        okf_extract_remember_lines=orc.okf_extract_remember_lines,
         channel_history=history,
         recent_history_days=orc.recent_history_days,
         recent_history_char_budget=orc.recent_history_char_budget,
@@ -76,6 +78,8 @@ async def _background_okf_extract(job: ExtractJob, settings: Settings) -> None:
         okf=store,
         adapter=adapter,
         max_tokens=limits.max_output_tokens,
+        use_llm=orc.okf_extract_llm,
+        use_remember_lines=orc.okf_extract_remember_lines,
     )
 
 

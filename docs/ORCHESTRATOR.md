@@ -6,7 +6,7 @@ The orchestrator is **not an LLM persona**. It is the bridge: routes messages, p
 
 | Soft job | Uses |
 | --- | --- |
-| OKF post-run extract (simple JSON) | `orchestrator.yaml` → `model` when `okf_extract_enabled` |
+| OKF post-run extract | `orchestrator.yaml` → `model` when `okf_extract_enabled`; soft LLM via `okf_extract_llm`, `remember:` via `okf_extract_remember_lines` |
 | Office Q&A phrasing (optional) | same `model` when `office_qa_llm` |
 | Desk persona chat / tools | `agent.model` |
 

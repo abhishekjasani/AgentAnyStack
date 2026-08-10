@@ -32,6 +32,8 @@ class ChatRunService:
         okf: OkfStore,
         pack_token_budget: int = 8000,
         okf_extract_enabled: bool = True,
+        okf_extract_llm: bool = True,
+        okf_extract_remember_lines: bool = True,
         channel_history: ChannelHistoryStore | None = None,
         recent_history_days: int = 7,
         recent_history_char_budget: int = 6_000,
@@ -47,6 +49,8 @@ class ChatRunService:
         self.okf = okf
         self.pack_token_budget = pack_token_budget
         self.okf_extract_enabled = okf_extract_enabled
+        self.okf_extract_llm = okf_extract_llm
+        self.okf_extract_remember_lines = okf_extract_remember_lines
         self.channel_history = channel_history
         self.recent_history_days = recent_history_days
         self.recent_history_char_budget = recent_history_char_budget
@@ -179,6 +183,7 @@ class ChatRunService:
         done: dict = {"type": "done", "run_id": run_id, "status": status}
         if (
             self.okf_extract_enabled
+            and (self.okf_extract_llm or self.okf_extract_remember_lines)
             and status == "ok"
             and ("".join(assistant_parts).strip() or message.strip())
         ):

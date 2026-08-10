@@ -74,7 +74,15 @@
           </label>
           <label class="check-row">
             <input type="checkbox" name="okf_extract_enabled" />
-            OKF extract after desk runs
+            OKF extract after desk runs (master)
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="okf_extract_llm" />
+            Soft LLM extract (Office model)
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="okf_extract_remember_lines" />
+            Hardcoded <code>remember:</code> lines
           </label>
           <label>Pack token budget
             <input name="pack_token_budget" type="number" min="500" max="200000" required />

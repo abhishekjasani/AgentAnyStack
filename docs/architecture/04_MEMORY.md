@@ -135,7 +135,7 @@ sequenceDiagram
 
 ## Post-run extract (P11)
 
-After a successful chat stream, `api/chat` schedules `BackgroundTasks` → `memory/extract.run_okf_extract`. Chat SSE is **not** blocked.
+After a successful chat stream, `api/chat` schedules `BackgroundTasks` → `memory/extract.run_okf_extract` when `okf_extract_enabled` and at least one of `okf_extract_llm` / `okf_extract_remember_lines`. Chat SSE is **not** blocked.
 
 ### Example
 
@@ -170,8 +170,8 @@ sequenceDiagram
     Chat-->>UI: SSE done
     Note over UI,BT: stream finished — client already has reply
     BT->>Ext: ExtractJob(run_id, team, user, texts…)
-    Ext->>Ext: remember: lines (deterministic)
-    Ext->>Comp: JSON extract prompt (optional LLM)
+    Ext->>Ext: remember: lines (when okf_extract_remember_lines)
+    Ext->>Comp: JSON extract prompt (when okf_extract_llm)
     Comp-->>Ext: {"facts":[…]} or error→log
     Ext->>DB: upsert OkfFact(scope=team:eng, source_run, created_by_user)
 ```

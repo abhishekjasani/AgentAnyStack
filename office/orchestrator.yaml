@@ -4,6 +4,8 @@
 #
 # Soft jobs using `model`:
 #   - OKF post-run extract (when okf_extract_enabled)
+#       okf_extract_llm — soft LLM infer
+#       okf_extract_remember_lines — hardcoded `remember: …`
 #   - Office Q&A phrasing (when office_qa_llm)
 #
 # Token envelope: default_max_input_tokens / default_max_output_tokens
@@ -20,6 +22,8 @@ name: Office
 model: llama3.2:3b
 office_qa_llm: true
 okf_extract_enabled: true
+okf_extract_llm: true
+okf_extract_remember_lines: true
 pack_token_budget: 8000
 gold_max_chars: 64000
 recent_history_days: 7

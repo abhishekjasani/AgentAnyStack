@@ -194,6 +194,9 @@
       form.name.value = orc.name || "Office";
       form.office_qa_llm.checked = !!orc.office_qa_llm;
       form.okf_extract_enabled.checked = !!orc.okf_extract_enabled;
+      form.okf_extract_llm.checked = orc.okf_extract_llm !== false;
+      form.okf_extract_remember_lines.checked =
+        orc.okf_extract_remember_lines !== false;
       form.pack_token_budget.value = orc.pack_token_budget ?? 8000;
       form.gold_max_chars.value = orc.gold_max_chars ?? 64000;
       form.recent_history_days.value = orc.recent_history_days ?? 7;
@@ -1047,6 +1050,8 @@
       model: String(form.model.value || "").trim(),
       office_qa_llm: !!form.office_qa_llm.checked,
       okf_extract_enabled: !!form.okf_extract_enabled.checked,
+      okf_extract_llm: !!form.okf_extract_llm.checked,
+      okf_extract_remember_lines: !!form.okf_extract_remember_lines.checked,
       pack_token_budget: Number(form.pack_token_budget.value),
       gold_max_chars: Number(form.gold_max_chars.value),
       recent_history_days: Number(form.recent_history_days.value),

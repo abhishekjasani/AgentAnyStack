@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     recent_history_days: int = Field(default=7, ge=0, le=90)
     recent_history_char_budget: int = Field(default=6_000, ge=0, le=100_000)
     okf_extract_enabled: bool = True
+    okf_extract_llm: bool = True
+    okf_extract_remember_lines: bool = True
     office_qa_llm: bool = False
     office_model: str = Field(
         default="llama3.2",

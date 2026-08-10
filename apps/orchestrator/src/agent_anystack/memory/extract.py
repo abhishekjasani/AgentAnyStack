@@ -76,38 +76,48 @@ async def run_okf_extract(
     okf: OkfStore,
     adapter: OpenAICompatibleAdapter,
     max_tokens: int | None = None,
+    use_llm: bool = True,
+    use_remember_lines: bool = True,
 ) -> int:
     """
     Extract facts and upsert into team OKF. Returns count written.
 
     Uses job.model — callers must set the orchestrator office_model (not desk model).
     Failures are logged — never raised to the chat client.
+
+    use_llm / use_remember_lines are independent (gated by okf_extract_* in yaml).
     """
     if not job.assistant_text.strip() and not job.user_message.strip():
         return 0
 
-    candidates = _remember_line_facts(job.user_message)
-    try:
-        raw = await adapter.complete_chat(
-            model=job.model,
-            messages=[
-                {"role": "system", "content": _EXTRACT_SYSTEM},
-                {
-                    "role": "user",
-                    "content": (
-                        f"User message:\n{job.user_message}\n\n"
-                        f"Assistant reply:\n{job.assistant_text}"
-                    ),
-                },
-            ],
-            temperature=0.0,
-            max_tokens=max_tokens,
-        )
-        candidates.extend(_parse_facts_json(raw))
-    except StackError as exc:
-        logger.warning("okf extract LLM failed run=%s: %s", job.run_id, exc)
-        if not candidates:
-            return 0
+    candidates: list[dict] = []
+    if use_remember_lines:
+        candidates.extend(_remember_line_facts(job.user_message))
+
+    if use_llm:
+        try:
+            raw = await adapter.complete_chat(
+                model=job.model,
+                messages=[
+                    {"role": "system", "content": _EXTRACT_SYSTEM},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"User message:\n{job.user_message}\n\n"
+                            f"Assistant reply:\n{job.assistant_text}"
+                        ),
+                    },
+                ],
+                temperature=0.0,
+                max_tokens=max_tokens,
+            )
+            candidates.extend(_parse_facts_json(raw))
+        except StackError as exc:
+            logger.warning("okf extract LLM failed run=%s: %s", job.run_id, exc)
+            if not candidates:
+                return 0
+    elif not candidates:
+        return 0
 
     written = 0
     seen_bodies: set[str] = set()
@@ -136,9 +146,11 @@ async def run_okf_extract(
 
     if written:
         logger.info(
-            "okf extract run=%s team=%s wrote=%s",
+            "okf extract run=%s team=%s wrote=%s llm=%s remember=%s",
             job.run_id,
             job.team,
             written,
+            use_llm,
+            use_remember_lines,
         )
     return written
