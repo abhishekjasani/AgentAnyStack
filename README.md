@@ -1,7 +1,7 @@
 # AgentAnyStack
 
 **Tagline:** Any stack. One orchestrator.  
-**License:** Apache-2.0 · **Release:** v0 early · SemVer `0.2.3`
+**License:** Apache-2.0 · **Release:** v0 early · SemVer `0.2.4`
 
 ## What it is
 
@@ -82,6 +82,7 @@ Full product surface. Markers: **Available** · **In progress** · **Planned**
 | Cursor adapter | Planned |
 | Claude API adapter | Planned |
 | AWS Bedrock adapter | Built (`stack: bedrock` · Access Key ID + Secret + Region) |
+| Unified stack models | `GET /stacks`, `GET /stacks/{stack}/models` |
 | Org catalog: MCP · Skills · API/creds | Planned |
 | Gated MCP (`_locked`) after human approve | Planned |
 | Workspace / project path isolation | In progress |

@@ -141,14 +141,6 @@ async def bedrock_test(
     return {"ok": True, **ident}
 
 
-@router.get("/stacks/bedrock/models")
-async def bedrock_list_models(
-    store: BedrockProviderStore = Depends(get_bedrock_store),
-    _user_id: str = Depends(get_user_id),
-) -> dict[str, Any]:
-    return {"catalog": [m.as_dict() for m in store.list_models()]}
-
-
 @router.post("/stacks/bedrock/models", status_code=status.HTTP_201_CREATED)
 async def bedrock_add_model(
     body: BedrockModelAdd,

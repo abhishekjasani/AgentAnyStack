@@ -24,7 +24,8 @@ from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
 from agent_anystack.tools.gold import GOLD_TOOL_SCHEMAS, execute_gold_tool
 
-SUPPORTED_STACKS = frozenset({"openai-compatible", "bedrock"})
+from agent_anystack.adapters.stack_models import CHAT_STACKS as SUPPORTED_STACKS
+
 MAX_TOOL_ROUNDS = 6
 _TOKEN_CHUNK = 48
 

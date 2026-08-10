@@ -183,17 +183,12 @@
               <option value="claude">claude</option>
             </select>
           </label>
-          <label id="create-model-ollama-wrap">Model
-            <select name="model" id="create-model" required aria-label="Pulled local model">
+          <label>Model
+            <select name="model" id="create-model" required aria-label="Stack model">
               <option value="">Loading models…</option>
             </select>
           </label>
           <p id="create-model-hint" class="desk-meta"></p>
-          <label id="create-model-bedrock-wrap" hidden>Bedrock model (verified catalog)
-            <select name="model_bedrock" id="create-model-bedrock" aria-label="Verified Bedrock model">
-              <option value="">Verify a model on Stacks first</option>
-            </select>
-          </label>
           <label>Autonomy default (0–100)
             <input name="autonomy_default" type="number" min="0" max="100" value="50" required />
           </label>
@@ -248,17 +243,12 @@
               <option value="claude">claude</option>
             </select>
           </label>
-          <label id="agent-config-model-ollama-wrap">Model
+          <label>Model
             <select name="model" id="agent-config-model" required aria-label="Desk model">
               <option value="">Loading models…</option>
             </select>
           </label>
           <p id="agent-config-model-hint" class="desk-meta"></p>
-          <label id="agent-config-model-bedrock-wrap" hidden>Bedrock model (verified catalog)
-            <select name="model_bedrock" id="agent-config-model-bedrock" aria-label="Verified Bedrock model">
-              <option value="">Verify a model on Stacks first</option>
-            </select>
-          </label>
           <label>Autonomy default (0–100)
             <input name="autonomy_default" type="number" min="0" max="100" required />
           </label>

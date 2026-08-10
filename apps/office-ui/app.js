@@ -149,61 +149,54 @@
   }
 
   function toggleStackModelFields(prefix, stack) {
-    const isBedrock = stack === "bedrock";
-    const ollamaWrap = $(`#${prefix}-model-ollama-wrap`);
-    const bedrockWrap = $(`#${prefix}-model-bedrock-wrap`);
-    const ollamaSel = $(`#${prefix}-model`);
-    const bedrockSel = $(`#${prefix}-model-bedrock`);
+    const sel = $(`#${prefix}-model`);
     const hint = $(`#${prefix}-model-hint`);
-    if (ollamaWrap) ollamaWrap.hidden = isBedrock;
-    if (bedrockWrap) bedrockWrap.hidden = !isBedrock;
-    if (ollamaSel) ollamaSel.required = !isBedrock;
-    if (bedrockSel) bedrockSel.required = isBedrock;
-    if (hint) {
-      hint.hidden = isBedrock;
-      if (isBedrock) hint.textContent = "";
-    }
-    if (isBedrock) {
-      fillBedrockModelSelect(bedrockSel, bedrockSel?.value || "");
-    }
+    fillStackModelSelect(sel, stack, sel?.value || "", hint);
   }
 
-  async function fillBedrockModelSelect(sel, preferred) {
+  async function fillStackModelSelect(sel, stack, preferred, hintEl) {
     if (!sel) return;
     const prev = preferred || sel.value;
     sel.innerHTML = "";
+    if (hintEl) hintEl.textContent = "";
     try {
-      const res = await api("/stacks/bedrock/models");
-      if (!res.ok) throw new Error(`bedrock models ${res.status}`);
+      const res = await api(`/stacks/${encodeURIComponent(stack)}/models`);
+      if (!res.ok) throw new Error(`stack models ${res.status}`);
       const data = await res.json();
-      const catalog = data.catalog || [];
-      if (!catalog.length) {
+      const models = data.models || [];
+      if (!models.length) {
         const o = document.createElement("option");
         o.value = "";
-        o.textContent = "Verify a model on Stacks → Bedrock first";
+        o.textContent = data.hint || "No models for this stack";
         sel.appendChild(o);
+        if (hintEl) hintEl.textContent = data.hint || "";
         return;
       }
       const placeholder = document.createElement("option");
       placeholder.value = "";
-      placeholder.textContent = "Select verified model…";
+      placeholder.textContent = "Select model…";
       sel.appendChild(placeholder);
-      for (const m of catalog) {
+      for (const m of models) {
         const o = document.createElement("option");
         o.value = m.id;
-        o.textContent = m.display_name && m.display_name !== m.id
-          ? `${m.display_name} (${m.id})`
-          : m.id;
+        o.textContent =
+          m.display_name && m.display_name !== m.id
+            ? `${m.display_name} (${m.id})`
+            : m.id;
         sel.appendChild(o);
       }
       if (prev && [...sel.options].some((o) => o.value === prev)) {
         sel.value = prev;
+      } else if (models.length === 1) {
+        sel.value = models[0].id;
       }
+      if (hintEl) hintEl.textContent = data.hint || "";
     } catch (e) {
       const o = document.createElement("option");
       o.value = "";
-      o.textContent = "Failed to load Bedrock catalog";
+      o.textContent = "Could not load models";
       sel.appendChild(o);
+      if (hintEl) hintEl.textContent = String(e.message || e);
     }
   }
 
@@ -242,7 +235,7 @@
       const res = await api("/stacks/bedrock/models");
       if (!res.ok) throw new Error(`models ${res.status}`);
       const data = await res.json();
-      const catalog = data.catalog || [];
+      const catalog = data.models || data.catalog || [];
       if (!catalog.length) {
         list.innerHTML = '<li class="desk-meta">No verified Bedrock models yet.</li>';
         return;
@@ -255,7 +248,9 @@
         title.textContent = m.display_name || m.id;
         const sub = document.createElement("div");
         sub.className = "desk-meta";
-        sub.textContent = `${m.id} · verified ${m.verified_at || "—"} · ${m.region || ""}`;
+        const verified = m.meta?.verified_at || m.verified_at || "—";
+        const region = m.meta?.region || m.region || "";
+        sub.textContent = `${m.id} · verified ${verified} · ${region}`;
         meta.append(title, sub);
         const right = document.createElement("div");
         right.className = "desk-actions model-actions";
@@ -321,7 +316,6 @@
       $("#agent-config-team-label").textContent = a.team;
       form.name.value = a.name || "";
       form.stack.value = a.stack || "openai-compatible";
-      toggleStackModelFields("agent-config", form.stack.value);
       form.autonomy_default.value = a.autonomy?.default ?? 50;
       form.autonomy_max.value =
         a.autonomy?.max != null && a.autonomy.max !== "" ? a.autonomy.max : "";
@@ -330,18 +324,12 @@
       form.persona_markdown.value = a.persona_markdown || "";
       $("#agent-config-org").textContent =
         `Org ceiling: max ${org.max_autonomy ?? "—"} · default ${org.autonomy?.default ?? "—"}`;
-      if (a.stack === "bedrock") {
-        await fillBedrockModelSelect(
-          $("#agent-config-model-bedrock"),
-          a.model || ""
-        );
-      } else {
-        await fillModelSelect(
-          $("#agent-config-model"),
-          a.model,
-          $("#agent-config-model-hint")
-        );
-      }
+      await fillStackModelSelect(
+        $("#agent-config-model"),
+        form.stack.value,
+        a.model || "",
+        $("#agent-config-model-hint")
+      );
       await loadProjectsInto(
         $("#agent-config-project"),
         $("#agent-config-project-hint"),
@@ -397,44 +385,8 @@
   }
 
   async function fillModelSelect(sel, preferred, hintEl) {
-    sel.innerHTML = "";
-    try {
-      const res = await api("/models");
-      if (!res.ok) throw new Error(`models ${res.status}`);
-      const data = await res.json();
-      const pulled = (data.catalog || []).filter((e) => e.pulled);
-      const installed = data.installed || [];
-      const names = new Set([
-        ...pulled.map((e) => e.id),
-        ...installed.map((m) => m.name),
-      ]);
-      if (preferred) names.add(preferred);
-      const opts = [...names].sort();
-      if (!opts.length) {
-        const o = document.createElement("option");
-        o.value = preferred || "";
-        o.textContent = preferred || "Pull a model on Stacks first";
-        sel.appendChild(o);
-        if (hintEl) {
-          hintEl.textContent = "Pull a model under Stacks, then return here.";
-        }
-        return;
-      }
-      for (const name of opts) {
-        const o = document.createElement("option");
-        o.value = name;
-        o.textContent = name;
-        if (name === preferred) o.selected = true;
-        sel.appendChild(o);
-      }
-      if (hintEl) hintEl.textContent = "";
-    } catch (e) {
-      const o = document.createElement("option");
-      o.value = preferred || "";
-      o.textContent = preferred || String(e.message || e);
-      sel.appendChild(o);
-      if (hintEl) hintEl.textContent = String(e.message || e);
-    }
+    // Office soft jobs always use openai-compatible / Ollama.
+    await fillStackModelSelect(sel, "openai-compatible", preferred, hintEl);
   }
 
   async function loadOfficeConfigForm() {
@@ -788,44 +740,14 @@
   }
 
   async function loadCreateModels() {
-    const sel = $("#create-model");
-    const hint = $("#create-model-hint");
-    if (!sel) return;
-    const prev = sel.value;
-    sel.innerHTML = "";
-    hint.textContent = "";
-    try {
-      const res = await api("/models");
-      if (!res.ok) throw new Error(`GET /models ${res.status}`);
-      const data = await res.json();
-      const names = [
-        ...new Set((data.installed || []).map((m) => m.name).filter(Boolean)),
-      ].sort();
-      if (!names.length) {
-        const opt = document.createElement("option");
-        opt.value = "";
-        opt.textContent = "No models pulled — open Stacks first";
-        sel.appendChild(opt);
-        hint.textContent =
-          "Pull a model under Stacks, then return here to create a desk.";
-        return;
-      }
-      for (const name of names) {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        sel.appendChild(opt);
-      }
-      if (prev && names.includes(prev)) sel.value = prev;
-      else sel.value = names[0];
-      hint.textContent = `${names.length} pulled model(s) available`;
-    } catch (e) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "Could not load models";
-      sel.appendChild(opt);
-      hint.textContent = String(e.message || e);
-    }
+    const form = $("#create-form");
+    const stack = form?.stack?.value || "openai-compatible";
+    await fillStackModelSelect(
+      $("#create-model"),
+      stack,
+      $("#create-model")?.value || "",
+      $("#create-model-hint")
+    );
   }
 
   function runTagLabel(tag) {
@@ -1265,13 +1187,6 @@
   if (agentStack) {
     agentStack.addEventListener("change", () => {
       toggleStackModelFields("agent-config", agentStack.value);
-      if (agentStack.value !== "bedrock") {
-        fillModelSelect(
-          $("#agent-config-model"),
-          $("#agent-config-model").value,
-          $("#agent-config-model-hint")
-        );
-      }
     });
   }
 
@@ -1410,10 +1325,12 @@
     const maxRaw = String(form.autonomy_max.value || "").trim();
     if (maxRaw !== "") autonomy.max = Number(maxRaw);
     const stack = String(form.stack.value || "openai-compatible");
-    const model =
-      stack === "bedrock"
-        ? String(form.model_bedrock.value || "").trim()
-        : String(form.model.value || "").trim();
+    const model = String(form.model.value || "").trim();
+    if (!model) {
+      err.textContent = "Select a model for this stack.";
+      err.hidden = false;
+      return;
+    }
     const body = {
       name: String(form.name.value || "").trim(),
       stack,
@@ -1771,15 +1688,9 @@
     const maxRaw = String(fd.get("autonomy_max") || "").trim();
     if (maxRaw !== "") autonomy.max = Number(maxRaw);
     const stack = String(fd.get("stack") || "openai-compatible");
-    const model =
-      stack === "bedrock"
-        ? String(fd.get("model_bedrock") || "").trim()
-        : String(fd.get("model") || "").trim();
+    const model = String(fd.get("model") || "").trim();
     if (!model) {
-      err.textContent =
-        stack === "bedrock"
-          ? "Select a verified Bedrock model (Stacks → Verify & add)."
-          : "Select a model.";
+      err.textContent = "Select a model for this stack.";
       err.hidden = false;
       return;
     }
