@@ -189,9 +189,10 @@
             </select>
           </label>
           <p id="create-model-hint" class="desk-meta"></p>
-          <label id="create-model-bedrock-wrap" hidden>Bedrock model id
-            <input name="model_bedrock" id="create-model-bedrock" type="text"
-              placeholder="amazon.nova-lite-v1:0" />
+          <label id="create-model-bedrock-wrap" hidden>Bedrock model (verified catalog)
+            <select name="model_bedrock" id="create-model-bedrock" aria-label="Verified Bedrock model">
+              <option value="">Verify a model on Stacks first</option>
+            </select>
           </label>
           <label>Autonomy default (0–100)
             <input name="autonomy_default" type="number" min="0" max="100" value="50" required />
@@ -253,9 +254,10 @@
             </select>
           </label>
           <p id="agent-config-model-hint" class="desk-meta"></p>
-          <label id="agent-config-model-bedrock-wrap" hidden>Bedrock model id
-            <input name="model_bedrock" id="agent-config-model-bedrock" type="text"
-              placeholder="amazon.nova-lite-v1:0" />
+          <label id="agent-config-model-bedrock-wrap" hidden>Bedrock model (verified catalog)
+            <select name="model_bedrock" id="agent-config-model-bedrock" aria-label="Verified Bedrock model">
+              <option value="">Verify a model on Stacks first</option>
+            </select>
           </label>
           <label>Autonomy default (0–100)
             <input name="autonomy_default" type="number" min="0" max="100" required />
@@ -406,6 +408,48 @@
         <p id="stacks-error" class="error" hidden></p>
         <p id="stacks-note" class="stub-note" hidden></p>
         <ul id="stacks-catalog" class="model-list"></ul>
+
+        <h2 class="memory-h2">AWS Bedrock</h2>
+        <p class="lede">
+          Write-only credentials (never returned by GET). Verify an inference id into the
+          catalog, then pick it when creating a <code>bedrock</code> desk.
+        </p>
+        <p id="bedrock-status" class="desk-meta"></p>
+        <form id="bedrock-creds-form" class="form memory-form">
+          <label>Access Key ID
+            <input name="access_key_id" type="password" autocomplete="off"
+              placeholder="leave blank to keep existing" />
+          </label>
+          <label>Secret Access Key
+            <input name="secret_access_key" type="password" autocomplete="off"
+              placeholder="leave blank to keep existing" />
+          </label>
+          <label>Region
+            <input name="region" type="text" value="us-east-1" placeholder="us-east-1" />
+          </label>
+          <p id="bedrock-creds-error" class="error" hidden></p>
+          <p id="bedrock-creds-ok" class="desk-meta" hidden></p>
+          <div class="form-actions memory-actions">
+            <button type="submit" class="btn primary">Save credentials</button>
+            <button type="button" class="btn ghost" id="bedrock-test">Test</button>
+          </div>
+        </form>
+        <form id="bedrock-model-form" class="form memory-form">
+          <label>Inference / model id
+            <input name="inference_id" required maxlength="200"
+              placeholder="amazon.nova-lite-v1:0" />
+          </label>
+          <label>Display name (optional)
+            <input name="display_name" maxlength="128" placeholder="Nova Lite" />
+          </label>
+          <p id="bedrock-model-error" class="error" hidden></p>
+          <p id="bedrock-model-ok" class="desk-meta" hidden></p>
+          <div class="form-actions memory-actions">
+            <button type="submit" class="btn primary">Verify &amp; add</button>
+            <button type="button" class="btn ghost" id="bedrock-models-refresh">Refresh</button>
+          </div>
+        </form>
+        <ul id="bedrock-models-list" class="model-list"></ul>
       </section>
       <section id="view-floor" class="view stub" hidden>
         <h1>Floor</h1>

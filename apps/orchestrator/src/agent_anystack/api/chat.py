@@ -61,6 +61,7 @@ def get_chat_service(
         aws_access_key_id=settings.aws_access_key_id,
         aws_secret_access_key=settings.aws_secret_access_key,
         aws_region=settings.aws_region,
+        database_url=settings.database_url,
     )
 
 

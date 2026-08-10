@@ -8,6 +8,11 @@ from typing import Any
 
 from agent_anystack.adapters import StackError
 from agent_anystack.adapters.bedrock import BedrockAdapter
+from agent_anystack.adapters.bedrock_store import (
+    BedrockProviderStore,
+    bedrock_data_dir,
+    resolve_creds,
+)
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.channel_history import ChannelHistoryStore
 from agent_anystack.domain.agent import AgentConfig
@@ -43,6 +48,7 @@ class ChatRunService:
         aws_access_key_id: str = "",
         aws_secret_access_key: str = "",
         aws_region: str = "us-east-1",
+        database_url: str = "sqlite:///./data/office.db",
     ) -> None:
         self.repo = repo
         self.journal = journal
@@ -50,12 +56,11 @@ class ChatRunService:
             openai_compatible_base_url,
             timeout=openai_compatible_timeout,
         )
-        self.bedrock = BedrockAdapter(
-            access_key_id=aws_access_key_id,
-            secret_access_key=aws_secret_access_key,
-            region=aws_region,
-            timeout=openai_compatible_timeout,
-        )
+        self._env_aws_access_key_id = aws_access_key_id
+        self._env_aws_secret_access_key = aws_secret_access_key
+        self._env_aws_region = aws_region
+        self._openai_compatible_timeout = openai_compatible_timeout
+        self._bedrock_store = BedrockProviderStore(bedrock_data_dir(database_url))
         self.okf = okf
         self.pack_token_budget = pack_token_budget
         self.okf_extract_enabled = okf_extract_enabled
@@ -66,9 +71,23 @@ class ChatRunService:
         self.recent_history_char_budget = recent_history_char_budget
         self.office_model = office_model
 
+    def _bedrock_adapter(self) -> BedrockAdapter:
+        creds = resolve_creds(
+            self._bedrock_store,
+            env_access_key_id=self._env_aws_access_key_id,
+            env_secret_access_key=self._env_aws_secret_access_key,
+            env_region=self._env_aws_region,
+        )
+        return BedrockAdapter(
+            access_key_id=creds.access_key_id,
+            secret_access_key=creds.secret_access_key,
+            region=creds.region,
+            timeout=self._openai_compatible_timeout,
+        )
+
     def _adapter_for(self, stack: str) -> OpenAICompatibleAdapter | BedrockAdapter:
         if stack == "bedrock":
-            return self.bedrock
+            return self._bedrock_adapter()
         return self.adapter
 
     async def stream_agent_chat(

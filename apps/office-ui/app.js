@@ -28,7 +28,10 @@
       loadOkf();
     }
     if (name === "approvals") loadApprovals();
-    if (name === "stacks") loadStacks();
+    if (name === "stacks") {
+      loadStacks();
+      loadBedrockPanel();
+    }
     if (name === "create") {
       loadCreateModels();
       loadCreateProjects();
@@ -150,17 +153,141 @@
     const ollamaWrap = $(`#${prefix}-model-ollama-wrap`);
     const bedrockWrap = $(`#${prefix}-model-bedrock-wrap`);
     const ollamaSel = $(`#${prefix}-model`);
-    const bedrockInp = $(`#${prefix}-model-bedrock`);
+    const bedrockSel = $(`#${prefix}-model-bedrock`);
     const hint = $(`#${prefix}-model-hint`);
     if (ollamaWrap) ollamaWrap.hidden = isBedrock;
     if (bedrockWrap) bedrockWrap.hidden = !isBedrock;
     if (ollamaSel) ollamaSel.required = !isBedrock;
-    if (bedrockInp) bedrockInp.required = isBedrock;
+    if (bedrockSel) bedrockSel.required = isBedrock;
     if (hint) {
       hint.hidden = isBedrock;
-      if (isBedrock) {
-        hint.textContent = "";
+      if (isBedrock) hint.textContent = "";
+    }
+    if (isBedrock) {
+      fillBedrockModelSelect(bedrockSel, bedrockSel?.value || "");
+    }
+  }
+
+  async function fillBedrockModelSelect(sel, preferred) {
+    if (!sel) return;
+    const prev = preferred || sel.value;
+    sel.innerHTML = "";
+    try {
+      const res = await api("/stacks/bedrock/models");
+      if (!res.ok) throw new Error(`bedrock models ${res.status}`);
+      const data = await res.json();
+      const catalog = data.catalog || [];
+      if (!catalog.length) {
+        const o = document.createElement("option");
+        o.value = "";
+        o.textContent = "Verify a model on Stacks → Bedrock first";
+        sel.appendChild(o);
+        return;
       }
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Select verified model…";
+      sel.appendChild(placeholder);
+      for (const m of catalog) {
+        const o = document.createElement("option");
+        o.value = m.id;
+        o.textContent = m.display_name && m.display_name !== m.id
+          ? `${m.display_name} (${m.id})`
+          : m.id;
+        sel.appendChild(o);
+      }
+      if (prev && [...sel.options].some((o) => o.value === prev)) {
+        sel.value = prev;
+      }
+    } catch (e) {
+      const o = document.createElement("option");
+      o.value = "";
+      o.textContent = "Failed to load Bedrock catalog";
+      sel.appendChild(o);
+    }
+  }
+
+  async function loadBedrockPanel() {
+    await Promise.all([loadBedrockStatus(), loadBedrockModels()]);
+  }
+
+  async function loadBedrockStatus() {
+    const el = $("#bedrock-status");
+    if (!el) return;
+    try {
+      const res = await api("/stacks/bedrock");
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const s = await res.json();
+      const bits = [
+        s.configured ? "credentials configured" : "credentials not set",
+        s.source ? `source=${s.source}` : null,
+        s.region ? `region ${s.region}` : null,
+        s.access_key_hint ? `key ${s.access_key_hint}` : null,
+        s.updated_at ? `updated ${s.updated_at}` : null,
+      ].filter(Boolean);
+      el.textContent = bits.join(" · ");
+      const form = $("#bedrock-creds-form");
+      if (form && s.region) form.region.value = s.region;
+    } catch (e) {
+      el.textContent = String(e.message || e);
+    }
+  }
+
+  async function loadBedrockModels() {
+    const list = $("#bedrock-models-list");
+    if (!list) return;
+    list.innerHTML = "";
+    try {
+      const res = await api("/stacks/bedrock/models");
+      if (!res.ok) throw new Error(`models ${res.status}`);
+      const data = await res.json();
+      const catalog = data.catalog || [];
+      if (!catalog.length) {
+        list.innerHTML = '<li class="desk-meta">No verified Bedrock models yet.</li>';
+        return;
+      }
+      for (const m of catalog) {
+        const li = document.createElement("li");
+        li.className = "model-row";
+        const meta = document.createElement("div");
+        const title = document.createElement("div");
+        title.textContent = m.display_name || m.id;
+        const sub = document.createElement("div");
+        sub.className = "desk-meta";
+        sub.textContent = `${m.id} · verified ${m.verified_at || "—"} · ${m.region || ""}`;
+        meta.append(title, sub);
+        const right = document.createElement("div");
+        right.className = "desk-actions model-actions";
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "btn danger";
+        del.textContent = "Remove";
+        del.addEventListener("click", () => removeBedrockModel(m.id));
+        right.append(del);
+        li.append(meta, right);
+        list.appendChild(li);
+      }
+    } catch (e) {
+      list.innerHTML = `<li class="error">${String(e.message || e)}</li>`;
+    }
+  }
+
+  async function removeBedrockModel(id) {
+    if (!confirm(`Remove ${id} from Bedrock catalog?`)) return;
+    const err = $("#bedrock-model-error");
+    err.hidden = true;
+    try {
+      const res = await api(`/stacks/bedrock/models/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `delete ${res.status}`);
+      }
+      await loadBedrockModels();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
     }
   }
 
@@ -203,7 +330,10 @@
       $("#agent-config-org").textContent =
         `Org ceiling: max ${org.max_autonomy ?? "—"} · default ${org.autonomy?.default ?? "—"}`;
       if (a.stack === "bedrock") {
-        $("#agent-config-model-bedrock").value = a.model || "";
+        await fillBedrockModelSelect(
+          $("#agent-config-model-bedrock"),
+          a.model || ""
+        );
       } else {
         await fillModelSelect(
           $("#agent-config-model"),
@@ -1143,6 +1273,105 @@
       }
     });
   }
+
+  $("#bedrock-creds-form")?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const form = ev.target;
+    const err = $("#bedrock-creds-error");
+    const ok = $("#bedrock-creds-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    const body = {};
+    const ak = String(form.access_key_id.value || "").trim();
+    const sk = String(form.secret_access_key.value || "").trim();
+    const region = String(form.region.value || "").trim();
+    if (ak) body.access_key_id = ak;
+    if (sk) body.secret_access_key = sk;
+    if (region) body.region = region;
+    try {
+      const res = await api("/stacks/bedrock", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || `save ${res.status}`);
+      }
+      form.access_key_id.value = "";
+      form.secret_access_key.value = "";
+      ok.textContent = "Credentials saved (not shown again).";
+      ok.hidden = false;
+      await loadBedrockStatus();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  });
+
+  $("#bedrock-test")?.addEventListener("click", async () => {
+    const err = $("#bedrock-creds-error");
+    const ok = $("#bedrock-creds-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    try {
+      const res = await api("/stacks/bedrock/test", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = data.detail;
+        const msg =
+          detail && typeof detail === "object"
+            ? detail.message || JSON.stringify(detail)
+            : detail || `test ${res.status}`;
+        throw new Error(msg);
+      }
+      ok.textContent = `Test OK · model ${data.model}`;
+      ok.hidden = false;
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  });
+
+  $("#bedrock-model-form")?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const form = ev.target;
+    const err = $("#bedrock-model-error");
+    const ok = $("#bedrock-model-ok");
+    err.hidden = true;
+    ok.hidden = true;
+    const inference_id = String(form.inference_id.value || "").trim();
+    const display_name = String(form.display_name.value || "").trim();
+    const body = { inference_id };
+    if (display_name) body.display_name = display_name;
+    try {
+      const res = await api("/stacks/bedrock/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = data.detail;
+        const msg =
+          detail && typeof detail === "object"
+            ? detail.message || JSON.stringify(detail)
+            : detail || `verify ${res.status}`;
+        throw new Error(msg);
+      }
+      form.inference_id.value = "";
+      form.display_name.value = "";
+      ok.textContent = `Verified ${data.id}`;
+      ok.hidden = false;
+      await loadBedrockModels();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  });
+
+  $("#bedrock-models-refresh")?.addEventListener("click", () => loadBedrockModels());
+
   const btnCreateProject = $("#btn-create-project");
   if (btnCreateProject) {
     btnCreateProject.addEventListener("click", () => createProjectFromForm());
@@ -1544,7 +1773,7 @@
     if (!model) {
       err.textContent =
         stack === "bedrock"
-          ? "Enter a Bedrock model id (e.g. amazon.nova-lite-v1:0)."
+          ? "Select a verified Bedrock model (Stacks → Verify & add)."
           : "Select a model.";
       err.hidden = false;
       return;
