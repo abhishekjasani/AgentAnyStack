@@ -25,7 +25,7 @@ Needs `nvidia-smi` (orchestrator with `docker-compose.gpu.yml`) and/or host `doc
 
 **Flush** frees Ollama-held RAM/VRAM only. If Check GPU still shows high VRAM with `still_loaded: []`, restart the Ollama container or inspect other GPU processes — that is outside app-level unload.
 
-**Timeouts (env):** `OPENAI_COMPATIBLE_TIMEOUT` (chat/soft jobs), `OLLAMA_PULL_TIMEOUT` (Stacks pull).
+**Timeouts (env):** `OPENAI_COMPATIBLE_TIMEOUT` (chat/soft jobs; default 900s for cold GPU reload), `OLLAMA_PULL_TIMEOUT` (Stacks pull). GPU compose sets `OLLAMA_KEEP_ALIVE=30m` so idle unload does not look like a mid-chat VRAM flush.
 
 **Class:** `OllamaModelManager` in `adapters/ollama_models.py` (only Ollama-specific module).  
 **UI:** nav **Stacks** — Pull / Cancel / Verify / Delete; header **Flush** + **Check GPU**.  

@@ -487,7 +487,7 @@ async def verify_model_gpu(
                     "model": tag,
                     "prompt": "hi",
                     "stream": False,
-                    "keep_alive": "5m",
+                    "keep_alive": "30m",
                     "options": {
                         "num_predict": 1,
                     },

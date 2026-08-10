@@ -1,5 +1,5 @@
-id: pythondeveloper
-name: python developer
+id: tester
+name: Tester
 team: eng
 stack: openai-compatible
 model: llama3.2:3b
@@ -9,6 +9,9 @@ persona:
   risk_class: read_draft
 autonomy:
   default: 50
+workspace:
+  project_id: medalia-cf7e42ac
+  path: /projects/medalia
 system_prompt_file: ./AGENT.md
 registrations:
   mcp: []

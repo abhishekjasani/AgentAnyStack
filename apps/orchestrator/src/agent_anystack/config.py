@@ -43,8 +43,9 @@ class Settings(BaseSettings):
         ),
     )
     # Desk chat / extract / office Q&A HTTP timeout (seconds).
+    # Cold Ollama CUDA reload often needs >5m before the first streamed token.
     openai_compatible_timeout: float = Field(
-        default=300.0,
+        default=900.0,
         ge=30.0,
         le=3600.0,
         validation_alias=AliasChoices("OPENAI_COMPATIBLE_TIMEOUT"),

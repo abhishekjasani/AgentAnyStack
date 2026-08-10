@@ -1,2 +1,0 @@
-{"id": "g_system", "text": "Gold usage: this notepad is yours. Call append_gold with one durable bullet at a time. Call delete_gold with note id(s) to remove working notes (not this primer). Call clear_gold to wipe working notes (primer returns). Call read_gold before deleting. Do not dump the whole chat here. Not shared OKF.", "run_id": null, "created_at": "2026-08-08T09:30:44+00:00"}
-{"id": "g_927dcf1b", "text": "My name is Abhishek", "run_id": "run-e40020d3c0144701", "created_at": "2026-08-08T09:31:40+00:00"}

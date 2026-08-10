@@ -108,9 +108,9 @@ class ProjectRegistry:
         )
 
         # Path as configured for the runtime (compose: /projects/<slug>).
-        path = f"{str(self.projects_root).rstrip('/').rstrip(chr(92))}/{folder_slug}".replace(
-            "\\", "/"
-        )        rec = ProjectRecord(
+        root_s = str(self.projects_root).replace("\\", "/").rstrip("/")
+        path = f"{root_s}/{folder_slug}"
+        rec = ProjectRecord(
             id=project_id,
             name=name,
             slug=folder_slug,

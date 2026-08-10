@@ -1,0 +1,1 @@
+Map the user journey and identify the pain points

@@ -41,6 +41,8 @@ services:
       OLLAMA_LLM_LIBRARY: cuda_v13
       # First CUDA load on small VRAM can exceed the 5m default.
       OLLAMA_LOAD_TIMEOUT: 15m
+      # Keep model in VRAM between prompts (default 5m looks like a "GPU flush").
+      OLLAMA_KEEP_ALIVE: 30m
       # Cap runner default context (model GGUF may advertise 128k).
       # App no longer sends per-request options.num_ctx — this is the KV size.
       OLLAMA_CONTEXT_LENGTH: "2048"

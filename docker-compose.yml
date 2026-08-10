@@ -19,6 +19,8 @@ services:
       DATABASE_URL: sqlite:////data/office.db
       # OpenAI-compatible /v1 (Ollama default). Same adapter works for vLLM etc.
       OPENAI_COMPATIBLE_BASE_URL: http://ollama:11434/v1
+      # Cold GPU reload + first token can exceed 5m on small VRAM Docker/WSL.
+      OPENAI_COMPATIBLE_TIMEOUT: "900"
     volumes:
       - ./office:/office
       - ./projects:/projects

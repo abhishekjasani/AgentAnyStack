@@ -6,11 +6,8 @@
 #   - OKF post-run extract (when okf_extract_enabled)
 #   - Office Q&A phrasing (when office_qa_llm)
 #
-# Token envelope (app-level only — not Ollama num_ctx / KV):
-#   - default_max_input_tokens (-1 = use pack_token_budget)
-#   - default_max_output_tokens (-1 = omit max_tokens on the wire)
-# Agent desks may tighten max_input_tokens / max_output_tokens only (-1 inherit).
-# Local Ollama context size: OLLAMA_CONTEXT_LENGTH in docker-compose.gpu.yml
+# Token envelope: default_max_input_tokens / default_max_output_tokens
+# (agents tighten max_input/output only, -1 inherit; Ollama KV via OLLAMA_CONTEXT_LENGTH)
 #
 # TODO: extract_temperature / soft-job sampling policy (ORCHESTRATOR.md §5)
 # TODO: office_qa_phrase_style (short | formal)
@@ -20,7 +17,7 @@
 
 id: office
 name: Office
-model: llama3.2
+model: qwen3.5:4b
 office_qa_llm: false
 okf_extract_enabled: true
 pack_token_budget: 8000
