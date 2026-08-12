@@ -4,6 +4,12 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from agent_anystack.adapters.bedrock_store import BedrockProviderStore, bedrock_data_dir
+from agent_anystack.adapters.ollama_models import OllamaModelManager
+from agent_anystack.adapters.stack_models import (
+    StackSelectionError,
+    validate_desk_selection,
+)
 from agent_anystack.api.deps import get_user_id
 from agent_anystack.api.projects import get_project_registry
 from agent_anystack.config import Settings, get_settings
@@ -51,6 +57,17 @@ def get_office_repo(settings: Settings = Depends(get_settings)) -> OfficeReposit
     return repo
 
 
+def get_ollama_manager(settings: Settings = Depends(get_settings)) -> OllamaModelManager:
+    return OllamaModelManager(
+        settings.openai_compatible_base_url,
+        timeout=settings.ollama_pull_timeout,
+    )
+
+
+def get_bedrock_store(settings: Settings = Depends(get_settings)) -> BedrockProviderStore:
+    return BedrockProviderStore(bedrock_data_dir(settings.database_url))
+
+
 @router.get("/agents", response_model=list[AgentSummary])
 async def list_agents(
     repo: OfficeRepository = Depends(get_office_repo),
@@ -84,9 +101,21 @@ async def create_agent(
     body: CreateAgentRequest,
     repo: OfficeRepository = Depends(get_office_repo),
     registry: ProjectRegistry = Depends(get_project_registry),
+    ollama: OllamaModelManager = Depends(get_ollama_manager),
+    bedrock: BedrockProviderStore = Depends(get_bedrock_store),
     user_id: str = Depends(get_user_id),
 ) -> AgentConfig:
     """Write office/teams/<team>/agents/<id>/; workspace must reference an active project."""
+    try:
+        resolved = await validate_desk_selection(
+            body.stack,
+            body.model,
+            ollama=ollama,
+            bedrock_store=bedrock,
+        )
+    except StackSelectionError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
     try:
         project = registry.require_active(body.workspace.project_id)
     except ProjectNotFoundError as exc:
@@ -101,6 +130,8 @@ async def create_agent(
     # Path always comes from the registry (capability is the truth).
     bound = body.model_copy(
         update={
+            "stack": resolved.stack,
+            "model": resolved.model,
             "workspace": Workspace(project_id=project.id, path=project.path),
         }
     )
@@ -120,10 +151,30 @@ async def update_agent(
     body: UpdateAgentRequest,
     repo: OfficeRepository = Depends(get_office_repo),
     registry: ProjectRegistry = Depends(get_project_registry),
+    ollama: OllamaModelManager = Depends(get_ollama_manager),
+    bedrock: BedrockProviderStore = Depends(get_bedrock_store),
     _user_id: str = Depends(get_user_id),
 ) -> AgentDetail:
     """Patch desk agent.yaml (+ AGENT.md if persona_markdown set)."""
-    patch = body
+    existing = repo.get_agent(agent_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail=f"agent not found: {agent_id}")
+
+    next_stack = body.stack if body.stack is not None else existing.stack
+    next_model = body.model if body.model is not None else existing.model
+    try:
+        resolved = await validate_desk_selection(
+            next_stack,
+            next_model,
+            ollama=ollama,
+            bedrock_store=bedrock,
+        )
+    except StackSelectionError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    patch = body.model_copy(
+        update={"stack": resolved.stack, "model": resolved.model},
+    )
     if body.workspace is not None:
         try:
             project = registry.require_active(body.workspace.project_id)
@@ -135,7 +186,7 @@ async def update_agent(
                     "workspace.project_id on the agent."
                 ),
             ) from exc
-        patch = body.model_copy(
+        patch = patch.model_copy(
             update={
                 "workspace": Workspace(project_id=project.id, path=project.path),
             }

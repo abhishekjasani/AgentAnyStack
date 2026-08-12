@@ -14,6 +14,10 @@ from agent_anystack.adapters.bedrock_store import (
     resolve_creds,
 )
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+from agent_anystack.adapters.stack_models import (
+    StackSelectionError,
+    resolve_desk_runtime,
+)
 from agent_anystack.channel_history import ChannelHistoryStore
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.envelope import build_office_envelope
@@ -23,8 +27,6 @@ from agent_anystack.memory import ExtractJob, OkfStore, pack_memory_sections
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
 from agent_anystack.tools.gold import GOLD_TOOL_SCHEMAS, execute_gold_tool
-
-from agent_anystack.adapters.stack_models import CHAT_STACKS as SUPPORTED_STACKS
 
 MAX_TOOL_ROUNDS = 6
 _TOKEN_CHUNK = 48
@@ -91,9 +93,15 @@ class ChatRunService:
         )
 
     def _adapter_for(self, stack: str) -> OpenAICompatibleAdapter | BedrockAdapter:
+        """Build chat adapter for a chat-ready stack (caller already resolved)."""
         if stack == "bedrock":
             return self._bedrock_adapter()
-        return self.adapter
+        if stack == "openai-compatible":
+            return self.adapter
+        raise StackError(
+            f"unsupported stack '{stack}'",
+            code="unsupported_stack",
+        )
 
     async def stream_agent_chat(
         self,
@@ -108,20 +116,19 @@ class ChatRunService:
             yield {"type": "error", "message": f"agent not found: {agent_id}"}
             return
 
-        if agent.stack not in SUPPORTED_STACKS:
+        try:
+            runtime = resolve_desk_runtime(agent.stack, agent.model)
+        except StackSelectionError as exc:
             yield {
                 "type": "error",
-                "message": (
-                    f"unsupported stack '{agent.stack}' — "
-                    f"v0 supports: {', '.join(sorted(SUPPORTED_STACKS))}"
-                ),
-                "code": "unsupported_stack",
+                "message": str(exc),
+                "code": exc.code,
             }
             return
 
         org = self.repo.load_org()
         orc = self.repo.load_orchestrator()
-        limits = resolve_run_limits(model=agent.model, orc=orc, agent=agent)
+        limits = resolve_run_limits(model=runtime.model, orc=orc, agent=agent)
         run_id = new_run_id()
         started = utc_now()
         eff = compute_effective(org, agent)
@@ -131,7 +138,8 @@ class ChatRunService:
             "run_id": run_id,
             "agent_id": agent.id,
             "user_id": user_id,
-            "model": agent.model,
+            "stack": runtime.stack,
+            "model": runtime.model,
             "max_input_tokens": limits.max_input_tokens,
             "max_output_tokens": limits.max_output_tokens,
         }
@@ -180,11 +188,11 @@ class ChatRunService:
         status = "ok"
         error: str | None = None
         assistant_parts: list[str] = []
-        adapter = self._adapter_for(agent.stack)
+        adapter = self._adapter_for(runtime.stack)
         try:
             async for event in self._run_with_gold_tools(
                 adapter=adapter,
-                model=agent.model,
+                model=runtime.model,
                 messages=messages,
                 agent=agent,
                 user_id=user_id,
@@ -211,8 +219,8 @@ class ChatRunService:
                 team=agent.team,
                 project_id=agent.workspace.project_id if agent.workspace else None,
                 channel=channel,
-                stack=agent.stack,
-                model=agent.model,
+                stack=runtime.stack,
+                model=runtime.model,
                 effective_autonomy=eff,
                 status=status,
                 started_at=started,

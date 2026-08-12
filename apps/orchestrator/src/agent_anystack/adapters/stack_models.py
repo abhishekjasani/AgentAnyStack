@@ -1,4 +1,4 @@
-"""Unified stack model catalog — list selectable models per stack.
+"""Unified stack model catalog — list + validate desk stack/model selection.
 
 Stack-specific stores (Ollama / Bedrock) stay internal; Office UI uses one shape.
 """
@@ -43,6 +43,14 @@ KNOWN_STACKS: tuple[dict[str, Any], ...] = (
 )
 
 
+class StackSelectionError(ValueError):
+    """Invalid stack and/or model for a desk."""
+
+    def __init__(self, message: str, *, code: str = "stack_selection") -> None:
+        self.code = code
+        super().__init__(message)
+
+
 @dataclass(frozen=True)
 class StackModelEntry:
     id: str
@@ -77,6 +85,28 @@ class StackModelsResult:
         }
 
 
+@dataclass(frozen=True)
+class ResolvedDeskRuntime:
+    """Validated desk stack + model ready for persist or chat."""
+
+    stack: str
+    model: str
+
+
+def normalize_chat_stack(stack: str) -> str:
+    """Return stack id if chat-ready; else raise StackSelectionError."""
+    sid = (stack or "").strip()
+    if not sid:
+        raise StackSelectionError("stack is required", code="stack_required")
+    if sid not in CHAT_STACKS:
+        raise StackSelectionError(
+            f"unsupported stack '{sid}' — desk chat supports: "
+            f"{', '.join(sorted(CHAT_STACKS))}",
+            code="unsupported_stack",
+        )
+    return sid
+
+
 async def list_models_for_stack(
     stack: str,
     *,
@@ -104,6 +134,43 @@ async def list_models_for_stack(
         hint=f"Stack '{sid}' is not available for desk chat yet.",
         models=[],
     )
+
+
+async def validate_desk_selection(
+    stack: str,
+    model: str,
+    *,
+    ollama: OllamaModelManager | None = None,
+    bedrock_store: BedrockProviderStore | None = None,
+) -> ResolvedDeskRuntime:
+    """Strict check for Create/Configure — chat stack + model in that stack's catalog."""
+    sid = normalize_chat_stack(stack)
+    mid = (model or "").strip()
+    if not mid:
+        raise StackSelectionError("model is required", code="model_required")
+
+    catalog = await list_models_for_stack(
+        sid,
+        ollama=ollama,
+        bedrock_store=bedrock_store,
+    )
+    ids = {m.id for m in catalog.models if m.ready}
+    if mid not in ids:
+        hint = catalog.hint or "no selectable models"
+        raise StackSelectionError(
+            f"model '{mid}' is not selectable for stack '{sid}' — {hint}",
+            code="model_not_in_catalog",
+        )
+    return ResolvedDeskRuntime(stack=sid, model=mid)
+
+
+def resolve_desk_runtime(stack: str, model: str) -> ResolvedDeskRuntime:
+    """Lightweight chat resolve — chat-ready stack + non-empty model (no live catalog)."""
+    sid = normalize_chat_stack(stack)
+    mid = (model or "").strip()
+    if not mid:
+        raise StackSelectionError("model is required", code="model_required")
+    return ResolvedDeskRuntime(stack=sid, model=mid)
 
 
 async def _list_ollama(ollama: OllamaModelManager | None) -> StackModelsResult:

@@ -16,7 +16,8 @@ class OrchestratorConfig(BaseModel):
 
     id: str = "office"
     name: str = "Office"
-    # Soft LLM (OKF extract + optional Office Q&A phrasing) — not desk agent.model
+    # Soft LLM (OKF extract + optional Office Q&A phrasing) — not desk agent.model.
+    # Soft jobs are always openai-compatible / Ollama; no stack field on Office.
     model: str = Field(default="llama3.2", min_length=1)
     office_qa_llm: bool = False
     # Master: schedule post-desk OKF extract job.

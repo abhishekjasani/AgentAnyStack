@@ -1,8 +1,8 @@
-id: ba
-name: CX analyst
+id: cx_analyst
+name: CX Analyst
 team: eng
-stack: openai-compatible
-model: llama3.2:3b
+stack: bedrock
+model: mistral.voxtral-mini-3b-2507
 persona:
   domain: general
   channels: []
