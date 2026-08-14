@@ -4,7 +4,7 @@
 
 **Status:** Design agreed through 2026-08-04. This `cursor_teams` tree is a **Cursor-first TypeScript prototype** + docs. **Greenfield rebuild** = Python orchestrator. **Start with:** [V0_SCOPE.md](./V0_SCOPE.md).
 
-**Related:** [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) · [V0_SCOPE.md](./V0_SCOPE.md) · [ANALYTICS.md](./ANALYTICS.md) · [CONNECT.md](./CONNECT.md) · [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md) · [LOCAL_MODEL_STACK.md](./LOCAL_MODEL_STACK.md)
+**Related:** [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) · [STACK_ADAPTERS.md](./STACK_ADAPTERS.md) · [V0_SCOPE.md](./V0_SCOPE.md) · [ANALYTICS.md](./ANALYTICS.md) · [CONNECT.md](./CONNECT.md) · [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md) · [LOCAL_MODEL_STACK.md](./LOCAL_MODEL_STACK.md)
 
 ---
 
@@ -17,6 +17,8 @@
 | 3 | [ORCHESTRATOR.md](./ORCHESTRATOR.md) | Gates, HITL, autonomy, MCP, office chat |
 | 4 | [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) | Gold(a,u), OKF in DB, packing |
 | 5 | [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) | agent.yaml + AGENT.md; Office Envelope |
+| 5b | [STACK_ADAPTERS.md](./STACK_ADAPTERS.md) | Worker stacks; adapter contract; modes/hooks UX |
+| 5c | [IDE_FIRST.md](./IDE_FIRST.md) | IDE pack/extract sidecar for eng |
 | 6 | [ANALYTICS.md](./ANALYTICS.md) · [CONNECT.md](./CONNECT.md) | Later tabs — journal/API now, deep UI later |
 | 7 | **This file** | Stack, async, config buckets, slices |
 | 8 | [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md) | Stories |
@@ -101,13 +103,15 @@ Users may ask the **office** about project **status** and **knowledge** without 
 | Ask type | Source | LLM? |
 | --- | --- | --- |
 | Status (“what’s running?”) | Journal / runs registry | Optional; often pure code |
-| Knowledge (“what’s our commission rule?”) | Deterministic OKF query / pack slice | Optional summarizer **with citations** |
+| Knowledge (“what’s our commission rule?”) | Filter (scope·project·FTS) → optional vector rank in **`fact_embeddings`** → **top-K** | `OFFICE_MODEL` phrase **with citations** |
 | Do work (“build the hero”) | Route to an agent | Agent run |
 
 **Rules:**
 
 - Orchestrator **does not invent** business facts. Empty memory → say so.
 - Every knowledge claim cites `fact_id` / `run_id`.
+- Pass **top-K only** to the model — not every filtered fact.
+- Embeddings: separate rebuildable **`fact_embeddings`** table (ranker); filter/ACL stays on `facts`. Details: [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) §4.
 - Q&A is a **read path** — does **not** write OKF (writes still via agent report pipeline / explicit `remember:`).
 - Chat grammar idea: `Office:` or default when no `AgentName:` prefix.
 - Scope visible: which team/project shelf is being queried.
@@ -118,10 +122,27 @@ This does **not** reopen “orchestrator as free-roaming LLM persona.” It is *
 
 ## 5. Multi-user & packing (summary)
 
-- Same agent desk, many users → separate **`run_id`**, separate **`gold(a,u)`**.
+- Same agent desk, many users → separate **`run_id`**, separate **`gold(a,u)`**, separate **recent_thread(u)**.
 - Shared OKF: stamp **`created_by_user`** for **audit only**; **pack all users’ room facts** (accept noise; prune later).
-- Formula: `C(a, p, u) = gold(a,u) ∪ mem(team) ∪ (floor ∪ linkshare ∪ org) ∩ P(p)`  
+- Formula:
+  ```text
+  C(a,p,u) = recent_thread(u, ~7d|N, char-capped [, optional summary])
+           ∪ gold(a,u)
+           ∪ mem(team)
+           ∪ (floor ∪ linkshare ∪ org) ∩ P(p)
+  ```
+  Recent thread = labeled prompt section only — **not** gold/OKF. Optional summarize uses **office model**.  
   Full rules: [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md).
+
+### Office model vs desk model
+
+| Job | Model |
+| --- | --- |
+| Agent desk run | `agent` stack + model |
+| OKF extract, office Q&A, optional thread summarize | `OFFICE_MODEL` |
+| HITL | Deterministic (no LLM approver in v0) |
+
+See [ORCHESTRATOR.md](./ORCHESTRATOR.md) §2.3.1.
 
 ---
 
@@ -137,7 +158,15 @@ effective = clamp(user.override ?? agent.default ?? org.default, 0, effective_ma
 **Approvers v1 (`permissive`):** requester ∪ org admin ∪ MCP/cred owner.  
 **Later (`strict`):** org admin and/or MCP/cred owner only.
 
-Detail: [ORCHESTRATOR.md](./ORCHESTRATOR.md) §4.1 · §6.0.2.
+**Catalog `hil` + `_locked`:** Direct = `never` or **elevated** (`hil_timer_hours` then snap back to original `hil`). Gated = agent sees `*_locked` only (never the real MCP name). Elevation is admin-started; recycle the desk TTL session at window start/end; **hard floors still apply**.
+
+| Runtime | `_locked` intercept |
+| --- | --- |
+| Inference (office tool list) | **Complete** |
+| Harness + catalog-only action (e.g. WhatsApp; no native twin / leaked creds) | **Complete** |
+| Harness natives (fs/shell/git) | Soft envelope + **hook profile** from autonomy band — not `_locked` |
+
+`*_locked` wait: wrapper **blocks** with internal exp backoff until Accept / Reject / `action_timeout` — Cursor sees one slow tool call (not model-driven retry). Detail: [ORCHESTRATOR.md](./ORCHESTRATOR.md) §4.1 · §6.0.2 · §7.2–7.3 · [STACK_ADAPTERS.md §8.1–8.2](./STACK_ADAPTERS.md#81-catalog-hitl-_locked-vs-harness-natives).
 
 ---
 
@@ -153,20 +182,20 @@ Detail: [ORCHESTRATOR.md](./ORCHESTRATOR.md) §4.1 · §6.0.2.
 **Known gaps (do not market as solved):**
 
 1. Gold/OKF may accidentally contain credentials — scrub later.  
-2. MCP `_locked` + grant is **best-effort**, not hard isolation.  
+2. MCP `_locked` + grant is **complete on Inference**; on harness **only for catalog-only capabilities** (no native twin). Not a hard sandbox / full proxy.
 3. Intended secret path = vault/env refs only.
 
 ---
 
 ## 7.1 Configuration buckets & UI (v0)
 
-Do **not** put platform/DB settings inside the MCP · API-creds catalog. Three buckets:
+Do **not** put platform/DB settings inside the Guardrails catalog. Three buckets:
 
 | Bucket | What | Examples | UI (v0) | Storage |
 | --- | --- | --- | --- | --- |
-| **1. Platform / runtime** | How the office process runs | `DATABASE_URL` (or host/port/db/user/password), `OFFICE_REPO_PATH`, `SECRET_KEY`, `PORT`, pack budget, `APPROVER_MODE` | **Read-only** settings page (admin). Edit via `.env` / compose / deploy only | Env / vault |
+| **1. Platform / runtime** | How the office process runs | `DATABASE_URL` (or host/port/db/user/password), `OFFICE_REPO_PATH`, `OFFICE_MODEL`, `SECRET_KEY`, `PORT`, pack budget, `APPROVER_MODE` | **Read-only** settings page (admin). Edit via `.env` / compose / deploy only | Env / vault |
 | **2. Stacks** | BYO model/runtime connections | Cursor / Claude / Ollama keys & base URLs | Editable on Stacks screen (later); v0 may be env-only | Env / vault refs |
-| **3. Catalog** | Agent tools | MCP, Skills, API/creds + `hil` / `_locked` / cred owner | Editable catalog + agent registration | Git descriptors + vault for secret values |
+| **3. Catalog (Guardrails)** | Desk capabilities | MCP · Tools (`gold.*`) · Skills · External tools (HTTP APIs) + `hil` / `_locked` / cred owner | Stub nav in v0; editable catalog + agent registration later | Git descriptors + vault for secret values |
 
 **Office structure** (org/floor/team/agent/links/autonomy numbers) stays in **office git YAML**, editable from UI later (create = commit) — separate from platform secrets.
 
@@ -193,9 +222,12 @@ PORT=8787
 SECRET_KEY=change-me
 OFFICE_API_TOKEN=change-me
 
+# Soft jobs (OKF extract, office Q&A, optional thread summarize) — not desk agent.model
+OFFICE_MODEL=qwen2.5:7b
+
 CURSOR_API_KEY=
 ANTHROPIC_API_KEY=
-OLLAMA_BASE_URL / OPENAI_COMPATIBLE_BASE_URL=http://127.0.0.1:11434/v1
+OLLAMA_BASE_URL=http://127.0.0.1:11434
 
 PACK_TOKEN_BUDGET=8000
 APPROVER_MODE=permissive
@@ -219,12 +251,20 @@ agent-anystack/                 # NEW public-ready repo
       AGENT.md                  # persona
       gold/<user>.md
   apps/
-    orchestrator/               # FastAPI
-    office-ui/                  # TS later
+    orchestrator/               # FastAPI — core office
+    adapters/
+      opencode/                 # v1 first harness — STACK_ADAPTERS.md
+      cursor/
+      claude_code/
+      openai_compat/            # inference (Bedrock/Ollama/Claude API)
+    bridges/
+      mcp_a2a/                  # external agents later
+    office-ui/                  # Stacks tab by kind; Team seats desks
   docker-compose.yml
 ```
 
-Agent definition + fixed Office Envelope: [AGENT_DEFINITION.md](./AGENT_DEFINITION.md).
+Agent definition + fixed Office Envelope: [AGENT_DEFINITION.md](./AGENT_DEFINITION.md).  
+Stack kinds + Stacks UX + adapters: [STACK_ADAPTERS.md](./STACK_ADAPTERS.md).
 
 **Public-repo hygiene:** no secrets in history; Conventional commits; tag `v0.1.0`; gitleaks before public/transfer ownership.
 
@@ -244,13 +284,13 @@ Canonical v0 cut: **[V0_SCOPE.md](./V0_SCOPE.md)**. Do not build floors+MCP+anal
 | 3 | Chat → **Ollama** (or one stack) + `run_id` + journal | Live tokens |
 | 4 | `gold(a,u)` read/write | Per-user notepad |
 | 4b | Agent create: `agent.yaml` + `AGENT.md` + Office Envelope | Desk reversible in git |
-| 5 | SQLite OKF + Pydantic + pack `C(a,p,u)` | Facts round-trip |
-| 6 | Post-run extract via BackgroundTasks | Chat not blocked |
-| 7 | Office chat: status + cited knowledge (thin) | No agent required |
+| 5 | SQLite OKF + pack `C(a,p,u)` incl. **recent_thread** | Facts + thread continuity |
+| 6 | Post-run extract via BackgroundTasks + **`OFFICE_MODEL`** | Chat not blocked |
+| 7 | Office chat: status + cited knowledge (**`OFFICE_MODEL`**) | No agent required |
 | 8 | Approval board: one action card, permissive | Accept → journal |
 | 9 | Effective autonomy §4.1 on one gate | Ceiling works |
 | 10 | OKF export to `memory/` | Leave-path |
-| 11 | **UI shell:** Team/Memory/Approvals + Analytics & Connect **stubs** | Direction clear |
+| 11 | **UI shell:** Team/Memory/Approvals + Guardrails / Analytics / Connect **stubs** | Direction clear |
 | — | Floors, full MCP/`_locked`, Analytics deep UI, Connect plugins | **After v0** |
 
 ---
@@ -258,11 +298,13 @@ Canonical v0 cut: **[V0_SCOPE.md](./V0_SCOPE.md)**. Do not build floors+MCP+anal
 ## 10. Explicit non-goals (v0)
 
 - Celery / multiprocessing / thread-pool architecture  
-- Vector DB as primary retrieval  
+- Vector DB / embeddings as **primary** retrieval (OK as post-filter ranker via `fact_embeddings` — see MEMORY §4)  
+- Rebuilding a full coding-agent tool harness (prefer Cursor / Claude Code / OpenCode workers — [STACK_ADAPTERS.md](./STACK_ADAPTERS.md))  
+- Stack-specific control panels on Team chat (modes/hooks/pack live on desk settings)  
 - Orchestrator inventing facts without memory  
 - Agents writing shared OKF directly  
 - Filtering shared OKF by `user_id` on pack  
-- Claiming `_locked` is a hard sandbox  
+- Claiming `_locked` is a hard sandbox, or that harness `_locked` intercepts native Cursor/OpenCode tools
 - Wrapping consumer Claude OAuth as multi-tenant harness (ToS)  
 - **Analytics/graph BI UI** (journal only)  
 - **External plugins** (AutoCAD etc.) — stub + API sketch only  
@@ -290,3 +332,12 @@ Canonical v0 cut: **[V0_SCOPE.md](./V0_SCOPE.md)**. Do not build floors+MCP+anal
 | 2026-08-04 | §7.1 Config buckets; platform UI read-only v0; admin may reveal masked passwords |
 | 2026-08-04 | Link AGENT_DEFINITION.md (yaml+md, Office Envelope, workspace isolation) |
 | 2026-08-04 | V0_SCOPE, ANALYTICS, CONNECT; slices align; UI simpler than mockup; pillars unchanged |
+| 2026-08-07 | Pack recent_thread + OFFICE_MODEL for soft jobs |
+| 2026-08-10 | Office Q&A: filter → top-K; `fact_embeddings` side table; vector not primary retrieval |
+| 2026-08-11 | Link STACK_ADAPTERS; greenfield `adapters/`; non-goal DIY coding harness |
+| 2026-08-11 | Link IDE_FIRST |
+| 2026-08-12 | IDE_FIRST: human seats, WorkPacket, hooks |
+| 2026-08-12 | STACK_ADAPTERS: three kinds + Stacks tab UX; OpenCode-first layout |
+| 2026-08-14 | HITL: elevation timer; `_locked` Inference vs harness (catalog-only) |
+| 2026-08-14 | Guardrails catalog: MCP · Tools · Skills · External tools; gold.* inherit agent desks |
+| 2026-08-14 | `_locked` wrapper wait; harness low-autonomy soft+hooks bundle |

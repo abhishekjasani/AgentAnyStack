@@ -203,7 +203,7 @@ Prior art: Open WebUI ships the same pattern (an `open-webui:ollama` bundled ima
 flowchart LR
     UI[AgentAnyStack frontend\nmodel catalog + progress] -->|"/api/pull (native API)"| OL[Ollama container]
     ORC[Orchestrator] -->|"/v1/chat/completions (OpenAI-compat)"| OL
-    OL --> VOL["./data/ollama"]
+    OL --> VOL[(Docker volume\nmodel blobs)]
 ```
 
 Two API surfaces, on purpose:
@@ -211,49 +211,13 @@ Two API surfaces, on purpose:
 - **Inference:** orchestrator talks OpenAI-compatible only (`http://ollama:11434/v1`) — same adapter later works against vLLM/SGLang/LiteLLM. Ollama is the quick-start default, **not** a hard dependency.
 - **Model management:** pull / list / delete use Ollama's native API, isolated in a small "model manager" module. That is the only Ollama-specific code allowed.
 
-Compose shape: `ollama/ollama` service + bind **`./data/ollama` → `/root/.ollama`**, orchestrator gets `OPENAI_COMPATIBLE_BASE_URL` (alias: `OLLAMA_BASE_URL`).
+Compose shape: `ollama/ollama` service + named volume on `/root/.ollama`, orchestrator gets `OLLAMA_BASE_URL`.
 
 ### Known caveats (document in user-facing quick start)
 
-1. **CPU by default; GPU is opt-in.** Base `docker compose --profile ollama` runs Ollama on **CPU** (always starts). For NVIDIA, add `docker-compose.gpu.yml` (passes GPU devices). If that command fails (no driver / toolkit), drop the override — **CPU fallback**. Weights live on the host at **`./data/ollama`** either way. See [architecture/07_DOCKER.md](./architecture/07_DOCKER.md).
-2. **GPU prereqs (NVIDIA + Docker):** current NVIDIA driver; Windows = Docker Desktop + WSL2 + NVIDIA Container Toolkit; Linux = NVIDIA Container Toolkit. Ollama then uses CUDA automatically. AMD/Intel: prefer **native** Ollama on the host.
-3. **macOS + Docker loses the GPU.** Docker on Mac cannot access Apple's Metal GPU, so containerized Ollama is CPU-only there. Workaround (same as Open WebUI): Mac users install Ollama natively and the stack points at `host.docker.internal:11434` via `OLLAMA_BASE_URL`. One env var supports both layouts.
-4. **Model quality expectations.** 3B–7B quantized models are fine for chat/summarize roles but weak at agentic tool calling. Flag catalog entries as "demo-grade" vs "can run a Developer agent" so the product isn't judged by a 3B model failing tool calls.
-5. **Don't bake models into the image.** Weights go to **`./data/ollama`** (gitignored) at runtime; the image stays small and models survive container upgrades.
-
-### Why we do **not** send per-request `num_ctx` (GPU load)
-
-**Decision (2026-08-08):** AgentAnyStack does **not** pass Ollama `options.num_ctx` on chat, Verify, extract, or soft jobs. App-level **max input / max output** stay. Server KV size is capped only via compose (`OLLAMA_CONTEXT_LENGTH` in `docker-compose.gpu.yml`).
-
-#### What `num_ctx` actually is
-
-| Knob | Layer | Effect |
-| --- | --- | --- |
-| `options.num_ctx` (request) | Ollama runner | Sets **load-time context / KV cache** size for that model instance. Changing it often forces a **reload**. |
-| `OLLAMA_CONTEXT_LENGTH` (env) | Ollama server | Default context when the client does not send `num_ctx`. |
-| Agent / Office `max_input_tokens` / `max_output_tokens` | Orchestrator | Truncate packed prompts and set OpenAI `max_tokens` only — **does not** size GPU KV or force a reload. |
-
-Many GGUF tags advertise huge train context (e.g. `n_ctx_train = 131072`). Without a small server default, or with a client that keeps sending `num_ctx`, Ollama plans a large KV alongside weights.
-
-#### Why that blocked **100% GPU** on small VRAM (≈4 GB laptop + Docker/WSL)
-
-Observed on RTX 500 Ada (~4 GiB) with CUDA visible (`library=CUDA`) but Verify failing:
-
-1. **Per-request `num_ctx` forces a cold (re)load path.** Verify/chat that send `options.num_ctx` tell llama-server to allocate KV for that size. On first CUDA load that path is heavier than a plain generate with server defaults.
-2. **KV + weights compete for the same VRAM.** Even “small” values (2k–4k) plus a 3B quant leave little headroom; larger values (or falling back toward model-advertised context) make the fitter/load path thrash or hang. Logs showed long stalls in `fitting params to device memory` / `load_tensors` while **GPU util stayed ~0%** and used VRAM barely moved (~70 MiB) — the runner never finished becoming ready.
-3. **Ollama then returns 500:** `timed out waiting for llama-server to start`. Stacks surfaced that as Verify failure — not “CPU chosen on purpose,” but **load never completed**, so `/api/ps` never showed `100% GPU`.
-4. **Docker/WSL CUDA discovery already fragile.** Same environment also hit `llama-server GPU discovery watchdog timed out`. Extra reload pressure from `num_ctx` made hangs more likely; after removing request `num_ctx` (and keeping `OLLAMA_CONTEXT_LENGTH=2048`, `OLLAMA_LLM_LIBRARY=cuda_v13`, `OLLAMA_VULKAN=false`), the same tag loaded as **100% GPU**.
-
-```text
-+ OK: OLLAMA_CONTEXT_LENGTH in gpu compose; max_input / max_output in Office / agents
-- BAD: send options.num_ctx on every /v1 or /api/generate call from the orchestrator
-+ OK: Flush → Verify after GPU compose recreate; expect first load to take minutes
-- BAD: treat "llama-server start timeout" as a bug in max_output alone
-```
-
-**If someone reintroduces catalog/stack `num_ctx`:** keep it **server-side or one-shot warm only**, never as a required field on every inference request on ≤8 GB VRAM Docker GPU hosts.
-
-See also [architecture/17_MODELS.md](./architecture/17_MODELS.md) · [architecture/07_DOCKER.md](./architecture/07_DOCKER.md).
+1. **macOS + Docker loses the GPU.** Docker on Mac cannot access Apple's Metal GPU, so containerized Ollama is CPU-only there. Workaround (same as Open WebUI): Mac users install Ollama natively and the stack points at `host.docker.internal:11434` via `OLLAMA_BASE_URL`. One env var supports both layouts.
+2. **Model quality expectations.** 3B–7B quantized models are fine for chat/summarize roles but weak at agentic tool calling. Flag catalog entries as "demo-grade" vs "can run a Developer agent" so the product isn't judged by a 3B model failing tool calls.
+3. **Don't bake models into the image.** Weights go to the volume at runtime; the image stays small and models survive container upgrades.
 
 ---
 
@@ -290,6 +254,5 @@ See also [architecture/17_MODELS.md](./architecture/17_MODELS.md) · [architectu
 
 | Date | Note |
 | --- | --- |
-| 2026-08-08 | Documented: do not send per-request `num_ctx` — blocked GPU load on small VRAM Docker |
-| 2026-08-03 | Link IMPLEMENTATION.md — Python orchestrator consumes OpenAI-compatible engines |
 | 2026-07-31 | Quick-start Docker + Ollama decision |
+| 2026-08-03 | Link IMPLEMENTATION.md — Python orchestrator consumes OpenAI-compatible engines |

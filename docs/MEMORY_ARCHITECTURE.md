@@ -147,9 +147,48 @@ flowchart LR
     P --> C[Context handed to agent\nlogged in activity feed]
 ```
 
-- Selection = scope → project → type/tags → priority → recency. Pure rules, no embeddings.
-- Embeddings only later, only as a fallback *ranker* when a scope outgrows its budget — never the source of truth.
+- Selection = scope → project → type/tags → priority → recency. Pure rules, no embeddings as the primary mechanism.
+- Embeddings only as a fallback *ranker* inside an already-filtered candidate set — never the source of truth, never global ANN over the whole office.
 - Agent-driven browsing (OKF progressive-disclosure tools) may exist as an optional, logged tool — not the core path, because it breaks determinism.
+
+### Office Q&A retrieval (knowledge questions)
+
+Same ACL spirit as packing. **Do not** pass every filtered fact to the model.
+
+```text
+1. Scope gate     team / floor / org (+ ACL) — same readable room/shelf as packing
+2. Project gate   ∩ P(p) or asked project; include agnostic projects: []
+3. Structured hit tags, type, FTS / keyword on body + tags
+4. Rank           FTS score and/or vector similarity **inside candidates only**
+5. Budget         top-K facts (e.g. 5–15) — not the full filter result
+6. Phrase         OFFICE_MODEL may only use those fact_ids; cite every claim
+7. Empty          “nothing found” — never invent
+```
+
+| Pass to OFFICE_MODEL? | Why |
+| --- | --- |
+| All filtered facts | Context blow-up, cost, noise |
+| **Top-K only** | Budgeted; citations auditable |
+| Empty top-K | Say nothing found |
+
+Pure vector search over all OKF (no scope/project gate) is **out of design** — similarity ≠ permission.
+
+### Fact embeddings (separate table — rebuildable)
+
+Embeddings are a **derived index**, not fact truth. Different indexing nature → **separate table** (do not shove a vector column into the fact row as the only design).
+
+```text
+facts                         fact_embeddings
+─────────────────────         ──────────────────────────
+id, scope, projects,          fact_id → facts.id
+body, tags, source, …         model, dims, vector, updated_at
+(B-tree / GIN / FTS)          (vector index IVFFlat/HNSW + fact_id)
+= source of truth             = rebuildable ranker cache
+```
+
+- Embed **body** (+ optional tags) **async on upsert** (same async lane as extract — not on every chat request for the whole corpus).
+- On embed-model change: drop/rebuild `fact_embeddings`; facts untouched.
+- Query: SQL/scope filter first → cosine (or equiv.) only on that candidate set → top-K.
 
 ---
 
@@ -247,21 +286,32 @@ Rules:
 
 ### The formulas (plain English → rules)
 
-Notation: agent `a`, acting **user** `u`, team `t(a)`, optional floor `f(a)`, org `g`; current project `p`; `mem(s)` = shared OKF at scope `s` (**all users** — `created_by_user` is not a filter); `gold(a,u)` = that user’s gold for agent `a`; `linkshare(a)` = facts approved across connect lines involving `t(a)`; `projects(x)` = project ids on fact `x`.
+Notation: agent `a`, acting **user** `u`, team `t(a)`, optional floor `f(a)`, org `g`; current project `p`; channel/desk thread for that user; `mem(s)` = shared OKF at scope `s` (**all users** — `created_by_user` is not a filter); `gold(a,u)` = that user’s gold for agent `a`; `thread(u, …)` = recent desk chat for that user only; `linkshare(a)` = facts approved across connect lines involving `t(a)`; `projects(x)` = project ids on fact `x`.
 
 ```text
 1. Readable set (scope axis — access):
    R(a, u) = gold(a, u) ∪ mem(t(a)) ∪ mem(f(a)) ∪ linkshare(a) ∪ slice(a, mem(g))
+   (+ thread is pack-only; not a durable readable “scope”)
 
 2. Project relevance (project axis — aboutness):
    P(p) = { x | p ∈ projects(x)  ∨  projects(x) = ∅ }
 
 3. Context packed for a run ("share the room, filter the building"):
-   C(a, p, u) = gold(a, u)
-              ∪ mem(t(a))                                              ← team: all users’ facts
-              ∪ ( mem(f(a)) ∪ linkshare(a) ∪ slice(a, mem(g)) ) ∩ P(p)
+   C(a, p, u) = recent_thread(u, channel, window≈7d | last N turns, char-capped)
+                ∪ gold(a, u)
+                ∪ mem(t(a))                                              ← team: all users’ facts
+                ∪ ( mem(f(a)) ∪ linkshare(a) ∪ slice(a, mem(g)) ) ∩ P(p)
+
+   recent_thread:
+     - Prefer user messages; lightly trim assistant turns
+     - Inject as labeled section **“Recent thread”** (or **“Recent thread summary”** if condensed)
+     - NOT gold, NOT OKF — ephemeral conversation context only
+     - Optional pack-time summarize (office model) when over char budget — no durable summary store in v0
+     - Hard token/char cap so thread does not crowd gold/OKF
+
    packed with budget per level,
-   order: own-project + agnostic first, other-project team facts last;
+   order: recent_thread first (or after envelope);
+          own-project + agnostic OKF first, other-project team facts last;
           then scope specificity ↓, priority ↓, recency ↓
 
 4. Conflict resolution (lower scope wins):
@@ -273,13 +323,16 @@ Notation: agent `a`, acting **user** `u`, team `t(a)`, optional floor `f(a)`, or
    stamp created_by_user = u (audit only)
    promotion team→floor→org only via trust ladder, never automatic
    cross-team share only via approved floor connect line
+   thread content becomes durable only via extract / remember: / gold — never silent OKF from summary
 
 6. Read/write asymmetry:
    agents: read C(a,p,u), write gold(a,u) + plain-text report
    shared tiers: written by the pipeline only
 ```
 
-**Why the team is unfiltered (union) but floor/links/org are not:** privacy of *personal* scratch exists only at **gold(a,u)** — shared tiers are *published* within their scope; `∩` is a relevance filter. Teammate / other-user team facts pack **last** and can be **labeled** with `created_by_user` in the UI. Floor/org/link volume is larger — `∩ P(p)` sits there.
+**Why recent thread ≠ gold/OKF:** gold is deliberate durable notes; OKF is validated shared knowledge. The last ~7 days of chat is **working continuity** for that user on that desk — it expires with the window unless promoted.
+
+**Why the team is unfiltered (union) but floor/links/org are not:** privacy of *personal* scratch exists at **gold(a,u)** and **thread(u)** — shared tiers are *published* within their scope; `∩` is a relevance filter. Teammate / other-user team facts pack **last** and can be **labeled** with `created_by_user` in the UI. Floor/org/link volume is larger — `∩ P(p)` sits there.
 
 **Cross-team collaboration:** (1) live messages via orchestrator; (2) **floor connect line** for gated memory share; (3) corroboration widens `projects` arrays. Unlinked teams do not see each other’s team memory.
 
@@ -293,7 +346,7 @@ v1 levels: **team + floor + org** (+ per-user gold). Office deferred. Floor is o
 
 ## 6. Write pipeline (agents don't manage long-term memory)
 
-Principle: **agents propose, the pipeline disposes** — a mediated write path. The agent only: reads context → does the task → updates **gold(a,u)** → returns a plain-text report. Everything else is orchestrator code.
+Principle: **agents propose, the pipeline disposes** — a mediated write path. The agent only: reads context → does the task → updates **gold(a,u)** via Guardrails **Tools** `gold.read` / `gold.update` (default-inherit **agent desks** only) → returns a plain-text report. Everything else is orchestrator code — **not** catalog Tools (no OKF extract, no office Q&A as a Tool). See [ORCHESTRATOR.md](./ORCHESTRATOR.md) §7.1.
 
 Why: direct agent writes would require every stack to know our schema (kills any-stack); N agents writing = N failure modes; one pipeline = one quality gate; and task execution vs knowledge curation are different jobs.
 
@@ -366,6 +419,8 @@ One line: **gold memory holds facts about the business; orchestrator files hold 
 
 If queries get slow: in-memory map or secondary indexes over the **DB** (or rebuild from OKF export). Property: **rebuildable**. Delete the cache, nothing is lost. DB rows (or last OKF export) stay the source of truth for shared memory; gold files stay in git.
 
+**`fact_embeddings`** is one such derived index (see §4 Office Q&A / Fact embeddings). It is not a second knowledge store.
+
 ---
 
 ## 8. Failure modes we designed against
@@ -424,3 +479,6 @@ MCP `_locked` / grant isolation: see [ORCHESTRATOR.md](./ORCHESTRATOR.md) Securi
 | 2026-08-03 | Office-as-git: OKF + gold in customer office repo with floors/teams/agents/catalog; pull = same env |
 | 2026-08-03 | Hybrid: shared OKF in DB + export; gold per (agent,user); `created_by_user` audit-only pack-all-room; C(a,p,u); Security TODOs §9 |
 | 2026-08-03 | Pydantic/Python target; extract async off chat path; link IMPLEMENTATION.md |
+| 2026-08-07 | Pack: recent_thread (~7d / N turns, char-capped, optional pack-time summary via office model); not gold/OKF |
+| 2026-08-10 | Office Q&A: filter → rank top-K → cite-bound phrase; `fact_embeddings` side table (ranker, not truth) |
+| 2026-08-14 | Gold via catalog Tools `gold.read`/`gold.update`; not orchestrator extract/Q&A |

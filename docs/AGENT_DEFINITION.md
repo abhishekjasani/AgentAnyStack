@@ -2,7 +2,7 @@
 
 Standard, git-reversible agent shape for AgentAnyStack + the **fixed Office Envelope** prepended to every run.
 
-**Related:** [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md)
+**Related:** [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [STACK_ADAPTERS.md](./STACK_ADAPTERS.md)
 
 ---
 
@@ -56,15 +56,17 @@ system_prompt_file: ./AGENT.md   # preferred for long personas
 # system_prompt: "..."           # optional inline for tiny agents
 
 registrations:
-  mcp: []                        # catalog ids only — scoped injection
+  mcp: []                        # Guardrails catalog ids — scoped injection
+  tools: []                      # extra Tools; gold.read/update default-inherit agent desks
   skills: []
-  apis: []
+  external_tools: []             # HTTP APIs (Firecrawl, …) — not MCP
 
 tools:
   mode: none                     # none | mediated | worker
-  # none = pack-only (typical API research agents)
-  # mediated = orchestrator path-allowlisted read/write tools (API inference)
-  # worker = hosted runtime (e.g. Cursor) with worker-dir = workspace.path
+  # none = pack-only (typical API research / sales / support desks)
+  # mediated = thin allowlisted tools or MCP — extras only; NOT a full coding harness
+  # worker = Cursor / Claude Code / OpenCode — native tools in workspace.path
+  # Coding desks: prefer worker stacks. See STACK_ADAPTERS.md
 ```
 
 ### Create-agent template (Claude-simple mapping)
@@ -74,11 +76,13 @@ tools:
 | `name` | `name` (+ `id`) |
 | `model` | `stack` + `model` |
 | `system` | `AGENT.md` / `system_prompt` |
-| `tools` | `registrations` + `tools.mode` |
+| `tools` | `registrations` + `tools.mode` (Guardrails Tools ≠ `tools.mode`) |
 
 UI wizard collects the four Claude fields + team/workspace/autonomy → writes `agent.yaml` + `AGENT.md` → git commit.
 
-**Compulsory:** create an active **project** first (`POST /projects` → `projects/<slug>/` + registry), then bind `workspace.project_id` on the agent. Agents without a working dir are rejected.
+**Optional desk defaults (advanced — not chat chrome):** conversation `mode` for worker stacks (`agent` \| `plan` where SDK supports it); **pack depth** (`full` \| `gold+team` \| `gold`); office **policy** refs (e.g. `require_work_item: jira`). See [STACK_ADAPTERS.md](./STACK_ADAPTERS.md) §5–6.
+
+**Human seats** (`seat_kind: human`): no `stack` / `model` / autonomy / gold — IDE users BYO Cursor/Claude; office = pack + WorkPacket sync + MEMORY HITL only. No `gold.*` Tools. See [IDE_FIRST.md](./IDE_FIRST.md).
 
 ---
 
@@ -86,8 +90,8 @@ UI wizard collects the four Claude fields + team/workspace/autonomy → writes `
 
 | Stack | How folder restriction works | Overhead |
 | --- | --- | --- |
-| **Hosted worker** (Cursor) | `worker-dir` / cwd = `workspace.path` | Negligible vs LLM |
-| **API inference** (Claude / Ollama / OpenAI-compatible) | No inherent FS — use `tools.mode: none` or **mediated** tools with path allowlist under `workspace.path` | Path check ≈ free |
+| **Hosted worker** (Cursor / Claude Code / OpenCode) | `worker-dir` / cwd = `workspace.path`; **native stack tools** | Negligible vs LLM |
+| **API inference** (Bedrock / Ollama / OpenAI-compatible) | No inherent FS — `tools.mode: none` or light MCP; do **not** expect Cursor-class coding | Path check ≈ free |
 | **Same FastAPI event loop** | Do **not** expect Linux chroot per asyncio task | N/A — isolate at worker/tool boundary |
 
 Path allowlist: resolve paths; reject escapes outside `workspace.path`.  
@@ -103,65 +107,49 @@ Agents must **not** mount or browse `office/memory/` export trees.
 1. Fixed Office Envelope          ← orchestrator template (this doc §6)
 2. Persona AGENT.md               ← desk-specific
 3. Registered tools schema        ← scoped only
-4. Packed memory C(a,p,u)         ← labeled: gold / team / shelf
+4. Packed memory C(a,p,u)         ← labeled: Recent thread · gold · team · shelf
 5. User message
 ```
 
 Persona files must **not** contradict the envelope (no “ignore approvals”, no “read all office markdown”).
 
+Soft orchestrator jobs (OKF extract, office Q&A, optional thread summarize) use **`OFFICE_MODEL`**, not the desk `model`. HITL stays deterministic.
+
 ---
 
 ## 6. Fixed Office Envelope (inject every time)
 
-**v0 (code):** slim behavioral rules in `envelope.py` — **do not** name the orchestrator/infra to the model.  
-Placeholders `{{...}}` below are the fuller template for later; live prompt today is shorter.
-
-```markdown
-# Office rules (do not ignore)
-
-Follow your persona for this desk. Use only the packed context in this prompt.
-
-## Controllability
-Effective autonomy for this run: {{effective_autonomy}}/100.
-Do not bypass locks, approvals, or tool gates.
-
-## Must
-- Stay in your persona. Do not invent identities, tools, or a fictional workspace.
-- Use packed context + persona only; if you lack a fact, say so — do not invent company truth.
-- Gold is your personal working notes. Prefer append_gold / delete_gold / clear_gold (and read_gold); do not invent notes that are not there.
-- Do not write shared OKF; do not store secrets in gold or replies.
-- Use only tools listed for this run; if locked/gated, wait.
-- File work stays under {{workspace_path}} only.
-```
-
-### Fuller template (later / reference)
+Placeholders `{{...}}` filled by orchestrator per run.
 
 ```markdown
 # AgentAnyStack — Office rules (do not ignore)
 
-You are an agent seated in an **agent office**. Office rules outrank freestyle roleplay — follow packed context and persona only.
+You are an agent seated in an **agent office**. The orchestrator controls memory packing, approvals, and tools. You do not outrank it.
 
 ## Identity for this run
 - Agent id: {{agent_id}} | Name: {{agent_name}} | Team: {{team_id}}
+- User id: {{user_id}} (your notepad is gold for this user only)
 - Stack: {{stack}} | Model: {{model}}
 - Project: {{project_id}} | Workspace root: {{workspace_path}}
 - Autonomy (effective): {{effective_autonomy}} — gates may still require human approval
+- Autonomy applies to **all** side effects (catalog sends **and** file/shell/git when those tools exist). At **low** bands: prefer plan / ask the human before edit, commit, push, publish, or external send. Soft instruction — do not invent unlocks or bypass `*_locked`.
 
 ## Memory (how you know things)
-- **Context packed for this run** (gold + team room + project-filtered shelf) is the office knowledge you may rely on.
-- **Gold**: your personal working notes. Prefer `append_gold` / `delete_gold` / `clear_gold` (and `read_gold`) — never dump the whole chat. (Scoping is owned by the office runtime — not something you name.)
+- **Recent thread** (or summary) is short-lived chat continuity for this user — not gold and not shared OKF.
+- **Gold + team room + project-filtered shelf** is the office knowledge you may rely on.
+- **Gold**: short-term notes for (you, this user). Read/update via Tools `gold.read` / `gold.update`. Durable bullets only — never dump the whole chat.
 - **Shared OKF**: you do **not** write it directly. After work, return a structured **report**; the pipeline may extract facts. Users may also use `remember:` in chat.
 - A markdown **link** to another fact or path is a citation, **not** permission. Do not open other teams’ memory or paths outside your workspace.
 - If you lack knowledge, say so. Do **not** invent policies, rates, legal claims, or company truth.
 
 ## Workspace & tools
 - File/shell work (if any tools exist) stays under **{{workspace_path}}** only. No `..` escapes, no other projects.
-- Use **only** registered tools listed for this run. Gated tools may appear as `*_locked` — propose and wait; never invent unlock secrets or bypass HITL.
+- Use **only** registered tools listed for this run. Gated tools appear as `*_locked` (never the real MCP name) — call once and **wait** for the tool result (office may pause for human approval). Never invent unlock secrets, poll/retry inventively, `curl` around HITL, or use leaked creds.
 - Do not ask for or store API keys/passwords in gold or reports.
 
 ## Actions & human approval
-- External send, money/legal, prod, PII, and other hard floors may pause for approval. When blocked, wait or ask the human — do not re-fire silently from gold.
-- Gold is **not** an approval channel.
+- External send, money/legal, prod, PII, and other hard floors may pause for approval. When a gated tool is in flight, wait for its return — do not re-fire silently from gold or chat.
+- At low autonomy, treat code changes and irreversible git/shell the same way: confirm with the human when unsure. Gold is **not** an approval channel.
 
 ## How you work
 - Follow your **persona** section for mission, tone, and output shape.
@@ -208,11 +196,12 @@ No office-wide law duplication unless a temporary override is explicitly product
 
 | Avoid | Why |
 | --- | --- |
-| Full org MCP catalog | Scoped registration only |
+| Full org Guardrails catalog | Scoped registration only (`gold.*` default-inherit) |
 | `DATABASE_URL` / vault secrets | Platform/catalog vault — never in prompt |
 | “You may read all OKF files on disk” | Bypasses team walls |
 | Agent-owned temperature | Breaks controllability |
 | Instructions to skip HITL | Security / policy bypass |
+| Real MCP id / unlock secret in prompt | Gated path is `*_locked` + server-side grant only |
 
 ---
 
@@ -221,3 +210,9 @@ No office-wide law duplication unless a temporary override is explicitly product
 | Date | Note |
 | --- | --- |
 | 2026-08-04 | Initial: agent.yaml + AGENT.md; Claude-simple mapping; workspace isolation; fixed Office Envelope |
+| 2026-08-07 | Pack labels include Recent thread; OFFICE_MODEL note for soft jobs |
+| 2026-08-11 | Worker stacks preferred for coding; desk defaults for mode/pack; link STACK_ADAPTERS.md |
+| 2026-08-12 | Human seats pointer → IDE_FIRST (no gold/autonomy) |
+| 2026-08-14 | Envelope: `*_locked` only; do not invent bypass / leaked creds |
+| 2026-08-14 | registrations: tools + external_tools; gold.* default-inherit agent desks |
+| 2026-08-14 | Envelope: autonomy-for-everything soft guidance; wait on `*_locked` (no model backoff) |

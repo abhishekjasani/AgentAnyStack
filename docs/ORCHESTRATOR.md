@@ -1,18 +1,10 @@
 # Orchestrator — Control Plane
 
-The orchestrator is **not an LLM persona**. It is the bridge: routes messages, packs context, runs write/action gates, triggers humans, and keeps operational books.
+The orchestrator is **not an LLM persona**. It is the bridge: routes messages, packs context, runs write/action gates, triggers humans, and keeps operational books. Almost everything is **deterministic algorithm**; one fenced LLM step (the memory extractor) is the exception.
 
-**Mostly deterministic** (pack, gold tools, HITL cards, autonomy, journal). **Soft LLM jobs** use **`office/orchestrator.yaml`** (`model` / toggles — Team → Office → Configure), not the desk’s `agent.model`:
-
-| Soft job | Uses |
-| --- | --- |
-| OKF post-run extract | `orchestrator.yaml` → `model` when `okf_extract_enabled`; soft LLM via `okf_extract_llm`, `remember:` via `okf_extract_remember_lines` |
-| Office Q&A phrasing (optional) | same `model` when `office_qa_llm` |
-| Desk persona chat / tools | `agent.model` |
-
-Env `OFFICE_MODEL` / related seeds that YAML only when the file is missing.
-
-**Status:** core slices built (chat, gold tools, OKF extract/export, channel, HITL, Stacks). See [architecture/00_MAP.md](./architecture/00_MAP.md).
+**Status:** design (agreed through 2026-08-14; not fully built)
+**Target runtime:** **Python / FastAPI** (async) — see [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [V0_SCOPE.md](./V0_SCOPE.md). This repo’s Fastify app is a behavior reference only.
+**Related:** [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [CONNECT.md](./CONNECT.md) · [ANALYTICS.md](./ANALYTICS.md)
 
 ---
 
@@ -51,21 +43,39 @@ Competitors sell agents. We sell **an office with a volume knob on autonomy, a r
 
 ### 2.2 Context packing (memory read)
 
-- Compute `C(a, p, u)` — **gold(a,u)** + whole **team** (all users’ OKF; `created_by_user` is audit-only) + project-filtered floor / link-share / org
+- Compute `C(a, p, u)` — **recent_thread(u)** (~7 days or last N turns, char-capped; optional pack-time summary) + **gold(a,u)** + whole **team** OKF + project-filtered floor / link-share / org  
+  See [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) formulas
+- `recent_thread` is labeled **Recent thread** / **Recent thread summary** — **not** gold, **not** OKF
+- Prefer user messages; light trim of assistant turns; hard budget so thread does not crowd memory
 - Derive `run.project` from the agent's workspace / grant (registry lookup)
-- Multiple users may run the **same agent** concurrently — separate packs per `user_id`
+- Multiple users may run the **same agent** concurrently — separate packs per `user_id` (thread + gold are per user)
 - Log what was packed (transparency)
 
 ### 2.3 Memory write pipeline
 
-- Collect report + artifacts → extractor → Zod → stamp (`created_by_user`) → upsert → trust ladder → **DB** (+ optional OKF export)
+- Collect report + artifacts → extractor (**office model**, not `agent.model`) → schema validate → stamp (`created_by_user`) → upsert → trust ladder → **DB** (+ optional OKF export)
 - See [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md)
 
-### 2.4 Capabilities (MCP / skills / API)
+### 2.3.1 Office model (soft orchestrator jobs)
 
-- Org **catalog** (admin): MCP, skills, API+creds
-- **Agent-level registration only** (no team/floor ACL matrix in v1)
-- Direct vs **HIL-gated `_locked` wrappers**; grants after Accept; agent executes MCP under `run_id` (+ `user_id`)
+Orchestrator remains a **deterministic spine** (route, pack filters, HITL, journal). Soft LLM jobs use a configurable **office model**, not the desk persona model:
+
+| Job | Model |
+| --- | --- |
+| Desk chat / agent run | `agent.yaml` → stack + `model` |
+| OKF soft extract | **`OFFICE_MODEL`** (office / `office_qa_model`) |
+| Office Q&A phrasing | **`OFFICE_MODEL`** |
+| Optional recent-thread summarize at pack | **`OFFICE_MODEL`** |
+| HITL approve/reject | **Deterministic** — no LLM approver (v0) |
+
+Config example: `OFFICE_MODEL` / extend `office_qa_model` in env or org settings.
+
+### 2.4 Capabilities (Guardrails catalog)
+
+- Org **catalog** (admin **Guardrails** tab): **MCP · Tools · Skills · External tools**
+- **Approvals** = HITL inbox; **Guardrails** = what may exist / `hil` / registration — not the same screen
+- **Agent-level registration only** (no team/floor ACL matrix in v1). Built-in **Tools** (`gold.read` / `gold.update`) **default-inherit agent desks**
+- Direct vs **HIL-gated `_locked` wrappers**; grants after Accept; agent executes MCP / External tool under `run_id` (+ `user_id`)
 - **v1 grant path is not hard isolation** — see §10 Security TODOs
 - See §7
 
@@ -101,15 +111,15 @@ Users may talk to the **office** without targeting an agent (`Office:` or defaul
 | Ask | Behavior |
 | --- | --- |
 | **Status** | Deterministic read of runs / activity / registry (“who is running what”) |
-| **Knowledge** | Deterministic OKF query / pack slice for current team·project scope → optional LLM **only** to phrase answer; **every claim cites** `fact_id` / `run_id` |
+| **Knowledge** | Filter OKF (scope · project · tags/FTS) → optional vector **rank inside candidates** → **top-K only** → `OFFICE_MODEL` phrases; **every claim cites** `fact_id` / `run_id` |
 | **Empty** | Say nothing found — **never hallucinate** fill |
 | **Do work** | If user asks for side effects / build — route to an **agent**, don’t fake it in office chat |
 
+**Knowledge path (detail):** do **not** dump all filtered facts into the model. Budget top-K (e.g. 5–15). Embeddings live in a separate rebuildable **`fact_embeddings`** table and only reorder prefiltered rows — never global semantic search as ACL. Full rules: [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) §4 (Office Q&A retrieval + Fact embeddings).
+
 **Not extraction:** office Q&A is a **read path**. Writing OKF still goes through the agent report pipeline / explicit `remember:` only.
 
-**Latency:** status/knowledge retrieval stays on the request path (budgeted). Full memory **extract/upsert** after agent runs stays **async** (`create_task` / BackgroundTasks / later arq) — never block chat on long extract.
-
-**Built (P12):** `POST /office/ask` — module flow + examples: [architecture/12_OFFICE_QA.md](./architecture/12_OFFICE_QA.md).
+**Latency:** status/knowledge retrieval stays on the request path (budgeted). Soft phrasing uses **`OFFICE_MODEL`**. Full memory **extract/upsert** (and embed-on-upsert) stays **async** (also **`OFFICE_MODEL`** / embed model) — never block chat on long extract or re-embed.
 
 ### Explicit non-responsibilities
 
@@ -118,7 +128,32 @@ Users may talk to the **office** without targeting an agent (`Office:` or defaul
 - Never autonomously curates/prunes the knowledge base without policy
 - Never lets an agent self-register new MCP/API mid-run
 - Does not put the **global** catalog into agent context — only that agent's registered subset (scoped injection)
+- Does not use the **desk agent model** for extract / office Q&A / thread summarize — those use **office model**
 - **v0:** no Celery; no thread-pool / multiprocessing architecture — see [IMPLEMENTATION.md](./IMPLEMENTATION.md)
+- **v0:** no LLM-based HITL approver — approvals stay deterministic
+- Does not rebuild Cursor/Claude Code/OpenCode tool harnesses — coding desks use **worker stacks** ([STACK_ADAPTERS.md](./STACK_ADAPTERS.md))
+
+---
+
+## 2.10 Desk UX knobs (configure on desk — not chat chrome)
+
+| Knob | Default location | Runtime |
+| --- | --- | --- |
+| Worker **mode** (`agent` / `plan` where SDK supports) | `agent.yaml` / desk settings | Adapter maps to stack; rare per-send override |
+| **Pack depth** (cut OKF: gold only / gold+team / full) | Desk Memory settings; pill on card | Packer respects override for that desk/run |
+| **Stack hooks** / sandbox | Adapter + policy files | Blocks → **Approval board** (same as MCP HITL) |
+| **Office policy** (e.g. require Jira ticket) | Desk policy + catalog API | Orchestrator gate — portable across stacks |
+
+Do **not** put modes + pack cutters + hook toggles + approvals on the Team chat composer. See [STACK_ADAPTERS.md](./STACK_ADAPTERS.md) §5–6.
+
+**Human seats:** no autonomy / ACTION HITL; MEMORY promotion only — [IDE_FIRST.md](./IDE_FIRST.md).
+
+### Stack hooks vs office policy
+
+- **Stack hooks** = tool safety for that runtime (e.g. Cursor `.cursor/hooks.json`) — native fs/shell/git/browser.  
+- **Office / Connect hooks (human seats)** = git/CI/stop events that build a **WorkPacket** for OKF sync (portable across IDE/cloud/CLI) — not scraping agent transcripts.  
+- **Office policy** = business rules (Jira-gated development, deploy windows) enforced by the **orchestrator** so Bedrock/Claude Code/OpenCode desks share the same rule.  
+- **Catalog `_locked`** = HITL for **office MCP/API** only. Inference: 100%. Harness: only if no native twin (§7.3).
 
 ---
 
@@ -126,13 +161,15 @@ Users may talk to the **office** without targeting an agent (`Office:` or defaul
 
 | Layer | Deterministic? |
 | --- | --- |
-| Routing, packing, project stamp, Zod, upsert, archive, catalog `hil` + timer, registration list, HITL cards / grants | **Yes** — pure algo |
-| Memory **extractor** (plain English report → candidate facts) | **No** — only LLM step; fenced by schema + citations + quarantine |
+| Routing, packing *selection*, project stamp, schema validate, upsert, archive, catalog `hil` + timer, registration list, HITL cards / grants | **Yes** — pure algo |
+| Memory **extractor** (report → candidate facts) | **No** — office-model LLM; fenced by schema + citations + quarantine |
+| Optional **recent-thread summarize** at pack | **No** — office-model LLM; output ephemeral in prompt only |
+| Office Q&A phrasing | **No** — office-model LLM; claims must cite retrieved ids |
 | Agent mid-run use of **direct** (non-HIL) MCP inside Cursor/Claude | **Not intercepted every call** — scoped by registration + injection only |
 | Prompt text (“please ask before send”) | **Soft** — not enforcement |
-| Agent reasoning | **No** — outside orchestrator |
+| Agent reasoning (desk model) | **No** — outside orchestrator spine |
 
-Honest framing: registration **scopes** what the agent may have; HITL is deterministic on the **approval / `_locked` unlock** path — not on every MCP round-trip unless proxied. Criticality **only** in the system prompt is not a guarantee.
+Honest framing: registration **scopes** what the agent may have; HITL is deterministic on the **approval / `_locked` unlock** path — not on every MCP round-trip unless proxied. Criticality **only** in the system prompt is not a guarantee. **Inference desks:** `_locked` is complete (office owns the tool list). **Harness desks:** `_locked` is complete **only for catalog-only capabilities** (no native twin, no leaked creds) — see §7.3.
 
 ---
 
@@ -215,6 +252,8 @@ Industry pattern: policy → durable queue → human (approve / reject / edit) �
 **Critical rule: orchestrator gates; agent executes.**  
 Orchestrator may see all projects/registry for packing and the board — it does **not** send WhatsApps, dial, or push git with god-access. Agents keep project/channel grants. After human decide, the decision is **translated back to that agent’s run** (same idea as Cursor/Claude ask-back), then the agent runs its tools. Trace everything with `run_id` + `user_id` (+ `approval_id` / `item_id`).
 
+**HITL is not model-decided.** Catalog `hil: follow_autonomy` + low `effective` autonomy → office **binds** `*_locked` (or denies) at session start / call time (A1/A2). The desk model only **calls a tool**; the wrapper creates the card. Envelope text (“autonomy low — wait on humans”) is a **soft hint** so the agent does not spin — it is **not** the control plane. Never rely on “if autonomy &lt; 20 ask for approval” as the only gate.
+
 ```mermaid
 flowchart TB
     subgraph Memory HITL async
@@ -289,8 +328,8 @@ Every card links: `approval_id` → `run_id` → `agent_id` → `user_id` (reque
 | Config | Applies | Purpose |
 | --- | --- | --- |
 | `autonomy` / effective (§4.1) | both | Preset: which gates auto vs HITL |
-| `hil` on catalog item | MCP / API | `always` \| `never` \| `follow_autonomy` |
-| `hil_timer_hours` | MCP / API with HIL | Temporary elevate toward autonomy; then snap back to **original** `hil` default |
+| `hil` on catalog item | MCP / External tool / optional Tool | `always` \| `never` \| `follow_autonomy` |
+| `hil_timer_hours` | MCP / External tool with HIL | Admin-started clock: treat item closer to autonomy for N hours, then **snap back** to **original** `hil` (see §7.2) |
 | `risk_class` | catalog item | **Optional** — advisory; `hil` is the operator control |
 | `action_timeout` | action | Pending human → expire reject / escalate |
 | `memory_timeout` | memory | Softer: remind; do not auto-commit on expiry |
@@ -323,8 +362,6 @@ Not “every seat in the org” by default — those three roles. Bind Accept to
 **Later — `approver_mode: strict`:** only **org admin** and/or **MCP/cred owner** (requester cannot Accept). Optional further tighten to admin-only or owner-only.
 
 Memory cards without an MCP/cred: requester ∪ org admin (cred owner N/A).
-
-**Built (P13–P14):** action card board + **effective autonomy gate** on `external_send` (allow / hitl / deny). Flows: [architecture/13_HITL.md](./architecture/13_HITL.md) · [architecture/14_AUTONOMY_GATE.md](./architecture/14_AUTONOMY_GATE.md). No run-pause / MCP grant yet.
 
 ---
 
@@ -381,7 +418,7 @@ Two layers: **algo gates** (no human) and **human queue triggers**. Autonomy 0�
 
 | # | Validation | Rule | On fail |
 | --- | --- | --- | --- |
-| A1 | **Catalog `hil` + effective autonomy + timer** | Item `always` / `never` / `follow_autonomy`; use §4.1 `effective`; elevation window then snap to default | Deny / HITL / allow |
+| A1 | **Catalog `hil` + effective autonomy + timer** | Item `always` / `never` / `follow_autonomy`; §4.1 `effective`; elevation → Direct-like then snap (§7.2). **Does not** bypass A3 hard floors | Deny / HITL / allow |
 | A2 | **Autonomy band** | When `follow_autonomy`: bands on **effective** 0–20 HITL-heavy; 80–100 allowlist + hard floors | Per band |
 | A3 | **Hard floors** | External customer send, legal/binding, PII/PHI, money, prod — never auto at 100 without admin | Always HITL or deny |
 | A4 | **Allowlist** | Repeated human approvals of same action type + low risk may graduate to auto-allow | Else HITL |
@@ -422,6 +459,7 @@ Two layers: **algo gates** (no human) and **human queue triggers**. Autonomy 0�
 | Durable queue | Survives restart; not only in-memory |
 | One board, two card kinds | Tagged `memory` \| `action`; filter on board; shared shell, different bodies |
 | Action sync / memory async | Action pauses run; memory usually post-run |
+| `_locked` wait | Wrapper **blocks** + internal exp backoff until Accept / Reject / `action_timeout`; harness sees one slow tool — not model-driven retry (§7.3) |
 | Board + chat | Same durable card in approval board and that agent’s chat |
 | Batch, don’t interrupt | Memory: prefer inbox. Action: pause mid-run when gate fires |
 | Journal | Request → classification → human decision → deliver → ACK/outcome — append-only; link via `run_id` |
@@ -431,32 +469,74 @@ Two layers: **algo gates** (no human) and **human queue triggers**. Autonomy 0�
 | Approvers | §6.0.2 — v1 permissive (requester ∪ org admin ∪ MCP/cred owner); later strict |
 | Orchestrator ≠ free MCP user | Gated: grant unlocks **agent** to run MCP; Direct: registered only |
 | Secret never in agent context | HIL unlock is server-side Accept — not paste-into-model |
-| No LLM disposer | Humans (or deterministic allowlist) dispose |
+| No LLM disposer | Humans (or deterministic allowlist) dispose — model does not “decide” to open HITL |
 | Autonomy never bypasses hard floors | Slider cannot remove A3 / M-H5 floors without admin |
+| Elevation never bypasses hard floors | `hil_timer_hours` loosens HITL on that item only — A3 still applies (§7.2) |
+| Autonomy soft + hard | Low band = policy bundle: Gated catalog bind + MEMORY HITL + hook profile + Envelope soft text (natives may still mistake) |
+| `_locked` guarantee | Inference: complete. Harness: catalog-only (no native twin) — §7.3 |
 
 ---
 
-## 7. Capabilities catalog (MCP · Skills · API)
+## 7. Capabilities catalog (Guardrails)
 
-**v1 simplicity:** one org catalog; **grants = agent-level registration only** (no team/floor ACL matrix). Operator opens an agent in the UI → registers MCP / skill / API+creds. Agent never browses the full org catalog in its prompt — only its registered subset is injected at run start (**scoped injection**).
+**v1 simplicity:** one org catalog; **grants = agent-level registration only** (no team/floor ACL matrix). Operator opens an agent in the UI → registers MCP / skill / External tool (e.g. Firecrawl). Agent never browses the full org catalog in its prompt — only its registered subset is injected at run start (**scoped injection**). Built-in **Tools** (`gold.*`) default-inherit — see §7.1.
 
-### 7.1 Catalog kinds (no separate “Tools” tab)
+**Compose non-coding desks:** Inference connection + catalog Tools / MCP / External tools / skills is enough for Sales/Marketing/Support/BA without a new runtime class. Coding harnesses stay for heavy implement desks. See [STACK_ADAPTERS.md](./STACK_ADAPTERS.md).
 
-| Kind | What admin adds | Notes |
+### 7.0 Guardrails tab vs Approvals
+
+| Screen | Job |
+| --- | --- |
+| **Approvals** | HITL **inbox** — memory + action cards; Accept / Reject / Edit |
+| **Guardrails** | **Catalog + policy** — what exists in the org, `hil` / timer, desk registration |
+
+Guardrails is **not** a second approval queue. Autonomy slider + hard floors still live in desk/org settings; Guardrails is where capabilities and per-item `hil` are managed.
+
+v0 may **stub** the Guardrails nav (direction visible); full catalog UI is post-v0 — [V0_SCOPE.md](./V0_SCOPE.md).
+
+### 7.1 Four catalog kinds
+
+| Kind | UI label | What admin adds | Notes |
+| --- | --- | --- | --- |
+| **MCP** | MCP | Server package / URL + auth | Protocol servers |
+| **Tool** | Tools | Light **in-orchestrator desk functions** (no MCP/HTTP required) | e.g. `gold.read`, `gold.update` |
+| **Skill** | Skills | Playbook (prompt + which MCP / External tool / Tool ids it needs) | Not a server — how we do work |
+| **External tool** | External tools | HTTP API: Firecrawl, AWS, GitHub, custom REST | `baseUrl` + `secretRef`; presets + custom. **APIs only — not MCP** |
+
+**Do not confuse:**
+
+| Name | Where | What |
 | --- | --- | --- |
-| **MCP** | Server package / URL + auth | External capabilities |
-| **Skill** | Playbook (prompt + which MCP/API ids it needs) | Not a server — how we do work |
-| **API** | External product: AWS, GitHub/git, Firecrawl, custom REST | `baseUrl` + `secretRef`; presets + custom |
+| **Tools** (catalog) | Guardrails | Office-implemented desk functions |
+| **External tools** (catalog) | Guardrails | Third-party **HTTP APIs** |
+| **External agent** (Stacks) | Stacks tab | Peer agent via MCP/A2A — [STACK_ADAPTERS.md](./STACK_ADAPTERS.md) |
+| Harness natives | Cursor/OpenCode | fs / shell / git / browser — **not** a catalog kind; hooks/sandbox |
+| `tools.mode` | `agent.yaml` | `none` / `mediated` / `worker` — runtime class, not Guardrails |
 
-Native stack built-ins (e.g. Cursor git/shell) may appear as stack defaults or a thin `native` row later — do **not** duplicate MCP tool lists as a fourth taxonomy.
+Native stack built-ins stay out of the four-kind catalog.
+
+#### Tools = desk functions only
+
+Tools are **small functions the desk agent may call**, implemented by the office (not an MCP server, not an external HTTP product).
+
+| In Tools | Not Tools |
+| --- | --- |
+| `gold.read` / `gold.update` (that user’s `gold(a,u)`) | OKF extract / `remember:` pipeline |
+| Other light desk helpers (later: e.g. draft a card, read own recent_thread slice) | Office Q&A / `OFFICE_MODEL` jobs |
+| | Packing, journal, HITL disposer, catalog admin |
+| | Anything that is **orchestrator spine**, not a desk capability |
+
+**Default inherit:** built-in `gold.read` + `gold.update` are registered on **all agent desks** (`seat_kind: agent`) unless admin unregisters / denies. **Human seats** do not get gold or these Tools — [IDE_FIRST.md](./IDE_FIRST.md).
+
+Built-in gold Tools: default `hil: never` (own notepad). Custom Tools may set `hil` like MCP / External tools.
 
 Secrets **should** live in vault / env refs — never deliberately in OKF facts or agent gold. Accidental leaks possible in v1 — see §10.
 
-**Platform vs catalog:** `DATABASE_URL`, office path, process auth = **platform config** (env). Do **not** register them as agent API/creds. v0 UI: platform settings **read-only**; passwords **masked by default**, admin **may reveal**. See [IMPLEMENTATION.md §7.1](./IMPLEMENTATION.md#71-configuration-buckets--ui-v0).
+**Platform vs catalog:** `DATABASE_URL`, office path, process auth = **platform config** (env). Do **not** register them as External tools. v0 UI: platform settings **read-only**; passwords **masked by default**, admin **may reveal**. See [IMPLEMENTATION.md §7.1](./IMPLEMENTATION.md#71-configuration-buckets--ui-v0).
 
 ### 7.2 HIL policy on the catalog item (admin)
 
-When adding MCP or API/creds, admin sets:
+When adding MCP, External tool, or a custom Tool, admin sets:
 
 | Field | Values |
 | --- | --- |
@@ -464,28 +544,90 @@ When adding MCP or API/creds, admin sets:
 | `hil_timer_hours` | Optional: elevate toward autonomy for N hours, then **snap back** to the **original** `hil` set at create |
 | `risk_class` | **Optional** |
 
-No agent-level `force_hil` / inherit matrix in v1. Timer elevations are admin-started and journaled.
+No agent-level `force_hil` / inherit matrix in v1. Timer elevations are **admin-started** (not the agent, not the card requester) and **journaled** (who, catalog item, N hours, original `hil`).
+
+`hil_timer_hours` is a **clock**, not a fourth `hil` value. Stored `hil` does not change.
+
+**“Closer to autonomy” (product rule):**
+
+| Original `hil` | During elevation window | After snap-back |
+| --- | --- | --- |
+| `always` | **Direct** (`never`-like): real MCP/API bound; **no per-call HITL** | Gated again (`_locked` + card + grant) |
+| `follow_autonomy` | Treat as a **higher autonomy band** (fewer HITL trips; Direct if that band allows) | Back to desk/team/org `effective` autonomy |
+| `never` | Already Direct — timer is a no-op | Still `never` |
 
 ```text
 effective behavior at call / unlock time:
-  if within elevation window → treat closer to autonomy (per product rule)
+  if within elevation window → Direct / higher band (table above)
   else → use catalog hil default
-  follow_autonomy → autonomy 0–100 band decides HITL vs allow on the approval path
+  follow_autonomy (outside window) → autonomy 0–100 band decides HITL vs allow
 ```
+
+**Hard floors still apply (A3).** Elevation loosens **HITL on that catalog item**; it is not a license to ignore deny rules (mass WhatsApp, `npm publish`, prod deploy, PII send, …). Incident weekend: “Jira freely for 4h, still cannot publish.”
+
+**Live harness / inference sessions:** tool lists are bound at `agent.start` / session (re)bind. Elevation start or snap-back does **not** hot-swap a running loop. Recycle the TTL session at window start and expiry, or the timer is cosmetic for that desk.
 
 ### 7.3 Two pools: Direct vs Gated (`_locked`)
 
 | Pool | When | What agent runtime gets |
 | --- | --- | --- |
-| **Direct** | `hil: never`, or temporarily elevated | Real MCP/API bound — use freely mid-run (orchestrator does **not** validate every tool hop) |
-| **Gated** | `hil: always` (default HIL) | **Real MCP is never attached.** Agent only sees a **`_locked` wrapper** name |
+| **Direct** | `hil: never`, or temporarily elevated (§7.2) | Real MCP / External tool bound — use freely mid-run (orchestrator does **not** validate every tool hop) |
+| **Gated** | `hil: always` (default HIL) | **Real MCP / External tool is never attached.** Agent only sees a **`_locked` wrapper** name |
 
 Example: real server `@modelcontextprotocol/server-everything` → agent-facing `@modelcontextprotocol/server-everything_locked`.
 
 - Agent may **see and register** HIL MCPs in the UI.
-- Backend: only the `_locked` entry is wired into the agent tool list.
+- Backend: only the `_locked` entry is wired into the agent tool list. **Do not inject the real MCP name** into the agent tool list / prompt.
 - A **server-side secret** is generated when the HIL MCP is created; **never paste it into the agent chat / prompt / gold** (user instructed not to share with the agent). Accept on the approval card applies the unlock **server-side**.
-- Not 100% safe (name obscurity is weak; security = “no raw MCP + grant required”). Accepted for v1 simplicity.
+- Name abstraction is weak by itself. **Gate = capability path**, not the string `_locked`.
+
+**When `_locked` actually intercepts (honest):**
+
+| Runtime | Who owns the tool loop? | Gated catalog MCP? |
+| --- | --- | --- |
+| **Inference** (Bedrock / Claude API / Ollama + office tools) | **Office** | **Yes — 100%.** Model can only call what you listed. `_locked` → card → grant is real. |
+| **Harness** (OpenCode / Cursor / Claude Code) | **Their** agent loop | **Yes iff** that action has **no native twin** and **no leaked creds**. Else they skip `_locked`. |
+
+Harness native twins (fs, shell, git, browser, harness-local MCP the human added) are **not** `_locked` — use **stack hooks / sandbox** ([STACK_ADAPTERS.md](./STACK_ADAPTERS.md) §8). Catalog-only actions (e.g. **send WhatsApp** — Cursor/OpenCode do not ship that) behave like inference: agent must call `*_locked` → orchestrator.
+
+```text
+  Office injects *_locked (never the real MCP id)
+       ↓
+  Agent calls *_locked  →  card  →  grant  →  real MCP     ← catalog-only path
+       ↓
+  OR harness uses Shell/curl/browser + token / extra MCP   ← bypass; not gated
+```
+
+| Claim | Inference desk | Harness desk |
+| --- | --- | --- |
+| Catalog MCP `hil: always` never attached until grant | **Yes** | **Only if** harness does not also have the real server/creds |
+| Native `Write` / `Shell` / harness-local MCP always HITL | N/A | **No** — hooks/sandbox |
+| WhatsApp / niche CRM via **office-catalog** MCP only | Card before send | Card **if** they use `_locked`; **not if** token is in env and they `curl` |
+| After Accept, further hops in that grant | Not re-gated (by design) | Same |
+
+**Market as:** Inference HITL is complete. Harness HITL is complete **for catalog-only capabilities**. Do not claim “every harness tool call returns to the orchestrator.”
+
+#### Wait / grant while harness (or Inference) is mid-tool-call
+
+From the **office** view the run is paused on the action card. From **Cursor/OpenCode** the agent sees one **slow / blocking** tool call — it should **not** invent its own exp-backoff loop in the prompt.
+
+**v1 preferred:** put wait + backoff **inside the `*_locked` wrapper** (office / MCP handler):
+
+```text
+Agent:   call whatsapp_locked.send(...)     ← one tool call, stays open
+Wrapper: create action card; poll grant with exp backoff (e.g. 1s, 2s, 4s… cap)
+         Accept → return success (+ forward to real MCP)
+         Reject / action_timeout → return fail-safe error (esp. external send)
+Agent:   continues with that tool result
+```
+
+| Pattern | Use? |
+| --- | --- |
+| Wrapper **blocks** + internal exp backoff until Accept / Reject / `action_timeout` | **Yes — v1** |
+| Wrapper returns `pending` immediately; **model** retries `*_locked` | **No** — model may skip, invent, or spam |
+| Prompt “wait and retry later” as the only waiter | Soft only — not the waiter |
+
+Cap wait with `action_timeout` (§6.0.1). Do not wait forever (SDK / HTTP / worker idle limits). If the stack **drops** long-open tool calls: return `pending` + `approval_id` quickly, then **office resumes** the same `run_id` after Accept (`agent.send` / continue) — still not model-driven backoff.
 
 ```mermaid
 sequenceDiagram
@@ -495,14 +637,17 @@ sequenceDiagram
     participant H as Human card
     participant M as Real MCP
 
-    A->>L: call gated capability
+    A->>L: call gated capability (tool call stays open)
     L->>O: no active grant for run_id
     O->>H: approval card (MCP name OK)
+    loop Exp backoff until decide or action_timeout
+        L->>O: poll grant
+    end
     H->>O: Accept
-    O->>A: short-TTL grant for this agent + run_id
-    A->>L: retry / continue with grant
+    O->>L: short-TTL grant for this agent + run_id
     L->>M: forward (agent owns session / intermediates)
-    M-->>A: stream / results under same run_id
+    M-->>L: result
+    L-->>A: tool result (unblocks Cursor / Inference)
     Note over O,A: grant expires → locked again
 ```
 
@@ -513,9 +658,12 @@ sequenceDiagram
 | Mechanism | Role |
 | --- | --- |
 | Registration + scoped injection | Deterministic **scope** — what this agent may request / have |
-| Direct MCP mid-run | Free use inside adapter — **not** per-call orchestrator HITL |
-| `_locked` + card + grant | Deterministic **gate** before real MCP is usable — **best-effort v1**, not hard isolation (agent runs tools after unlock; no full proxy) |
-| Prompt “ask before send” | Soft only |
+| Direct MCP mid-run (`never` or elevated) | Free use inside adapter — **not** per-call orchestrator HITL |
+| `_locked` + card + grant (wrapper wait + backoff) | Deterministic **gate** before real catalog MCP is usable — **complete on Inference**; **complete on harness only when no native twin / leaked creds** |
+| Stack hooks / sandbox | Gate **native** harness tools (`npm publish`, shell) — not `_locked` |
+| Envelope autonomy band text | **Soft** — autonomy applies to *everything* as instruction (incl. code edits); model may still mistake. Complements hooks; never replaces `_locked` for catalog sends |
+
+**Autonomy is for everything:** low `effective` selects a **policy bundle** (bind Gated catalog items, MEMORY HITL-heavy, optional stricter pack / `mode: plan`, **hook profile**, **soft envelope**). Soft prompt covers natives the office does not intercept. Hard layers cover what must not fail. See [STACK_ADAPTERS.md §8.2](./STACK_ADAPTERS.md#82-low-autonomy-on-harness-desks-cursor--opencode).
 
 ### 7.5 Explicit non-goals (v1)
 
@@ -524,6 +672,7 @@ sequenceDiagram
 - No relying on paste-key-into-model as the unlock mechanism  
 - Full MCP proxy that inspects every byte — optional later; `_locked` + grant is the simple path  
 - Claiming `_locked` is 100% safe against a compromised or malicious agent runtime  
+- Claiming harness `_locked` intercepts **native** Cursor/OpenCode tools (fs/shell/git/browser)
 
 ---
 
@@ -544,8 +693,8 @@ domain: sales
 channels: [phone, whatsapp]      # side-effect surfaces (descriptive)
 stack: openai-compatible         # or cursor | claude | ...
 workspace: null | path/to/repo
-# capabilities: registered per agent instance in UI (MCP / skill / API ids)
-# — not a team-level grant list in v1
+# capabilities: registered per agent in Guardrails (MCP / Tool / Skill / External tool ids)
+# — not a team-level grant list in v1; gold.* Tools default-inherit agent desks
 ```
 
 Coding agents are just `domain: eng` + stack defaults + registered APIs/MCPs as needed. Same office, same memory rules, same knob.
@@ -598,7 +747,7 @@ Do not market these as solved. Accepted for v1; track for hardening.
 
 | Gap | Reality | Later |
 | --- | --- | --- |
-| **`_locked` / grant** | Accept → server-side grant → **agent** runs MCP under `run_id` is best-effort; not a hard sandbox | Full MCP proxy, short-lived scoped tokens, no raw key in agent context, stronger runtime isolation |
+| **`_locked` / grant** | Inference: intercept is complete. Harness: catalog-only path only (no native twin / leaked creds). After Accept, agent runs MCP under `run_id` — not a hard sandbox / full proxy | Full MCP proxy, short-lived scoped tokens, no raw key in agent context, stronger runtime isolation |
 | **Creds in gold** | Free-text `gold(a,u)` may accidentally store API keys | Detect/redact on write; size caps; easy reset; UI warning |
 | **Creds in OKF** | Fact bodies may contain secrets; DB ≠ encryption-at-rest / field scrub | Scrub pipeline; encrypt sensitive; purge + key rotation on incident |
 | **Intended secret path** | Catalog vault / env refs — never in agent.yaml | Keep; audit accidental leaks |
@@ -622,3 +771,11 @@ Memory-side detail: [MEMORY_ARCHITECTURE.md §9](./MEMORY_ARCHITECTURE.md#9-secu
 | 2026-08-04 | Platform config ≠ catalog; v0 read-only UI + admin password reveal — link IMPLEMENTATION §7.1 |
 | 2026-08-04 | Link AGENT_DEFINITION.md (yaml+md, Office Envelope, workspace by stack) |
 | 2026-08-04 | Link V0_SCOPE, ANALYTICS, CONNECT — channel on runs; journal for trust surface |
+| 2026-08-07 | recent_thread in pack; OFFICE_MODEL for extract / office Q&A / optional thread summarize; HITL stays deterministic |
+| 2026-08-10 | §2.9 knowledge: filter → top-K rank (optional `fact_embeddings`) → cite-bound phrase; link MEMORY §4 |
+| 2026-08-11 | §2.10 desk UX knobs; stack hooks vs office policy; link STACK_ADAPTERS.md |
+| 2026-08-12 | Human seats: MEMORY-only HITL; Connect WorkPacket hooks |
+| 2026-08-12 | Catalog compose for non-coding desks; link STACK_ADAPTERS direction |
+| 2026-08-14 | §7.2 elevation timer mapping + session recycle + hard floors; §7.3 `_locked` = capability path (Inference 100%; harness iff no native twin) |
+| 2026-08-14 | §7 Guardrails tab vs Approvals; four kinds: MCP · Tools · Skills · External tools; gold.* default-inherit agent desks only |
+| 2026-08-14 | HITL not model-decided; `_locked` wrapper wait + exp backoff; autonomy soft+hard bundle (link STACK §8.2) |

@@ -44,7 +44,7 @@ Buyers and operators need proof: who ran what, with what knowledge, which APIs/M
 ## v0 rule
 
 - **UI:** Analytics nav **stub** only (“coming” / empty table headers OK).
-- **Must:** structured **journal events** on every run (`run_id`, `agent_id`, `user_id`, `team`, `project_id`, `stack`, `model`, `effective_autonomy`, `channel`, status/times) so the tab can light up later without re-instrumenting.
+- **Must:** structured **journal events** on every run (`run_id`, `agent_id`, `user_id`, `channel`) so the tab can light up later without re-instrumenting.
 
 No fancy BI in v0.
 

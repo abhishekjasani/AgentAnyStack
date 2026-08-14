@@ -8,6 +8,160 @@ AgentAnyStack is an **office for agents**. Each story = **one-line real business
 
 ---
 
+## Pitch opener — org direction + AI confidence gap
+
+**Does this example make sense?** **Yes** — if you frame it as *business alignment + governed AI work*, not “we force every line of AI code to be human-reviewed” (that’s Sonar/CI’s job). The leap eng → whole org works: if **devs** already skip verification, sales/support/legal agents with **no** shared rules or approvals are worse.
+
+### Punch lines
+
+1. **Your org should sync and move in one direction — aligned with the business.**  
+2. **Surveys show many developers don’t always review AI-generated code** (e.g. Sonar *State of Code*: only **~48% always** check AI-assisted code before commit — so roughly **half don’t always verify** — while **~96%** don’t fully trust that code is correct). *[Cite: Sonar State of Code Developer Survey / coverage such as IT Pro, Jan 2026.]*  
+3. **If eng already has a confidence gap, how will the rest of the org trust AI doing “correct” work?** That’s why **AgentAnyStack** — an office where agents share direction, memory boundaries, and human gates.
+
+### Industry problems → how AgentAnyStack helps
+
+| Industry problem | What goes wrong | How AgentAnyStack addresses it |
+| --- | --- | --- |
+| **Agents don’t share business direction** | Each Cursor/Claude/SaaS chat invents its own “truth” | **Scoped OKF** (team room + shelf × project) packed into every run — org/floor policies + team facts |
+| **No shared workplace** | Roles, memory, approvals split across tools | **Agent office** — desks, teams, visible activity, one orchestrator |
+| **Blind trust / verification debt** | AI acts (send, deploy, CRM write) with weak review | **Controllability** — autonomy 0–100 + **ACTION HITL**; MEMORY HITL for promotion/sensitive facts |
+| **“Is it doing the right work?”** | No audit of who ran what with what context | **Run journal** (`run_id`, `user_id`, agent, channel) + activity / Analytics path |
+| **Knowledge doesn’t cross roles** | BA epic never reaches Dev/Tester cleanly | Pack + extract; Connect / IDE sidecar / human seats for fan-in/out |
+| **Vendor lock / tool sprawl** | Org stuck in one coding agent product | **BYO stacks** (Inference / harness); compose desks with MCP/API (Firecrawl, CRM…) |
+| **Noise becomes “company truth”** | Unreviewed chat → shared wiki soup | Pipeline extract + trust ladder; promote only via MEMORY board |
+
+### What we do **not** claim
+
+- We are **not** a replacement for PR review, Sonar, or security scanners.  
+- We **do** make sure agents **see the same business rules**, **side effects need approval when risk is high**, and **operators can see and govern** AI work across desks — so the org can move **one direction** with eyes open.
+
+### Speaker notes (60–90s)
+
+**Say first:** *“Half the time, even engineers don’t always verify AI code — and almost nobody fully trusts it. Now scale that to sales and support agents with no shared playbook.”*
+
+Then: AgentAnyStack is the **office**: shared memory = business direction; autonomy + approvals = confidence gates; desks = who does what; any stack = keep Cursor/OpenCode/Bedrock. We’re not another coder — we’re how the **company** stays aligned while AI works.
+
+---
+
+## More punch-line stories (survey-backed)
+
+Each story = **stat → business fear → AgentAnyStack move**. Cite on slides; don’t invent numbers. We still **don’t** claim to replace PR review, DLP, or identity discovery products.
+
+### Story A — Verification debt (eng → whole org)
+
+**Punch:** *Half the time, even engineers don’t always verify AI code — and almost nobody fully trusts it.*
+
+| | |
+| --- | --- |
+| **Survey** | Sonar *State of Code*: **~96%** don’t fully trust AI code is correct; only **~48% always** review before commit. *[IT Pro / Sonar, 2026]* |
+| **Fear** | If **devs** skip checks, sales/support/legal agents with no playbook will ship “truth” anyway |
+| **AAS** | Shared OKF = business direction; **ACTION HITL** on send/deploy/CRM; **MEMORY HITL** before chat becomes company truth; journal = who ran what |
+
+**Speaker notes:** Start with Sonar. Pivot: we’re not Sonar — we’re the **office gate** so the rest of the company doesn’t copy eng’s verification debt.
+
+---
+
+### Story B — Shadow AI vs executive confidence
+
+**Punch:** *Leaders think they can see AI. Half the workforce already uses tools without approval.*
+
+| | |
+| --- | --- |
+| **Survey** | Okta *AI Agents at Work 2026*: **90%** of execs confident in visibility; **95%** confident employees use AI responsibly — but **52%** of employees use AI **without approval** (often personal accounts). Of those, **54%** paste internal mail, **45%** HR data, **39%** confidential docs. *[Okta / Apprize360]* |
+| **Fear** | Policy lives in a PDF; work happens in personal ChatGPT |
+| **AAS** | **BYO stacks on the office** (sanctioned Inference / harness) + desk identity (`user_id`, `run_id`); pack org rules into the run; HITL on side effects; don’t ban tools — **seat them** |
+
+**Speaker notes:** “You don’t have an AI strategy. You have **shadow AI** plus a confidence slide.” Offer the office as the **sanctioned workplace** so people stop going around IT.
+
+---
+
+### Story C — Unknown agents in the building
+
+**Punch:** *Most enterprises already have AI agents they didn’t know were running.*
+
+| | |
+| --- | --- |
+| **Survey** | CSA (Jan 2026, n≈418): **82%** found **unknown AI agents** in their environment; **65%** had agent-related incidents in 12 months (data exposure **61%**, disruption **43%**, financial loss **35%**). **68%** still report high visibility confidence. *[Cloud Security Alliance / Token]* |
+| **Fear** | Scripts, SaaS automations, and LLM plugins acting with no owner |
+| **AAS** | **Desks = named agents** with team, stack, registrations; no anonymous god-agent; activity + journal; catalog + scoped MCP (not “whatever plugin the intern installed”) |
+
+**Speaker notes:** CSA is identity/discovery-heavy. Be honest: we don’t scan the whole VPC. We **stop the office from becoming another unknown fleet** — every agent has a seat, owner, and audit trail.
+
+---
+
+### Story D — Agents unmonitored while confidence rises
+
+**Punch:** *Agent fleets doubled. Monitoring didn’t. Confidence went up anyway.*
+
+| | |
+| --- | --- |
+| **Survey** | Gravitee *State of AI Agent Security 2026* (750 leaders): fleets ~**doubled** in four months; mean monitoring coverage **~52%** (≈**half** of production agents unsecured/unmonitored); visibility **confidence** rose (**~83% → ~92%**) while coverage barely moved. *[Gravitee, Apr 2026]* |
+| **Fear** | “We’re fine” is a lagging indicator |
+| **AAS** | Every office run is journaled (`run_id`, agent, user, channel, pack pills); Approvals board = visible gates; Analytics path later — **controllability you can see**, not a vibe |
+
+**Speaker notes:** Use Gravitee for the **confidence–reality inversion**. Our wedge: operators **see** desks, context, and HITL — not another invisible agent estate.
+
+---
+
+### Story E — Policy exists; workers can’t find it
+
+**Punch:** *Execs say AI policy is clear. More than half of workers say it isn’t.*
+
+| | |
+| --- | --- |
+| **Survey** | Okta 2026: even when leaders call policies “very clear,” **57%** of knowledge workers disagree (unclear, hard to find, or unusable). |
+| **Fear** | Playbooks in Confluence; agents never see them |
+| **AAS** | **Hierarchy = memory scope** — org/floor shelf packed into runs; `remember:` / extract → OKF with promotion HITL; agents don’t “know policy” unless it’s **in the pack** |
+
+**Speaker notes:** Don’t sell another wiki. Sell **policy that shows up in the agent’s context** every run.
+
+---
+
+### Story F — Governance delay vs shadow speed
+
+**Punch:** *Governance delays AI by months. Employees don’t wait.*
+
+| | |
+| --- | --- |
+| **Survey** | AvePoint / Osterman *State of AI 2026* (750 leaders): nearly **9 in 10** delayed genAI/agentic rollouts **~6 months** on security/governance; **~47%** of employees use agents daily/weekly; **~88%** of orgs had ≥1 agent-related security incident last year; unsanctioned-tool **blind spot nearly tripled** (2025→2026). |
+| **Also** | Microsoft + LinkedIn Work Trend Index (2024): **~78%** of AI users bring **their own tools** to work. Gartner: **69%** of cyber leaders suspect/evidence prohibited public GenAI; **>40%** of orgs predicted to see shadow-AI security/compliance incidents by **2030**. |
+| **Fear** | Ban → shadow; slow CoE → shadow; only a **usable sanctioned office** wins |
+| **AAS** | Fast path: Inference + catalog MCP (Firecrawl, CRM, Slack) + harness for dev; **HITL** instead of a six-month freeze; human seats / IDE-first so eng keeps Cursor **and** org memory |
+
+**Speaker notes:** “If official AI is slow, unofficial AI is instant.” We’re the **fast sanctioned lane**: same tools they want, with desks, memory, and gates.
+
+---
+
+### Story G — One direction (close the loop)
+
+**Punch:** *Your org should sync and move in one direction — aligned with the business.*
+
+| Fragmented today | One direction with AAS |
+| --- | --- |
+| Personal ChatGPT + Cursor + Salesforce Einstein + a Zapier agent | **One office**, many desks, few runtime kinds |
+| Each chat invents pricing / policy | **Team room + shelf OKF** packed every run |
+| No owner, no `run_id` | Desk + user + journal |
+| Send/deploy with hope | Autonomy + **ACTION HITL** |
+| Wiki rot / hallucinated “facts” | Extract pipeline + **MEMORY** promotion |
+
+**Speaker notes:** Close with the original line. Surveys prove **trust, visibility, and shadow AI**. AgentAnyStack is how the **business stays one organism** while people keep their stacks.
+
+---
+
+### Cite hygiene (for slides)
+
+| Stat | Source (verify before external publish) |
+| --- | --- |
+| 96% / 48% AI code trust & review | Sonar State of Code Developer Survey (~2026) |
+| 52% unapproved AI use; 90% exec visibility confidence | Okta *AI Agents at Work 2026* |
+| 82% unknown agents; 65% incidents | CSA + Token, Apr 2026 press |
+| ~52% mean agent monitoring coverage | Gravitee Agent Security 2026 |
+| ~78% BYO AI tools at work | Microsoft + LinkedIn Work Trend Index 2024 |
+| 69% suspect prohibited GenAI; 40% incident forecast by 2030 | Gartner (cyber leader survey / predictions) |
+| ~6 month AI delay; unsanctioned blind spot up | AvePoint / Osterman State of AI 2026 |
+
+---
+
 ## Big picture
 
 ```mermaid
@@ -622,3 +776,5 @@ flowchart TD
 | 2026-08-03 | Each story = real 1-liner business |
 | 2026-08-03 | Speaker notes on big picture, all 22 stories, and cheat sheet |
 | 2026-08-03 | Link IMPLEMENTATION.md for coding-agent handoff |
+| 2026-08-12 | Pitch opener: org sync + AI confidence gap (Sonar-style survey) → AAS problem/solution table |
+| 2026-08-13 | Survey punch-line stories A–G (shadow AI, unknown agents, monitoring, policy, governance delay) |

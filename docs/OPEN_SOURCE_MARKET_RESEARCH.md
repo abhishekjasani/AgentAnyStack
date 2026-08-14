@@ -189,7 +189,7 @@ Most other GitHub “similars” only overlap **1–2** pieces:
 | **Closest overall** | [submato/ai-team](https://github.com/submato/ai-team) | Cursor SDK + multi-agent UI, but **desktop/Electron + kanban**, not web office + machine workers |
 | Visual office / sim | harishkotra/agent-office, pixel-agents, agent-virtual-office | Characters/desks; **no** Cursor ChatOps control plane |
 | Cursor orchestration inside Cursor | MCP orchestrators, KS-Cursor-Orchestrator, cursor/plugins orchestrate | Runs **inside Cursor chat/MCP**, not a standalone office product |
-| Multi-CLI harness | agent-orchestrator, thurbox, agentsmesh | Parallel terminals/worktrees; usually **not** Cursor SDK office + role chat |
+| Multi-CLI harness | agent-orchestrator, thurbox, agentsmesh, **Spotify Xirp** | Parallel terminals/worktrees / ADE; usually **not** multi-domain office + HITL + OKF hierarchy |
 | Config packs | Prathmesh2000/cursor_agent-orchestrator | Rules/skills/roles inside the IDE — **not** a deployable server |
 
 So: **similar names and metaphors exist; a near-clone of this architecture is rare.** For OSS, pick a distinct public name so you don’t lose SEO to pixel sims.
@@ -218,6 +218,7 @@ Mostly **visual monitors / simulations**, not full ChatOps control planes.
 | **agent-teams-ai** | Desktop multi-provider agent teams |
 | **submato/ai-team** | Cursor SDK + CEO chat + kanban (close feature neighbor) |
 | **Cursor MCP orchestrators** | Propose / confirm / execute multi-agent from Cursor chat |
+| **Spotify Xirp** | See §4.4 — meta-harness ADE (closest “altitude,” different product) |
 
 Living index: [andyrewlee/awesome-agent-orchestrators](https://github.com/andyrewlee/awesome-agent-orchestrators).
 
@@ -225,21 +226,60 @@ Living index: [andyrewlee/awesome-agent-orchestrators](https://github.com/andyre
 
 LangGraph, CrewAI, AutoGen, Semantic Kernel, OpenHands SDK, and similar — orchestration libraries rather than office UX products.
 
+### 4.4 Meta-harness ADE — Spotify Xirp (same altitude, not the same product)
+
+**Sources:** [xirp.spotify.com](https://xirp.spotify.com/) · [Portal blog — Introducing Xirp](https://portal.spotify.com/blog/introducing-xirp) (Aug 2026).
+
+**What Xirp is:** Spotify’s **vendor-neutral agentic development environment** for engineering — a **meta-harness** above coding agents (Claude Code, Gemini CLI, OpenAI Codex, …). Reported internal use: many engineers, tens of thousands of sessions; beta via Portal.
+
+| Xirp capability | Notes |
+| --- | --- |
+| Parallel sessions | Tens of concurrent coding-agent sessions; **git worktree** isolation per session |
+| Vendor neutrality | Context/state decoupled from one harness — switch tools mid-project |
+| Cost / model routing | Route jobs for price-performance (incl. self-hosted models) — claimed |
+| + Portal | Org catalog (architecture, deps, ownership) into sessions; transcripts/metadata back |
+
+**Overlap with AgentAnyStack (honest):**
+
+| Idea | Xirp | AgentAnyStack |
+| --- | --- | --- |
+| Sit above coding vendors | Yes | Yes — [STACK_ADAPTERS.md](./STACK_ADAPTERS.md) |
+| Don’t lock to one coding runtime | Yes | Yes |
+| Shared org context into runs | Portal | Pack `C(a,p,u)` / OKF / [IDE_FIRST.md](./IDE_FIRST.md) |
+| Session continuity beyond one tool | Yes | TTL session + resume + memory |
+
+**Difference (do not market as “we’re Xirp”):**
+
+| | **Xirp** | **AgentAnyStack** |
+| --- | --- | --- |
+| Center of gravity | Eng coding velocity + parallel ADE | **Agent office** — desks, teams, floors |
+| Personas | Mostly developers + coding agents | Eng **and** sales, support, BA, legal, … |
+| Parallelism metaphor | 50+ worktrees on a codebase | Multi-desk / multi-user + HITL |
+| Memory | Portal catalog / session state | Gold + OKF hierarchy × project |
+| Controllability | Eng ADE focus | Autonomy 0–100, dual HITL, `_locked` |
+| Distribution | Spotify Portal / eng ADE | Office-as-git, Connect, IDE sidecar |
+
+**One-liner for positioning:** same **altitude** (meta-harness above coding agents); different **building** — Xirp = ADE for eng scale; AgentAnyStack = office for company workflows + scoped memory + gates.
+
+**Steal the signal, not the wedge:** vendor-neutral adapters; context that survives harness switches; org knowledge as multiplier. **Don’t** compete primarily on “50 worktrees.”
+
 ---
 
-## 5. Where Agent Office sits
+## 5. Where AgentAnyStack sits
 
 ```
 Visual office UIs (pixel-agents, agent-office forks)
         ↑ overlap: desks, expressions, live status
-Agent Office: chat + desks + role agents + self-hosted workers + Cursor SDK
+AgentAnyStack: office + any-stack + HITL + OKF/gold + Connect / IDE_FIRST
+        ↑ overlap: multi-agent SWE coordination / vendor-neutral workers
+Meta-harness ADE (Spotify Xirp) — eng session fleet + worktrees + Portal
         ↑ overlap: multi-agent SWE coordination
 Harnesses (AO, Tembo, Factory, Devin, OpenHands Control Plane)
         ↑ overlap: enterprise governance
 Control planes (Lyzr, watsonx, Omnithium) — usually not coding-desk-first
 ```
 
-**Narrow wedge:** self-hostable **Agent Office control plane** (chat grammar, desks, activity, My Machines workers, gold memory) — between cute visualizers and full Devin/Factory SaaS.
+**Narrow wedge:** self-hostable **agent office** (desks, teams, scoped memory, controllability, git-portable env, BYO Cursor/Claude Code/OpenCode) — between cute visualizers, eng-only ADEs like Xirp, and full Devin/Factory SaaS.
 
 ---
 
@@ -288,6 +328,7 @@ Axes to score later (1–5) for Agent Office vs Tembo vs OpenHands vs pixel-agen
 - Commercial coding agents: Devin, Factory, Tembo, Cursor, Codex, Amp, Copilot, Jules  
 - Enterprise control planes: IBM watsonx Orchestrate, Lyzr, Omnithium, Agentforce, Copilot Studio, Ema, CrewAI  
 - GitHub / lists: awesome-agent-orchestrators, pixel-agents, agent-virtual-office, agent-desk, ai-team  
+- Meta-harness ADE: [Spotify Xirp](https://xirp.spotify.com/) / [Portal introducing Xirp](https://portal.spotify.com/blog/introducing-xirp) (2026-08)  
 
 ---
 
@@ -295,8 +336,8 @@ Axes to score later (1–5) for Agent Office vs Tembo vs OpenHands vs pixel-agen
 
 | Date | Change |
 | --- | --- |
+| 2026-08-11 | §4.4 Spotify Xirp — same altitude meta-harness; differentiate office + HITL + OKF; update §5 map |
 | 2026-08-03 | Link IMPLEMENTATION.md; Python orchestrator + Apache-2.0 CE still preferred |
 | 2026-08-02 | Target hierarchy: team → floor → org; floor connect lines; office nesting deferred |
 | 2026-07-29 | Rename framing to AgentAnyStack; §0 naming/ToS; link PRODUCT_OVERVIEW |
 | 2026-07-21 | Initial research doc: models, commercial, OSS, positioning |
-| 2026-08-03 | Link IMPLEMENTATION.md; Python orchestrator + Apache-2.0 CE still preferred |

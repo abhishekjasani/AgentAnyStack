@@ -10,7 +10,7 @@
 
 The product **is an office where agents work** — a great place to work for agents. Desks, **teams**, optional **floors** (with collaboration links), shared memory, and visible activity. Users walk in, see who is working on what, talk to agents by role, and everything the agents learn stays in the right room.
 
-**Any stack** is the headline *feature* of this office, not the core: any agent can get a desk here — Cursor, Claude, a local model — and they all work under the same roof, same rules, same memory.
+**Any stack** is the headline *feature* of this office, not the core: desks for coding, sales, support, BA, … under one orchestrator. Runtimes stay **few kinds** (Inference / coding harness / external); orgs compose most non-coding desks from **Inference + Guardrails catalog** (MCP / Tools / Skills / External tools, e.g. Firecrawl). Deep Cursor/Canva/Harvey parity is not year-one — see [STACK_ADAPTERS.md](./STACK_ADAPTERS.md).
 
 ```mermaid
 flowchart LR
@@ -32,11 +32,13 @@ flowchart LR
 | Pillar | What it is | Attached features |
 | --- | --- | --- |
 | **1. Agent office** | Workplace for agents — desks, teams, floors, visible activity | UI desks; **Connect** = same desks via AutoCAD/web/IDE plugins ([CONNECT.md](./CONNECT.md)) |
-| **2. Controllability** | 0–100 autonomy knob + HITL gates | Approvals; **Analytics** of runs/API/HITL ([ANALYTICS.md](./ANALYTICS.md)) |
+| **2. Controllability** | 0–100 autonomy knob + HITL gates | **Approvals** inbox; **Guardrails** catalog ([ORCHESTRATOR.md](./ORCHESTRATOR.md) §7); **Analytics** ([ANALYTICS.md](./ANALYTICS.md)) |
 | **3. Org / project memory** | Scoped knowledge across org → floor → team × projects | Packing; later OKF **graph** in Analytics |
 | **4. No vendor lock-in** | Any stack + office-as-git + OKF export + BYO | Plugins hit **your** orchestrator; data stays yours |
 
 Wedge: competitors sell agents; we sell **an office with a volume knob on autonomy, a real knowledge hierarchy, multi-user desks, and no forced agent vendor**. Personas are not coding-only — sales, support, legal, BA, Slack, finance, CAD, etc. — via open **domain × channel × risk** templates.
+
+**Pitch hooks (survey-backed):** org should move **one business direction**; verification debt (Sonar); shadow AI vs exec confidence (Okta); unknown agents (CSA); monitoring gap (Gravitee). Full punch-line stories + speaker notes: [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md) (Pitch opener + More punch-line stories).
 
 **v0 base:** working core + simple nav shell (stubs for Analytics/Connect) — [V0_SCOPE.md](./V0_SCOPE.md).
 
@@ -185,14 +187,15 @@ flowchart LR
 ### v0 nav shell (simple)
 
 ```text
-Team ★ | Memory | Approvals | Analytics (stub) | Connect (stub) | Settings
+Team ★ | Memory | Approvals | Guardrails (stub) | Analytics (stub) | Connect (stub) | Settings
 ```
 
 | Tab | v0 |
 | --- | --- |
 | Team | Works — desks + chat |
 | Memory | Works thin — fact list |
-| Approvals | One HITL path |
+| Approvals | One HITL path (inbox) |
+| Guardrails | Stub — catalog MCP · Tools · Skills · External tools ([ORCHESTRATOR.md](./ORCHESTRATOR.md) §7) |
 | Analytics | Stub — [ANALYTICS.md](./ANALYTICS.md) |
 | Connect | Stub — [CONNECT.md](./CONNECT.md) |
 | Settings | Platform read-only when ready |
@@ -240,28 +243,36 @@ Each **agent desk card** shows everything accessible about the agent:
 | Status dot | idle / running 2m 10s / error | live state |
 | Stack badge | Cursor worker / Local · Ollama / Claude API | any-stack promise, visible |
 | Model | `qwen2.5-coder:7b` + grade tag (demo / agent-grade) | set expectations |
-| Tools chips | registered MCP / skills / APIs (scoped) | what it may use |
+| Tools chips | registered MCP / Tools / skills / External tools (scoped; gold.* default) | what it may use |
 | Memory pills | gold ✓ team ✓ floor ✓ org ✗ | exact read scope = transparency on screen |
 | Buttons | Chat · Logs · Memory · Reset / Stop | all controls in one place |
 
-The **live activity panel** shows every run with the context used (e.g. `team(17) + gold(5)` facts) and tool calls — this is the "explainable" promise made visible.
+The **live activity panel** shows every run with the context used (e.g. `thread + team(17) + gold(5)`) and tool calls — this is the "explainable" promise made visible.
 
 ### 4. Stacks & capabilities screen
 
 ![Stacks and models screen](./mockups/screen-4-models.png)
 
-- Connect stacks: Cursor API key, Claude API key, local (Ollama) URL — **BYO credentials**
-- **Catalog:** MCP · Skills · API/creds (AWS, git, Firecrawl, custom) — admin sets `hil`: always / never / follow_autonomy (+ optional timer)
-- **Agent desk:** register MCP/skill/API for that agent only (no global catalog in the agent prompt)
-- HIL MCP → agent sees `*_locked` wrapper; Accept on approval card unlocks server-side; **agent** runs MCP under `run_id`
-- **Local model catalog**: curated quantized models, pull with progress into `./data/ollama`
-- Shows the macOS/Docker GPU note in-product
+**Stacks tab** = BYO **connections** only (not agent create). Three kinds:
 
-See [ORCHESTRATOR.md](./ORCHESTRATOR.md) §7.
+| Kind | User adds | Card shows |
+| --- | --- | --- |
+| **Inference** | Bedrock / Claude API / Ollama / … credentials | Status, models allowlist, used-by |
+| **Coding harness** | OpenCode / Cursor / Claude Code + optional “models via” Inference | Status, linked Inference, used-by desks |
+| **External agent** | MCP/A2A endpoint (later) | Discovered agents, status |
+
+List = **one card per connection** (not per model). Full UX: [STACK_ADAPTERS.md §3](./STACK_ADAPTERS.md).
+
+**Guardrails** (own nav, not Stacks): org catalog — **MCP · Tools · Skills · External tools** + admin `hil`. Stacks = connections only.
+
+- **Agent desk** (Team): pick a **connected** stack; register MCP / skill / External tool for that agent. Built-in Tools `gold.read` / `gold.update` default-inherit agent desks  
+- **Local model catalog** (Ollama): pull into volume when using Inference · Ollama  
+
+See [ORCHESTRATOR.md](./ORCHESTRATOR.md) §7 · [STACK_ADAPTERS.md](./STACK_ADAPTERS.md).
 
 ### 5. System / platform settings (v0)
 
-**Not** part of the MCP/API-creds catalog. Platform = how the orchestrator runs (DB, office path, process secrets).
+**Not** part of the Guardrails catalog. Platform = how the orchestrator runs (DB, office path, process secrets).
 
 | v0 rule | Detail |
 | --- | --- |
@@ -313,8 +324,8 @@ flowchart LR
 | **Org / floor / team** | `org.yaml`, `floors/*/floor.yaml`, `teams/*/team.yaml` | **Git** |
 | **Connect lines** | `floors/*/links/*.yaml` | **Git** |
 | **Agents** | persona, stack, model, autonomy defaults, desk seating | **Git** |
-| **Catalog** | MCP / Skills / API *descriptors* (`hil`, scopes) | **Git** |
-| **Registrations** | which agent may use which MCP/skill/API | **Git** |
+| **Catalog** | MCP / Tools / Skills / External tools *descriptors* (`hil`, scopes) | **Git** |
+| **Registrations** | which agent may use which catalog item (`gold.*` default-inherit) | **Git** |
 | **Gold** | `agents/<id>/gold/<user_id>.md` — per user on shared desks | **Git** |
 | **Agent definition** | `agent.yaml` + `AGENT.md` (persona) — see [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) | **Git** |
 | **Shared OKF** | team / floor / org / link-share facts | **DB** (export to OKF / `memory/` for DR + leave-path) |
@@ -334,15 +345,16 @@ office/                          # customer-owned git repo
       gold/<user_id>.md          # per-user notepad
   catalog/
     mcp/<id>.yaml
+    tools/<id>.yaml              # gold.read / gold.update built-in
     skills/<id>/...
-    apis/<id>.yaml
+    external_tools/<id>.yaml     # HTTP APIs (Firecrawl, …) — not MCP
   memory/                        # optional OKF export snapshot (not hot path)
     ...
 ```
 
 ### Multi-user (same agent)
 
-Several users may work on the **same agent** at once → separate `run_id`s, separate gold files, shared room OKF (`created_by_user` = audit only). Approvers and autonomy: [ORCHESTRATOR.md](./ORCHESTRATOR.md) §4.1 · §6.0.2.
+Several users may work on the **same agent** at once → separate `run_id`s, separate gold files, separate **recent desk threads**, shared room OKF (`created_by_user` = audit only). Packing: `recent_thread ∪ gold ∪ team ∪ (shelf ∩ project)`. Soft jobs (extract, office Q&A, optional thread summarize) use **`OFFICE_MODEL`**, not the desk persona model. Approvers and autonomy: [ORCHESTRATOR.md](./ORCHESTRATOR.md) §4.1 · §6.0.2 · §2.3.1.
 
 ### Product implications
 
@@ -363,8 +375,8 @@ Detail: [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [ORCHESTRATOR.md](
 3. **Any stack / any persona** — coding, sales, support, legal, BA, … via domain × channel × risk; integrate, don't replace stacks
 4. **Hierarchy = memory scope** — team / floor / org; floor **links** for gated cross-team share; projects as the horizontal axis
 5. **Office-as-git / no vendor lock-in** — config + per-user gold in git; shared OKF in DB with OKF export; secrets intended in vault
-6. **Multi-user concurrent desks** — same agent, many users; share the room, not the notepad
-7. **Office chat** — status/knowledge via orchestrator without an agent; cite-bound; no invented facts
+6. **Multi-user concurrent desks** — same agent, many users; share the room, not the notepad; recent thread is per-user continuity (not gold/OKF)
+7. **Office chat** — status/knowledge via orchestrator without an agent; cite-bound; **office model** for soft jobs; no invented facts
 8. **Create · manage · explain** — easy for operators, not only developers
 9. **Transparency** — activity, context used, run status, HITL decisions, all on screen
 10. **BYO credentials** — users bring API keys / workers; we don't launder consumer subscriptions
@@ -379,7 +391,7 @@ Accepted for v1 — do not claim “secrets-proof” or “hard MCP sandbox.”
 | Gap | Note |
 | --- | --- |
 | Creds may land in **gold** or **OKF** bodies | Keep as-is for now; scrub/encrypt later |
-| MCP **`_locked`** grant | Best-effort gate, not 100% isolation |
+| MCP **`_locked`** grant | Inference: complete intercept. Harness: catalog-only path (no native twin / leaked creds). Not a hard sandbox |
 | Intended path | Vault/env for real secrets |
 
 Full lists: [ORCHESTRATOR.md §10](./ORCHESTRATOR.md#10-security--known-gaps-todo) · [MEMORY_ARCHITECTURE.md §9](./MEMORY_ARCHITECTURE.md#9-security--known-gaps-todo).
@@ -391,14 +403,20 @@ Full lists: [ORCHESTRATOR.md §10](./ORCHESTRATOR.md#10-security--known-gaps-tod
 | Stack | Supported path | Avoid |
 | --- | --- | --- |
 | **Cursor** | Official SDK + API key + self-hosted workers | Reselling Cursor access as your own metered service |
-| **Claude** | Anthropic **API key** / commercial terms (Agent SDK or approved APIs) | Third-party harness on Pro/Max **OAuth**; always-on multi-tenant on a consumer sub |
-| **Local models** | Quick start: bundled **Ollama** in Docker (models pulled from UI into a volume); upgrade path: vLLM/SGLang on GPU servers — all behind one OpenAI-compatible adapter | Ollama-specific code outside the model manager; baking weights into images |
+| **Claude Code** | Official CLI/SDK + **API key** / commercial terms | Third-party harness on Pro/Max **OAuth**; pooled consumer sub |
+| **OpenCode** | Official integration path + BYO credentials | Re-implementing OpenCode’s full UI inside the office |
+| **API / Bedrock / Ollama** | Chat desks (`tools.mode: none`); soft jobs via `OFFICE_MODEL` | Treating chat APIs as full coding agents without a worker stack |
+| **Local models** | Quick start: bundled **Ollama** in Docker; upgrade: vLLM/SGLang | Ollama-specific code outside the model manager; baking weights into images |
+
+**Coding strategy:** prefer **coding harnesses** (OpenCode first, then Cursor / Claude Code) for implement desks; **Inference + catalog tools** for sales/marketing/support/BA. Cap Stacks kinds at ~2–3 so desks stay the hero. UI says **Connect {product}**, not “adapter.” Details: [STACK_ADAPTERS.md](./STACK_ADAPTERS.md).
+
+**IDE-first eng:** **human seats** — BYO Cursor/Claude/CLI; office supplies pack + WorkPacket sync + MEMORY HITL only (no gold, no autonomy, no ACTION gate). Prefer git/CI hooks over transcript scrape. Details: [IDE_FIRST.md](./IDE_FIRST.md).
 
 Driving Claude from an orchestrator on a consumer login counts as **programmatic / third-party harness** use — "the binary is `claude`" is not a safe ToS argument. Document BYO API keys clearly.
 
 Local setup architecture and engine trade-offs: [LOCAL_MODEL_STACK.md](./LOCAL_MODEL_STACK.md) (see §9 for the quick-start Docker + Ollama decision, incl. the macOS/Docker GPU caveat).
 
-*(Not legal advice — review Anthropic Consumer vs Commercial terms and Cursor ToS before public launch.)*
+*(Not legal advice — review Anthropic, Cursor, and other stack terms before public launch.)*
 
 ---
 
@@ -424,6 +442,7 @@ See [OPEN_SOURCE_MARKET_RESEARCH.md](./OPEN_SOURCE_MARKET_RESEARCH.md) for marke
 | Message buses | AgentNexus (Claude MCP inbox) | Messaging only — not team/floor/org memory + floor links |
 | Agent frameworks | ClearAgent, CrewAI, LangGraph | Libraries — not operator UX + business scopes + autonomy knob |
 | SWE fleets | Devin, Factory, Tembo | Compete on coding agent quality; we compete on **office + control + memory + git-portable env** |
+| Meta-harness ADE | **Spotify Xirp** | Same altitude (vendor-neutral coding sessions); they optimize eng parallel worktrees + Portal — we are **office + multi-domain + HITL + OKF**. Detail: [OPEN_SOURCE_MARKET_RESEARCH.md §4.4](./OPEN_SOURCE_MARKET_RESEARCH.md) |
 | Locked SaaS agent hubs | Vendor-hosted memory + agents only | **Office-as-git** — clone elsewhere; BYO stacks; secrets stay yours |
 | Sales/support agent SaaS | Agentforce, Relevance-style GTM tools | Vertical tools; we are the **office + memory + controllability** across domains |
 
@@ -461,3 +480,14 @@ See [OPEN_SOURCE_MARKET_RESEARCH.md](./OPEN_SOURCE_MARKET_RESEARCH.md) for marke
 | 2026-08-04 | System/platform settings UI: read-only v0; admin may reveal masked passwords; not in API-creds catalog |
 | 2026-08-04 | Link AGENT_DEFINITION.md — agent.yaml + AGENT.md + Office Envelope |
 | 2026-08-04 | Pillars unchanged + feature map; V0_SCOPE; Analytics/Connect stubs; UI simpler than mockup |
+| 2026-08-07 | Pack recent_thread; OFFICE_MODEL for extract / office Q&A / optional summarize; HITL stays deterministic |
+| 2026-08-11 | Coding = worker stacks (Cursor/Claude Code/OpenCode); link STACK_ADAPTERS.md; ToS rows updated |
+| 2026-08-11 | IDE-first pack/extract sidecar — [IDE_FIRST.md](./IDE_FIRST.md) |
+| 2026-08-11 | Positioning: Spotify Xirp as meta-harness ADE lookalike — link market research §4.4 |
+| 2026-08-12 | Human seats + WorkPacket hooks in IDE_FIRST |
+| 2026-08-12 | Stacks tab: Inference / Harness / External connections — link STACK_ADAPTERS §2–3 |
+| 2026-08-12 | Any-stack = few runtimes + many desks; Inference+catalog compose; coding wedge OK |
+| 2026-08-12 | Pitch hook: org direction + AI confidence gap → link USE_CASES_MEMORY |
+| 2026-08-13 | More survey punch-line stories in USE_CASES_MEMORY (A–G) |
+| 2026-08-14 | `_locked`: Inference complete; harness catalog-only — link ORCHESTRATOR §7.3 |
+| 2026-08-14 | Guardrails nav vs Approvals; catalog = MCP · Tools · Skills · External tools; gold.* inherit |

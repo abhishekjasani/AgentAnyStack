@@ -2,7 +2,7 @@
 
 SMEs are not always in the Agent Office UI. They work in AutoCAD, IDEs, websites, Slack, etc. **Connect** = those products talk to the **same orchestrator → same agents, memory, HITL**.
 
-**Related:** [V0_SCOPE.md](./V0_SCOPE.md) · [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [ANALYTICS.md](./ANALYTICS.md) · [AGENT_DEFINITION.md](./AGENT_DEFINITION.md)
+**Related:** [V0_SCOPE.md](./V0_SCOPE.md) · [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [ANALYTICS.md](./ANALYTICS.md) · [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) · [IDE_FIRST.md](./IDE_FIRST.md) · [STACK_ADAPTERS.md](./STACK_ADAPTERS.md)
 
 **Pillar fit:** Agent office + any-stack / any-channel (not a fifth pillar). Domain × channel × risk already describes seating.
 
@@ -26,7 +26,7 @@ Plugins run **inside the external product**, not inside Agent Office.
       pack C(a,p,u) · HITL · tools · gold(a,u)
 ```
 
-Same for: company website support widget → `support-resolver`; IDE extension → `developer`; Slack → routed desk.
+Same for: company website support widget → `support-resolver`; **human IDE seats → pack + WorkPacket sync** ([IDE_FIRST.md](./IDE_FIRST.md)); Slack → routed desk.
 
 - Office does **not** embed AutoCAD or run CAD logic in the Python event loop.
 - Plugin sends text / exports / commands; agent replies; plugin applies results in AutoCAD.
@@ -62,6 +62,18 @@ Authorization: …
 → creates `run_id`, packs context, streams or returns agent output.  
 **Partner plugins** (AutoCAD, etc.) are thin clients against this API.
 
+**Human IDE seats** (memory-only — [IDE_FIRST.md](./IDE_FIRST.md)):
+
+```http
+POST /v1/pack
+{ "seat_id", "user_id", "project_id", "pack_depth": "team" | "full" }
+
+POST /v1/seats/{seat_id}/sync
+{ "user_id", "project_id", "channel", "message", "remember", "artifacts": [...] }
+```
+
+→ fan-out pack; fan-in WorkPacket → same OKF extract + MEMORY HITL (no ACTION HITL). Prefer **git/CI/stack hooks** as producers — not scraping local agent transcripts.
+
 ---
 
 ## Phasing
@@ -70,9 +82,9 @@ Authorization: …
 | --- | --- |
 | **v0** | Connect **nav stub** + journal `channel=office_ui`; no plugins |
 | **Design** | Stabilize Connect/runs API |
-| **v1** | One reference channel (e.g. web widget or Slack) |
+| **v1** | One reference channel (e.g. web widget, Slack, or **IDE pack sidecar** — [IDE_FIRST.md](./IDE_FIRST.md)) |
 | **Partner** | AutoCAD (or other) plugin by domain engineers |
-| **Later** | Channel catalog / signed webhooks |
+| **Later** | Channel catalog / signed webhooks; more IDE clients |
 
 ---
 
@@ -81,3 +93,5 @@ Authorization: …
 | Date | Note |
 | --- | --- |
 | 2026-08-04 | Initial: in-product plugins → orchestrator; API-first; v0 stub only |
+| 2026-08-11 | Link IDE_FIRST (pack/extract for IDE-loyal eng) |
+| 2026-08-12 | Human seat sync API; WorkPacket; hooks ≫ transcript |
