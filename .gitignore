@@ -39,3 +39,6 @@ apps/office-ui/dist/
 *.swp
 .DS_Store
 Thumbs.db
+
+# product / design docs — local future-dev reference (not shipped in git)
+docs/
