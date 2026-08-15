@@ -101,13 +101,6 @@ Full product surface. Markers: **Available** · **In progress** · **Planned**
 
 External apps call the orchestrator; AgentAnyStack does not embed those products.
 
-### Platform
-
-| Capability | Status |
-| --- | --- |
-| Open-source core | Available |
-| Enterprise edition (SSO, audit, seats, branding, advanced policy) | Planned |
-
 ---
 
 ## Architecture
