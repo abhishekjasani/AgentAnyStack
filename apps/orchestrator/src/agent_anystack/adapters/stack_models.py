@@ -34,18 +34,6 @@ KNOWN_STACKS: tuple[dict[str, Any], ...] = (
         "chat": True,
         "model_source": "opencode_models",
     },
-    {
-        "id": "cursor",
-        "label": "cursor",
-        "chat": False,
-        "model_source": "none",
-    },
-    {
-        "id": "claude",
-        "label": "claude",
-        "chat": False,
-        "model_source": "none",
-    },
 )
 
 
