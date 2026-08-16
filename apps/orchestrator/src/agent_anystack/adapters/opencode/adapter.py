@@ -178,12 +178,21 @@ class OpenCodeAdapter:
         await asyncio.sleep(0.15)
 
         packed_user = user_message
+        # OpenCode 1.x expects nested model {providerID, modelID}; flat
+        # model_id/provider_id from the 0.1.0a36 SDK are ignored → build agent
+        # falls back to amazon-bedrock defaults.
         chat_kwargs: dict[str, Any] = {
             "id": session_id,
             "model_id": model_id,
             "provider_id": provider_id,
             "parts": [{"type": "text", "text": packed_user}],
-            "extra_body": {"agent": self.agent_name},
+            "extra_body": {
+                "agent": self.agent_name,
+                "model": {
+                    "providerID": provider_id,
+                    "modelID": model_id,
+                },
+            },
         }
         if system.strip():
             chat_kwargs["system"] = system.strip()
