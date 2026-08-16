@@ -175,13 +175,13 @@
             <button type="button" class="btn ghost" id="btn-create-project">Create project</button>
             <p id="create-project-ok" class="desk-meta" hidden></p>
           </details>
-          <label>Stack
-            <select name="stack" id="create-stack">
-              <option value="openai-compatible" selected>openai-compatible (Ollama)</option>
-              <option value="bedrock">bedrock (AWS)</option>
-              <option value="opencode">opencode (agent runtime)</option>
+          <label>Connection
+            <select name="connection_id" id="create-connection" required aria-label="Stack connection">
+              <option value="">Loading connections…</option>
             </select>
           </label>
+          <p id="create-connection-hint" class="desk-meta"></p>
+          <input type="hidden" name="stack" id="create-stack" value="openai-compatible" />
           <label>Model
             <select name="model" id="create-model" required aria-label="Stack model">
               <option value="">Loading models…</option>
@@ -234,13 +234,13 @@
             </select>
           </label>
           <p id="agent-config-project-hint" class="desk-meta"></p>
-          <label>Stack
-            <select name="stack" id="agent-config-stack">
-              <option value="openai-compatible">openai-compatible (Ollama)</option>
-              <option value="bedrock">bedrock (AWS)</option>
-              <option value="opencode">opencode (agent runtime)</option>
+          <label>Connection
+            <select name="connection_id" id="agent-config-connection" required aria-label="Stack connection">
+              <option value="">Loading connections…</option>
             </select>
           </label>
+          <p id="agent-config-connection-hint" class="desk-meta"></p>
+          <input type="hidden" name="stack" id="agent-config-stack" value="openai-compatible" />
           <label>Model
             <select name="model" id="agent-config-model" required aria-label="Desk model">
               <option value="">Loading models…</option>
@@ -374,13 +374,24 @@
       <section id="view-stacks" class="view" hidden>
         <header class="view-head">
           <div>
-            <h1>Stacks &amp; models</h1>
+            <h1>Stacks</h1>
             <p class="lede">
-              Pull curated local models into Ollama (CPU by default; NVIDIA GPU via
-              <code>docker-compose.gpu.yml</code>). Use the same tag when creating a desk.
+              Connect engines by kind. Desks pick a <strong>connection</strong>
+              (not a raw stack id). Enable/disable turns a connection on or off for the office.
             </p>
           </div>
-          <button type="button" class="btn ghost" id="btn-stacks-refresh">Refresh</button>
+          <button type="button" class="btn ghost" id="btn-connections-refresh">Refresh</button>
+        </header>
+        <p id="connections-error" class="error" hidden></p>
+        <div id="connections-by-kind" class="connections-by-kind"></div>
+
+        <h2 class="memory-h2">Inference · Ollama models</h2>
+        <p class="lede">
+          Pull curated local models into Ollama (CPU by default; NVIDIA GPU via
+          <code>docker-compose.gpu.yml</code>). Use when a desk is on the Ollama connection.
+        </p>
+        <div class="memory-actions" style="margin-bottom: 0.75rem">
+          <button type="button" class="btn ghost" id="btn-stacks-refresh">Refresh models</button>
           <button type="button" class="btn ghost" id="btn-stacks-health">Check GPU</button>
           <button
             type="button"
@@ -390,18 +401,18 @@
           >
             Flush
           </button>
-        </header>
+        </div>
         <p id="stacks-engine" class="desk-meta"></p>
         <div id="stacks-health" class="stacks-health" hidden></div>
         <p id="stacks-error" class="error" hidden></p>
         <p id="stacks-note" class="stub-note" hidden></p>
         <ul id="stacks-catalog" class="model-list"></ul>
 
-        <h2 class="memory-h2">AWS Bedrock</h2>
+        <h2 class="memory-h2">Inference · AWS Bedrock</h2>
         <p class="lede">
           Write-only credentials (never returned by GET). <strong>Test</strong> checks
           keys via STS only (no model). Verify an inference id into the catalog, then
-          pick it when creating a <code>bedrock</code> desk.
+          pick it when creating a desk on the Bedrock connection.
         </p>
         <p id="bedrock-status" class="desk-meta"></p>
         <form id="bedrock-creds-form" class="form memory-form">

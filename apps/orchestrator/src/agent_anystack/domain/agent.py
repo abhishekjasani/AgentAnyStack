@@ -47,6 +47,7 @@ class AgentConfig(BaseModel):
     team: str
     stack: str
     model: str
+    connection_id: str | None = None
     persona: PersonaAxes = Field(default_factory=PersonaAxes)
     autonomy: AgentAutonomy = Field(default_factory=AgentAutonomy)
     # Required for new desks; older yaml without workspace still loads (None).
@@ -68,6 +69,7 @@ class AgentSummary(BaseModel):
     team: str
     stack: str
     model: str
+    connection_id: str | None = None
     project_id: str | None = None
     max_input_tokens: int = -1
     max_output_tokens: int = -1
@@ -80,6 +82,7 @@ class CreateAgentRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     team: str = Field(..., pattern=r"^[a-z][a-z0-9_-]*$", min_length=1, max_length=64)
     stack: str = "openai-compatible"
+    connection_id: str | None = None
     model: str = Field(..., min_length=1)
     persona_markdown: str | None = None
     persona: PersonaAxes | None = None
@@ -98,6 +101,7 @@ class UpdateAgentRequest(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=128)
     stack: str | None = None
+    connection_id: str | None = None
     model: str | None = Field(default=None, min_length=1)
     autonomy: AgentAutonomy | None = None
     workspace: Workspace | None = None

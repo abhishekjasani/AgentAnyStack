@@ -29,11 +29,12 @@
     }
     if (name === "approvals") loadApprovals();
     if (name === "stacks") {
+      loadConnections();
       loadStacks();
       loadBedrockPanel();
     }
     if (name === "create") {
-      loadCreateModels();
+      loadCreateConnections();
       loadCreateProjects();
     }
   }
@@ -152,6 +153,219 @@
     const sel = $(`#${prefix}-model`);
     const hint = $(`#${prefix}-model-hint`);
     fillStackModelSelect(sel, stack, sel?.value || "", hint);
+  }
+
+  let connectionsCache = [];
+
+  async function fetchConnections() {
+    const res = await api("/stacks/connections");
+    if (!res.ok) throw new Error(`connections ${res.status}`);
+    const data = await res.json();
+    connectionsCache = data.connections || [];
+    return data;
+  }
+
+  async function loadConnections() {
+    const root = $("#connections-by-kind");
+    const err = $("#connections-error");
+    if (!root) return;
+    err.hidden = true;
+    root.innerHTML = "";
+    try {
+      const data = await fetchConnections();
+      for (const group of data.by_kind || []) {
+        const section = document.createElement("section");
+        section.className = "connection-kind";
+        const h = document.createElement("h2");
+        h.className = "memory-h2";
+        h.textContent = group.label || group.kind;
+        section.appendChild(h);
+        const grid = document.createElement("div");
+        grid.className = "connection-grid";
+        const list = group.connections || [];
+        if (!list.length) {
+          const empty = document.createElement("p");
+          empty.className = "desk-meta";
+          empty.textContent =
+            group.kind === "external"
+              ? "Soon — external agents not wired yet."
+              : "No connections.";
+          section.appendChild(empty);
+        } else {
+          for (const c of list) {
+            grid.appendChild(renderConnectionCard(c));
+          }
+          section.appendChild(grid);
+        }
+        root.appendChild(section);
+      }
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  function renderConnectionCard(c) {
+    const card = document.createElement("article");
+    card.className = "connection-card";
+    if (!c.enabled) card.classList.add("is-disabled");
+    const title = document.createElement("h3");
+    title.textContent = c.label || c.id;
+    const meta = document.createElement("p");
+    meta.className = "desk-meta";
+    const used = (c.used_by || []).map((u) => u.id).join(", ") || "none";
+    meta.textContent = [
+      c.kind_label || c.kind,
+      `status: ${c.status}`,
+      c.enabled ? "enabled" : "disabled",
+      c.tested_at ? `tested ${c.tested_at}` : null,
+      `used by: ${used}`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    if (c.last_error) {
+      const errLine = document.createElement("p");
+      errLine.className = "error";
+      errLine.hidden = false;
+      errLine.textContent = c.last_error;
+      card.append(title, meta, errLine);
+    } else {
+      card.append(title, meta);
+    }
+    const actions = document.createElement("div");
+    actions.className = "form-actions memory-actions";
+    const testBtn = document.createElement("button");
+    testBtn.type = "button";
+    testBtn.className = "btn ghost";
+    testBtn.textContent = "Test";
+    testBtn.addEventListener("click", () => testConnection(c.id));
+    const toggleBtn = document.createElement("button");
+    toggleBtn.type = "button";
+    toggleBtn.className = "btn primary";
+    toggleBtn.textContent = c.enabled ? "Disable" : "Enable";
+    toggleBtn.addEventListener("click", () =>
+      setConnectionEnabled(c.id, !c.enabled)
+    );
+    actions.append(testBtn, toggleBtn);
+    card.appendChild(actions);
+    return card;
+  }
+
+  async function testConnection(id) {
+    const err = $("#connections-error");
+    err.hidden = true;
+    try {
+      const res = await api(`/stacks/connections/${encodeURIComponent(id)}/test`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || data.error || `test ${res.status}`);
+      if (!data.ok) {
+        err.textContent = data.error || "Test failed";
+        err.hidden = false;
+      }
+      await loadConnections();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function setConnectionEnabled(id, enabled) {
+    const err = $("#connections-error");
+    err.hidden = true;
+    try {
+      const res = await api(`/stacks/connections/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `patch ${res.status}`);
+      await loadConnections();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function fillConnectionSelect(sel, preferred, hintEl, { includeDisabled = false } = {}) {
+    if (!sel) return;
+    if (!connectionsCache.length) {
+      try {
+        await fetchConnections();
+      } catch (_) {
+        /* hint below */
+      }
+    }
+    const prev = preferred || sel.value;
+    sel.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Select connection…";
+    sel.appendChild(placeholder);
+    const rows = connectionsCache.filter((c) => includeDisabled || c.enabled);
+    if (!rows.length) {
+      const o = document.createElement("option");
+      o.value = "";
+      o.textContent = "No enabled connections — open Stacks";
+      sel.appendChild(o);
+      if (hintEl) hintEl.textContent = "Enable a connection on Stacks first.";
+      return;
+    }
+    for (const c of rows) {
+      const o = document.createElement("option");
+      o.value = c.id;
+      o.dataset.stack = c.stack || "";
+      o.textContent = `${c.label} (${c.kind_label || c.kind})${
+        c.enabled ? "" : " — disabled"
+      }`;
+      sel.appendChild(o);
+    }
+    if (prev && [...sel.options].some((o) => o.value === prev)) {
+      sel.value = prev;
+    } else if (rows.length === 1) {
+      sel.value = rows[0].id;
+    }
+    if (hintEl) {
+      const chosen = connectionsCache.find((c) => c.id === sel.value);
+      hintEl.textContent = chosen
+        ? `stack alias: ${chosen.stack}`
+        : "";
+    }
+  }
+
+  function stackForConnection(connectionId) {
+    const c = connectionsCache.find((x) => x.id === connectionId);
+    return c?.stack || "openai-compatible";
+  }
+
+  async function onConnectionChange(prefix) {
+    const connSel = $(`#${prefix}-connection`);
+    const stackEl = $(`#${prefix}-stack`);
+    const cid = connSel?.value || "";
+    const stack = stackForConnection(cid);
+    if (stackEl) stackEl.value = stack;
+    const hint = $(`#${prefix}-connection-hint`);
+    if (hint) {
+      const c = connectionsCache.find((x) => x.id === cid);
+      hint.textContent = c ? `stack alias: ${c.stack}` : "";
+    }
+    await fillStackModelSelect(
+      $(`#${prefix}-model`),
+      stack,
+      "",
+      $(`#${prefix}-model-hint`)
+    );
+  }
+
+  async function loadCreateConnections() {
+    await fillConnectionSelect(
+      $("#create-connection"),
+      $("#create-connection")?.value || "ollama",
+      $("#create-connection-hint")
+    );
+    await onConnectionChange("create");
   }
 
   async function fillStackModelSelect(sel, stack, preferred, hintEl) {
@@ -315,7 +529,21 @@
       $("#agent-config-id-label").textContent = a.id;
       $("#agent-config-team-label").textContent = a.team;
       form.name.value = a.name || "";
-      form.stack.value = a.stack || "openai-compatible";
+      const preferredConn =
+        a.connection_id ||
+        (a.stack === "bedrock"
+          ? "bedrock"
+          : a.stack === "opencode"
+            ? "opencode"
+            : "ollama");
+      await fillConnectionSelect(
+        $("#agent-config-connection"),
+        preferredConn,
+        $("#agent-config-connection-hint"),
+        { includeDisabled: true }
+      );
+      const stack = stackForConnection($("#agent-config-connection")?.value || preferredConn);
+      form.stack.value = stack;
       form.autonomy_default.value = a.autonomy?.default ?? 50;
       form.autonomy_max.value =
         a.autonomy?.max != null && a.autonomy.max !== "" ? a.autonomy.max : "";
@@ -326,7 +554,7 @@
         `Org ceiling: max ${org.max_autonomy ?? "—"} · default ${org.autonomy?.default ?? "—"}`;
       await fillStackModelSelect(
         $("#agent-config-model"),
-        form.stack.value,
+        stack,
         a.model || "",
         $("#agent-config-model-hint")
       );
@@ -796,14 +1024,7 @@
   }
 
   async function loadCreateModels() {
-    const form = $("#create-form");
-    const stack = form?.stack?.value || "openai-compatible";
-    await fillStackModelSelect(
-      $("#create-model"),
-      stack,
-      $("#create-model")?.value || "",
-      $("#create-model-hint")
-    );
+    await loadCreateConnections();
   }
 
   function runTagLabel(tag) {
@@ -1232,19 +1453,15 @@
   $("#btn-back-team").addEventListener("click", () => showView("team"));
   $("#btn-back-office-team").addEventListener("click", () => showView("team"));
   $("#btn-back-agent-team").addEventListener("click", () => showView("team"));
-  const createStack = $("#create-stack");
-  if (createStack) {
-    createStack.addEventListener("change", () => {
-      toggleStackModelFields("create", createStack.value);
-    });
-    toggleStackModelFields("create", createStack.value);
+  const createConn = $("#create-connection");
+  if (createConn) {
+    createConn.addEventListener("change", () => onConnectionChange("create"));
   }
-  const agentStack = $("#agent-config-stack");
-  if (agentStack) {
-    agentStack.addEventListener("change", () => {
-      toggleStackModelFields("agent-config", agentStack.value);
-    });
+  const agentConn = $("#agent-config-connection");
+  if (agentConn) {
+    agentConn.addEventListener("change", () => onConnectionChange("agent-config"));
   }
+  $("#btn-connections-refresh")?.addEventListener("click", () => loadConnections());
 
   $("#bedrock-creds-form")?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -1380,16 +1597,23 @@
     };
     const maxRaw = String(form.autonomy_max.value || "").trim();
     if (maxRaw !== "") autonomy.max = Number(maxRaw);
-    const stack = String(form.stack.value || "openai-compatible");
+    const connectionId = String(form.connection_id?.value || "").trim();
+    const stack = String(form.stack.value || stackForConnection(connectionId));
     const model = String(form.model.value || "").trim();
+    if (!connectionId) {
+      err.textContent = "Select a connection.";
+      err.hidden = false;
+      return;
+    }
     if (!model) {
-      err.textContent = "Select a model for this stack.";
+      err.textContent = "Select a model for this connection.";
       err.hidden = false;
       return;
     }
     const body = {
       name: String(form.name.value || "").trim(),
       stack,
+      connection_id: connectionId,
       model,
       autonomy,
       max_input_tokens: Number(form.max_input_tokens.value),
@@ -1743,10 +1967,16 @@
     };
     const maxRaw = String(fd.get("autonomy_max") || "").trim();
     if (maxRaw !== "") autonomy.max = Number(maxRaw);
-    const stack = String(fd.get("stack") || "openai-compatible");
+    const connectionId = String(fd.get("connection_id") || "").trim();
+    const stack = String(fd.get("stack") || stackForConnection(connectionId));
     const model = String(fd.get("model") || "").trim();
+    if (!connectionId) {
+      err.textContent = "Select a connection.";
+      err.hidden = false;
+      return;
+    }
     if (!model) {
-      err.textContent = "Select a model for this stack.";
+      err.textContent = "Select a model for this connection.";
       err.hidden = false;
       return;
     }
@@ -1755,6 +1985,7 @@
       name: String(fd.get("name") || "").trim(),
       team: String(fd.get("team") || "").trim(),
       stack,
+      connection_id: connectionId,
       model,
       autonomy,
       max_input_tokens: Number(fd.get("max_input_tokens") ?? -1),

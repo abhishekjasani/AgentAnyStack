@@ -5,6 +5,13 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from agent_anystack.adapters.bedrock_store import BedrockProviderStore, bedrock_data_dir
+from agent_anystack.adapters.connections import (
+    ConnectionDisabled,
+    ConnectionNotFound,
+    ConnectionStore,
+    connection_store_from_database_url,
+    resolve_desk_stack,
+)
 from agent_anystack.adapters.ollama_models import OllamaModelManager
 from agent_anystack.adapters.stack_models import (
     StackSelectionError,
@@ -68,6 +75,12 @@ def get_bedrock_store(settings: Settings = Depends(get_settings)) -> BedrockProv
     return BedrockProviderStore(bedrock_data_dir(settings.database_url))
 
 
+def get_connection_store(
+    settings: Settings = Depends(get_settings),
+) -> ConnectionStore:
+    return connection_store_from_database_url(settings.database_url)
+
+
 @router.get("/agents", response_model=list[AgentSummary])
 async def list_agents(
     repo: OfficeRepository = Depends(get_office_repo),
@@ -103,12 +116,27 @@ async def create_agent(
     registry: ProjectRegistry = Depends(get_project_registry),
     ollama: OllamaModelManager = Depends(get_ollama_manager),
     bedrock: BedrockProviderStore = Depends(get_bedrock_store),
+    connections: ConnectionStore = Depends(get_connection_store),
     user_id: str = Depends(get_user_id),
 ) -> AgentConfig:
     """Write office/teams/<team>/agents/<id>/; workspace must reference an active project."""
     try:
+        stack, connection_id = resolve_desk_stack(
+            connection_id=body.connection_id,
+            stack=body.stack,
+            store=connections,
+            require_enabled=True,
+        )
+    except ConnectionNotFound as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ConnectionDisabled as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    try:
         resolved = await validate_desk_selection(
-            body.stack,
+            stack,
             body.model,
             ollama=ollama,
             bedrock_store=bedrock,
@@ -135,6 +163,7 @@ async def create_agent(
     bound = body.model_copy(
         update={
             "stack": resolved.stack,
+            "connection_id": connection_id,
             "model": resolved.model,
             "tools_mode": tools_mode,
             "workspace": Workspace(project_id=project.id, path=project.path),
@@ -158,6 +187,7 @@ async def update_agent(
     registry: ProjectRegistry = Depends(get_project_registry),
     ollama: OllamaModelManager = Depends(get_ollama_manager),
     bedrock: BedrockProviderStore = Depends(get_bedrock_store),
+    connections: ConnectionStore = Depends(get_connection_store),
     _user_id: str = Depends(get_user_id),
 ) -> AgentDetail:
     """Patch desk agent.yaml (+ AGENT.md if persona_markdown set)."""
@@ -165,11 +195,30 @@ async def update_agent(
     if existing is None:
         raise HTTPException(status_code=404, detail=f"agent not found: {agent_id}")
 
+    next_cid = (
+        body.connection_id
+        if body.connection_id is not None
+        else existing.connection_id
+    )
     next_stack = body.stack if body.stack is not None else existing.stack
     next_model = body.model if body.model is not None else existing.model
     try:
+        stack, connection_id = resolve_desk_stack(
+            connection_id=next_cid,
+            stack=next_stack,
+            store=connections,
+            require_enabled=True,
+        )
+    except ConnectionNotFound as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ConnectionDisabled as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    try:
         resolved = await validate_desk_selection(
-            next_stack,
+            stack,
             next_model,
             ollama=ollama,
             bedrock_store=bedrock,
@@ -178,7 +227,11 @@ async def update_agent(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     patch = body.model_copy(
-        update={"stack": resolved.stack, "model": resolved.model},
+        update={
+            "stack": resolved.stack,
+            "connection_id": connection_id,
+            "model": resolved.model,
+        },
     )
     if resolved.stack == "opencode":
         patch = patch.model_copy(update={"tools_mode": "worker"})

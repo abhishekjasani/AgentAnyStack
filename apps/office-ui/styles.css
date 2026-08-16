@@ -468,10 +468,29 @@ h1 {
   white-space: pre-wrap;
 }
 
-.model-progress {
-  grid-column: 1 / -1;
+.connections-by-kind {
   display: grid;
-  gap: 0.35rem;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.connection-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+}
+.connection-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  padding: 0.9rem 1rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.connection-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.connection-card.is-disabled {
+  opacity: 0.72;
 }
 .model-progress-bar {
   height: 0.35rem;

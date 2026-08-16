@@ -159,6 +159,7 @@ class OfficeRepository:
                 team=a.team,
                 stack=a.stack,
                 model=a.model,
+                connection_id=a.connection_id,
                 project_id=a.workspace.project_id if a.workspace else None,
                 max_input_tokens=a.max_input_tokens,
                 max_output_tokens=a.max_output_tokens,
@@ -203,6 +204,7 @@ class OfficeRepository:
             team=req.team,
             stack=req.stack,
             model=req.model,
+            connection_id=req.connection_id,
             persona=req.persona or PersonaAxes(),
             autonomy=autonomy,
             workspace=req.workspace,
@@ -266,6 +268,8 @@ class OfficeRepository:
             data["name"] = req.name
         if req.stack is not None:
             data["stack"] = req.stack
+        if req.connection_id is not None:
+            data["connection_id"] = req.connection_id or None
         if req.model is not None:
             data["model"] = req.model
         if req.autonomy is not None:

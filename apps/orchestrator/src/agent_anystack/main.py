@@ -13,6 +13,7 @@ from agent_anystack.api.approvals import router as approvals_router
 from agent_anystack.api.bedrock import router as bedrock_router
 from agent_anystack.api.channel import router as channel_router
 from agent_anystack.api.chat import router as chat_router
+from agent_anystack.api.connections import router as connections_router
 from agent_anystack.api.gold import router as gold_router
 from agent_anystack.api.health import router as health_router
 from agent_anystack.api.me import router as me_router
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(chat_router)
     app.include_router(models_router)
     app.include_router(stacks_router)
+    app.include_router(connections_router)
     app.include_router(bedrock_router)
 
     ui_dir = Path(settings.office_ui_path).resolve()

@@ -13,6 +13,12 @@ from agent_anystack.adapters.bedrock_store import (
     bedrock_data_dir,
     resolve_creds,
 )
+from agent_anystack.adapters.connections import (
+    ConnectionDisabled,
+    ConnectionNotFound,
+    connection_store_from_database_url,
+    resolve_desk_stack,
+)
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.adapters.opencode import OpenCodeAdapter
 from agent_anystack.adapters.stack_models import (
@@ -68,6 +74,7 @@ class ChatRunService:
         self._openai_compatible_timeout = openai_compatible_timeout
         self.database_url = database_url
         self._bedrock_store = BedrockProviderStore(bedrock_data_dir(database_url))
+        self._connections = connection_store_from_database_url(database_url)
         self.okf = okf
         self.pack_token_budget = pack_token_budget
         self.okf_extract_enabled = okf_extract_enabled
@@ -119,12 +126,32 @@ class ChatRunService:
             return
 
         try:
-            runtime = resolve_desk_runtime(agent.stack, agent.model)
+            stack, connection_id = resolve_desk_stack(
+                connection_id=agent.connection_id,
+                stack=agent.stack,
+                store=self._connections,
+                require_enabled=True,
+            )
+            runtime = resolve_desk_runtime(stack, agent.model)
+        except (ConnectionNotFound, ConnectionDisabled) as exc:
+            yield {
+                "type": "error",
+                "message": str(exc),
+                "code": "connection",
+            }
+            return
         except StackSelectionError as exc:
             yield {
                 "type": "error",
                 "message": str(exc),
                 "code": exc.code,
+            }
+            return
+        except ValueError as exc:
+            yield {
+                "type": "error",
+                "message": str(exc),
+                "code": "connection",
             }
             return
 
@@ -141,6 +168,7 @@ class ChatRunService:
             "agent_id": agent.id,
             "user_id": user_id,
             "stack": runtime.stack,
+            "connection_id": connection_id,
             "model": runtime.model,
             "max_input_tokens": limits.max_input_tokens,
             "max_output_tokens": limits.max_output_tokens,
