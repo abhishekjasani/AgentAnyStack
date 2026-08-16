@@ -30,7 +30,7 @@ KNOWN_STACKS: tuple[dict[str, Any], ...] = (
     },
     {
         "id": "opencode",
-        "label": "opencode (harness)",
+        "label": "opencode (agent runtime)",
         "chat": True,
         "model_source": "opencode_models",
     },
