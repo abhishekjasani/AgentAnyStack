@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+from agent_anystack.adapters.opencode import read_thinking
 from agent_anystack.api.agents import get_office_repo
 from agent_anystack.api.deps import get_user_id
 from agent_anystack.channel_history import (
@@ -119,3 +120,16 @@ async def chat(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/runs/{run_id}/thinking")
+async def get_run_thinking(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+    _user_id: str = Depends(get_user_id),
+) -> dict:
+    """Load persisted harness thinking for a run (not OKF / not gold)."""
+    safe = "".join(c for c in run_id if c.isalnum() or c in "-_")
+    if not safe or safe != run_id:
+        raise HTTPException(status_code=400, detail="invalid run_id")
+    return read_thinking(settings.database_url, run_id)

@@ -12,7 +12,7 @@ from agent_anystack.adapters.bedrock_store import BedrockProviderStore
 from agent_anystack.adapters.ollama_models import OllamaModelManager, OllamaModelsError
 
 # Desk chat stacks that have a working adapter today.
-CHAT_STACKS = frozenset({"openai-compatible", "bedrock"})
+CHAT_STACKS = frozenset({"openai-compatible", "bedrock", "opencode"})
 
 # All stack ids exposed in Create/Configure (some not yet chat-ready).
 KNOWN_STACKS: tuple[dict[str, Any], ...] = (
@@ -27,6 +27,12 @@ KNOWN_STACKS: tuple[dict[str, Any], ...] = (
         "label": "bedrock (AWS)",
         "chat": True,
         "model_source": "bedrock_verified",
+    },
+    {
+        "id": "opencode",
+        "label": "opencode (harness)",
+        "chat": True,
+        "model_source": "opencode_models",
     },
     {
         "id": "cursor",
@@ -128,6 +134,8 @@ async def list_models_for_stack(
         return await _list_ollama(ollama)
     if sid == "bedrock":
         return _list_bedrock(bedrock_store)
+    if sid == "opencode":
+        return await _list_opencode()
     return StackModelsResult(
         stack=sid,
         selectable=False,
@@ -221,6 +229,35 @@ async def _list_ollama(ollama: OllamaModelManager | None) -> StackModelsResult:
         stack="openai-compatible",
         selectable=True,
         hint=f"{len(models)} pulled model(s) available",
+        models=models,
+    )
+
+
+async def _list_opencode() -> StackModelsResult:
+    from agent_anystack.adapters.opencode import list_opencode_models
+
+    rows = await list_opencode_models()
+    models = [
+        StackModelEntry(
+            id=r["id"],
+            display_name=r.get("display_name") or r["id"],
+            ready=True,
+            source="opencode_models",
+        )
+        for r in rows
+        if r.get("id")
+    ]
+    if not models:
+        return StackModelsResult(
+            stack="opencode",
+            selectable=False,
+            hint="No OpenCode models available.",
+            models=[],
+        )
+    return StackModelsResult(
+        stack="opencode",
+        selectable=True,
+        hint=f"{len(models)} OpenCode model(s)",
         models=models,
     )
 

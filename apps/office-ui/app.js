@@ -595,6 +595,62 @@
     return div;
   }
 
+  function ensureThinkingPanel(bubble) {
+    let details = bubble.querySelector(".bubble-thinking");
+    if (details) return details.querySelector(".bubble-thinking-text");
+    details = document.createElement("details");
+    details.className = "bubble-thinking";
+    const summary = document.createElement("summary");
+    summary.textContent = "Thinking";
+    const pre = document.createElement("pre");
+    pre.className = "bubble-thinking-text";
+    details.append(summary, pre);
+    bubble.appendChild(details);
+    return pre;
+  }
+
+  async function loadRunThinking(runId) {
+    if (!runId) return;
+    const err = $("#chat-error");
+    try {
+      const res = await api(`/runs/${encodeURIComponent(runId)}/thinking`);
+      if (!res.ok) throw new Error(`thinking ${res.status}`);
+      const data = await res.json();
+      const text = (data.text || "").trim() || "(no thinking stored for this run)";
+      const box = appendBubble("assistant", "", { tag: `thinking · ${runId}` });
+      const body = box.querySelector(".bubble-text");
+      if (body) body.textContent = text;
+      $("#chat-log").scrollTop = $("#chat-log").scrollHeight;
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  function setChatRunMeta(payload) {
+    const meta = $("#chat-meta");
+    meta.textContent = "";
+    if (payload.mode === "office") {
+      meta.textContent = `Office · user ${payload.user_id}`;
+      return;
+    }
+    meta.appendChild(document.createTextNode("run "));
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chat-run-link";
+    btn.textContent = payload.run_id || "…";
+    btn.title = "Load thinking for this run";
+    btn.addEventListener("click", () => loadRunThinking(payload.run_id));
+    meta.appendChild(btn);
+    meta.appendChild(
+      document.createTextNode(
+        ` · ${payload.agent_id || ""} · ${payload.model || ""}${
+          payload.stack ? ` · ${payload.stack}` : ""
+        }`
+      )
+    );
+  }
+
   async function removeAgent(id, name) {
     const ok = window.confirm(
       `Remove desk "${name}" (${id})?\n\nDeletes agent.yaml, AGENT.md, and gold/ for this desk.`
@@ -1774,6 +1830,8 @@
       const decoder = new TextDecoder();
       let buf = "";
       let text = "";
+      let thinking = "";
+      let lastRunId = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -1785,13 +1843,17 @@
           if (!line.startsWith("data:")) continue;
           const payload = JSON.parse(line.slice(5).trim());
           if (payload.type === "meta") {
-            $("#chat-meta").textContent = payload.mode === "office"
-              ? `Office · user ${payload.user_id}`
-              : `run ${payload.run_id || "…"} · ${payload.agent_id} · ${payload.model || ""}`;
+            lastRunId = payload.run_id || lastRunId;
+            setChatRunMeta(payload);
           } else if (payload.type === "token") {
             if (text === "" && replyText.textContent === "…") replyText.textContent = "";
             text += payload.text;
             replyText.textContent = text;
+            $("#chat-log").scrollTop = $("#chat-log").scrollHeight;
+          } else if (payload.type === "thinking") {
+            thinking += payload.text || "";
+            const panel = ensureThinkingPanel(reply);
+            panel.textContent = thinking;
             $("#chat-log").scrollTop = $("#chat-log").scrollHeight;
           } else if (payload.type === "tool") {
             const tip = payload.ok === false
@@ -1806,6 +1868,13 @@
             }
           } else if (payload.type === "approvals") {
             renderChannelApprovals(payload.cards || []);
+          } else if (payload.type === "done" && lastRunId) {
+            setChatRunMeta({
+              run_id: lastRunId,
+              agent_id: agentId,
+              model: "",
+              stack: "",
+            });
           } else if (payload.type === "error") {
             err.textContent = payload.message || "chat error";
             err.hidden = false;

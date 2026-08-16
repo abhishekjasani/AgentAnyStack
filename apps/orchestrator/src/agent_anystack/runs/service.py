@@ -1,4 +1,4 @@
-"""Chat run orchestration — pack, envelope, gold tools, adapter, journal, extract."""
+"""Chat run orchestration — pack, envelope, gold tools / OpenCode harness, journal, extract."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from agent_anystack.adapters.bedrock_store import (
     resolve_creds,
 )
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+from agent_anystack.adapters.opencode import OpenCodeAdapter
 from agent_anystack.adapters.stack_models import (
     StackSelectionError,
     resolve_desk_runtime,
@@ -65,6 +66,7 @@ class ChatRunService:
         self._env_aws_session_token = aws_session_token
         self._env_aws_region = aws_region
         self._openai_compatible_timeout = openai_compatible_timeout
+        self.database_url = database_url
         self._bedrock_store = BedrockProviderStore(bedrock_data_dir(database_url))
         self.okf = okf
         self.pack_token_budget = pack_token_budget
@@ -93,7 +95,7 @@ class ChatRunService:
         )
 
     def _adapter_for(self, stack: str) -> OpenAICompatibleAdapter | BedrockAdapter:
-        """Build chat adapter for a chat-ready stack (caller already resolved)."""
+        """Build chat adapter for inference stacks (caller already resolved)."""
         if stack == "bedrock":
             return self._bedrock_adapter()
         if stack == "openai-compatible":
@@ -188,20 +190,39 @@ class ChatRunService:
         status = "ok"
         error: str | None = None
         assistant_parts: list[str] = []
-        adapter = self._adapter_for(runtime.stack)
         try:
-            async for event in self._run_with_gold_tools(
-                adapter=adapter,
-                model=runtime.model,
-                messages=messages,
-                agent=agent,
-                user_id=user_id,
-                run_id=run_id,
-                max_tokens=limits.max_output_tokens,
-            ):
-                if event.get("type") == "token":
-                    assistant_parts.append(event.get("text") or "")
-                yield event
+            if runtime.stack == "opencode":
+                async for event in self._run_opencode(
+                    agent=agent,
+                    model=runtime.model,
+                    messages=messages,
+                    run_id=run_id,
+                ):
+                    if event.get("type") == "token":
+                        assistant_parts.append(event.get("text") or "")
+                    if event.get("type") == "error":
+                        status = "error"
+                        error = event.get("message") or "opencode error"
+                    if event.get("type") == "meta_extra":
+                        continue
+                    yield event
+            else:
+                adapter = self._adapter_for(runtime.stack)
+                async for event in self._run_with_gold_tools(
+                    adapter=adapter,
+                    model=runtime.model,
+                    messages=messages,
+                    agent=agent,
+                    user_id=user_id,
+                    run_id=run_id,
+                    max_tokens=limits.max_output_tokens,
+                ):
+                    if event.get("type") == "token":
+                        assistant_parts.append(event.get("text") or "")
+                    if event.get("type") == "error":
+                        status = "error"
+                        error = event.get("message") or "chat error"
+                    yield event
         except StackError as exc:
             status = "error"
             error = str(exc)
@@ -247,6 +268,42 @@ class ChatRunService:
                 project_id=agent.workspace.project_id if agent.workspace else None,
             )
         yield done
+
+    async def _run_opencode(
+        self,
+        *,
+        agent: AgentConfig,
+        model: str,
+        messages: list[dict[str, Any]],
+        run_id: str,
+    ) -> AsyncIterator[dict]:
+        if agent.workspace is None or not (agent.workspace.path or "").strip():
+            raise StackError(
+                "opencode desk requires workspace.path (bind a project)",
+                code="opencode_no_workspace",
+            )
+        cwd = Path(agent.workspace.path)
+        system = ""
+        user_message = ""
+        for msg in messages:
+            role = msg.get("role")
+            content = str(msg.get("content") or "")
+            if role == "system":
+                system = content
+            elif role == "user":
+                user_message = content
+        harness = OpenCodeAdapter(
+            database_url=self.database_url,
+            timeout=self._openai_compatible_timeout,
+        )
+        async for event in harness.run_chat(
+            cwd=cwd,
+            model=model,
+            system=system,
+            user_message=user_message,
+            run_id=run_id,
+        ):
+            yield event
 
     async def _run_with_gold_tools(
         self,

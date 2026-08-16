@@ -116,6 +116,10 @@ async def create_agent(
     except StackSelectionError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    tools_mode = body.tools_mode
+    if resolved.stack == "opencode":
+        tools_mode = "worker"
+
     try:
         project = registry.require_active(body.workspace.project_id)
     except ProjectNotFoundError as exc:
@@ -132,6 +136,7 @@ async def create_agent(
         update={
             "stack": resolved.stack,
             "model": resolved.model,
+            "tools_mode": tools_mode,
             "workspace": Workspace(project_id=project.id, path=project.path),
         }
     )
@@ -175,6 +180,8 @@ async def update_agent(
     patch = body.model_copy(
         update={"stack": resolved.stack, "model": resolved.model},
     )
+    if resolved.stack == "opencode":
+        patch = patch.model_copy(update={"tools_mode": "worker"})
     if body.workspace is not None:
         try:
             project = registry.require_active(body.workspace.project_id)

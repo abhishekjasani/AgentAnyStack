@@ -1,7 +1,7 @@
 # AgentAnyStack
 
 **Tagline:** Any stack. One orchestrator.  
-**License:** Apache-2.0 · **Release:** v0 early · SemVer `0.2.5`
+**License:** Apache-2.0 · **Release:** v0 early · SemVer `0.3.0`
 
 ## What it is
 

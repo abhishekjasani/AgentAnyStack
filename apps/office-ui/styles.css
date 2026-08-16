@@ -258,6 +258,36 @@ h1 {
   color: var(--muted);
   margin-bottom: 0.25rem;
 }
+.bubble-thinking {
+  margin-top: 0.55rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.bubble-thinking summary {
+  cursor: pointer;
+  user-select: none;
+}
+.bubble-thinking-text {
+  margin: 0.4rem 0 0;
+  padding: 0.45rem 0.5rem;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius);
+  white-space: pre-wrap;
+  font: inherit;
+  font-size: 0.8rem;
+  max-height: 12rem;
+  overflow: auto;
+}
+.chat-run-link {
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
 
 .form {
   display: grid;

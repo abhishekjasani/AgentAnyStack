@@ -103,6 +103,12 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AWS_REGION", "AWS_DEFAULT_REGION"),
     )
 
+    # OpenCode CLI binary (optional). Empty → PATH / ~/.opencode/bin.
+    opencode_bin: str = Field(
+        default="",
+        validation_alias=AliasChoices("OPENCODE_BIN"),
+    )
+
     # TODO: platform settings read-only UI (IMPLEMENTATION.md §7.1)
     # TODO: multi-admin / edition switch for org_admins
 

@@ -1,5 +1,6 @@
 """FastAPI application factory."""
 
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -24,6 +25,10 @@ from agent_anystack.config import get_settings
 
 
 def create_app() -> FastAPI:
+    settings = get_settings()
+    if settings.opencode_bin.strip():
+        os.environ["OPENCODE_BIN"] = settings.opencode_bin.strip()
+
     app = FastAPI(
         title="AgentAnyStack",
         description="Office backbone for agents — orchestrator API",
@@ -43,7 +48,7 @@ def create_app() -> FastAPI:
     app.include_router(stacks_router)
     app.include_router(bedrock_router)
 
-    ui_dir = Path(get_settings().office_ui_path).resolve()
+    ui_dir = Path(settings.office_ui_path).resolve()
     if ui_dir.is_dir():
         index = ui_dir / "index.html"
 
