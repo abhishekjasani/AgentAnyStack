@@ -108,6 +108,13 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("OPENCODE_BIN"),
     )
+    # Stop idle opencode serve processes after this many seconds.
+    opencode_serve_idle_ttl_seconds: float = Field(
+        default=1800.0,
+        ge=60.0,
+        le=86400.0,
+        validation_alias=AliasChoices("OPENCODE_SERVE_IDLE_TTL_SECONDS"),
+    )
 
     # TODO: platform settings read-only UI (IMPLEMENTATION.md §7.1)
     # TODO: multi-admin / edition switch for org_admins

@@ -492,6 +492,30 @@ h1 {
 .connection-card.is-disabled {
   opacity: 0.72;
 }
+.connection-runtimes {
+  border-top: 1px solid var(--line);
+  padding-top: 0.55rem;
+  display: grid;
+  gap: 0.4rem;
+}
+.runtime-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.runtime-row {
+  display: grid;
+  gap: 0.25rem;
+}
+.runtime-row .desk-meta {
+  margin: 0;
+  word-break: break-all;
+}
+.btn-xs {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.5rem;
+}
 .model-progress-bar {
   height: 0.35rem;
   background: #e8e4dc;

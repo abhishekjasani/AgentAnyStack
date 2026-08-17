@@ -104,8 +104,59 @@ class OpenCodeAdapter:
         system: str,
         user_message: str,
         run_id: str,
+        agent_id: str = "",
+        user_id: str = "",
     ) -> AsyncIterator[dict[str, Any]]:
+        from agent_anystack.adapters.opencode.runtime import (
+            begin_busy,
+            end_busy,
+            finish_session,
+            register_session,
+        )
+
         serve = await ensure_serve(cwd)
+        begin_busy(cwd)
+        session_id = ""
+        try:
+            async for event in self._run_chat_inner(
+                serve=serve,
+                cwd=cwd,
+                model=model,
+                system=system,
+                user_message=user_message,
+                run_id=run_id,
+                agent_id=agent_id,
+                user_id=user_id,
+            ):
+                if event.get("type") == "meta_extra" and event.get("opencode_session_id"):
+                    session_id = str(event["opencode_session_id"])
+                    register_session(
+                        session_id=session_id,
+                        agent_id=agent_id,
+                        user_id=user_id,
+                        run_id=run_id,
+                        cwd=cwd,
+                        base_url=str(event.get("base_url") or serve.base_url),
+                    )
+                yield event
+        finally:
+            if session_id:
+                finish_session(session_id, status="idle")
+            end_busy(cwd)
+
+    async def _run_chat_inner(
+        self,
+        *,
+        serve: Any,
+        cwd: Path,
+        model: str,
+        system: str,
+        user_message: str,
+        run_id: str,
+        agent_id: str,
+        user_id: str,
+    ) -> AsyncIterator[dict[str, Any]]:
+        _ = (cwd, agent_id, user_id)
         client = make_client(serve.base_url, timeout=self.timeout)
         provider_id, model_id = parse_model_ref(model or DEFAULT_MODEL)
 

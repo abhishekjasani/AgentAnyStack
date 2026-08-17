@@ -45,7 +45,31 @@ class RunJournal:
 
     def recent(self, limit: int = 20, *, team: str | None = None) -> list[JournalEntry]:
         """Newest-last slice of journal (ops status for office Q&A)."""
-        if not self.path.is_file() or limit <= 0:
+        rows = self._read_all()
+        if team is not None:
+            rows = [e for e in rows if e.team == team]
+        if limit <= 0:
+            return []
+        return rows[-limit:]
+
+    def recent_for_stack(
+        self,
+        stack: str,
+        *,
+        limit: int = 20,
+    ) -> list[JournalEntry]:
+        """Newest-first runs for an inference stack (excludes approval-only rows)."""
+        sid = (stack or "").strip()
+        rows = [
+            e
+            for e in self._read_all()
+            if e.stack == sid and e.agent_id and not e.approval_id
+        ]
+        rows.reverse()
+        return rows[: max(0, limit)]
+
+    def _read_all(self) -> list[JournalEntry]:
+        if not self.path.is_file():
             return []
         rows: list[JournalEntry] = []
         with self.path.open("r", encoding="utf-8") as f:
@@ -75,10 +99,8 @@ class RunJournal:
                     )
                 except (json.JSONDecodeError, TypeError, ValueError):
                     continue
-                if team is not None and entry.team != team:
-                    continue
                 rows.append(entry)
-        return rows[-limit:]
+        return rows
 
 
 def utc_now() -> str:

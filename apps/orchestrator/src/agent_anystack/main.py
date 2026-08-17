@@ -1,6 +1,7 @@
 """FastAPI application factory."""
 
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -25,6 +26,21 @@ from agent_anystack.api.stacks import router as stacks_router
 from agent_anystack.config import get_settings
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    settings = get_settings()
+    if settings.opencode_bin.strip():
+        os.environ["OPENCODE_BIN"] = settings.opencode_bin.strip()
+    from agent_anystack.adapters.opencode.runtime import (
+        configure_idle_ttl,
+        ensure_sweeper_started,
+    )
+
+    configure_idle_ttl(settings.opencode_serve_idle_ttl_seconds)
+    ensure_sweeper_started()
+    yield
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     if settings.opencode_bin.strip():
@@ -34,6 +50,7 @@ def create_app() -> FastAPI:
         title="AgentAnyStack",
         description="Office backbone for agents — orchestrator API",
         version=__version__,
+        lifespan=lifespan,
     )
     app.include_router(health_router)
     app.include_router(me_router)

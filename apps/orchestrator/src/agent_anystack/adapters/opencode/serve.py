@@ -64,6 +64,10 @@ class OpenCodeServe:
         return self.process.returncode is None
 
 
+def list_live_serves() -> list[OpenCodeServe]:
+    return [s for s in _serves.values() if s.alive()]
+
+
 async def _wait_healthy(base_url: str, *, timeout: float = 45.0) -> None:
     deadline = asyncio.get_event_loop().time() + timeout
     last_err = ""
@@ -86,6 +90,12 @@ async def _wait_healthy(base_url: str, *, timeout: float = 45.0) -> None:
 
 async def ensure_serve(cwd: Path) -> OpenCodeServe:
     """Start or reuse opencode serve bound to cwd."""
+    from agent_anystack.adapters.opencode.runtime import (
+        ensure_sweeper_started,
+        touch_serve,
+    )
+
+    ensure_sweeper_started()
     root = cwd.resolve()
     if not root.is_dir():
         raise StackError(
@@ -96,6 +106,7 @@ async def ensure_serve(cwd: Path) -> OpenCodeServe:
     async with _lock:
         existing = _serves.get(key)
         if existing and existing.alive():
+            touch_serve(root)
             return existing
         if existing:
             _serves.pop(key, None)
@@ -134,6 +145,7 @@ async def ensure_serve(cwd: Path) -> OpenCodeServe:
                 code="opencode_serve_failed",
             ) from None
         _serves[key] = serve
+        touch_serve(root)
         log.info("opencode serve ready cwd=%s port=%s", root, port)
         return serve
 
@@ -151,3 +163,4 @@ async def stop_serve(cwd: Path) -> None:
         except asyncio.TimeoutError:
             serve.process.kill()
             await serve.process.wait()
+    log.info("opencode serve stopped cwd=%s", key)

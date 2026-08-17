@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,6 +22,8 @@ from agent_anystack.api.deps import get_user_id
 from agent_anystack.config import Settings, get_settings
 from agent_anystack.office import OfficeRepository
 from agent_anystack.api.agents import get_office_repo
+from agent_anystack.runs.journal import RunJournal
+from agent_anystack.runs.service import journal_path_from_database_url
 
 router = APIRouter(tags=["stacks-connections"])
 
@@ -29,6 +32,12 @@ def get_connection_store(
     settings: Settings = Depends(get_settings),
 ) -> ConnectionStore:
     return connection_store_from_database_url(settings.database_url)
+
+
+def get_journal(settings: Settings = Depends(get_settings)) -> RunJournal:
+    return RunJournal(
+        journal_path_from_database_url(settings.database_url, Path("./data"))
+    )
 
 
 def get_ollama(settings: Settings = Depends(get_settings)) -> OllamaModelManager:
@@ -115,12 +124,125 @@ async def patch_connection(
     store: ConnectionStore = Depends(get_connection_store),
     _user_id: str = Depends(get_user_id),
 ) -> dict[str, Any]:
-    """Enable or disable an entire connection (not serve start/stop)."""
+    """Enable or disable an entire connection (not serve start/stop).
+
+    Disabling OpenCode also stops live ``opencode serve`` processes.
+    """
     try:
         c = store.set_enabled(connection_id, body.enabled)
     except ConnectionNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if not body.enabled and c.product == "opencode":
+        from agent_anystack.adapters.opencode.runtime import stop_all_opencode_serves
+
+        await stop_all_opencode_serves(force=True)
     return c.as_dict()
+
+
+class StopServeBody(BaseModel):
+    cwd: str
+
+
+@router.get("/stacks/connections/{connection_id}/runtimes")
+async def connection_runtimes(
+    connection_id: str,
+    store: ConnectionStore = Depends(get_connection_store),
+    journal: RunJournal = Depends(get_journal),
+    _user_id: str = Depends(get_user_id),
+) -> dict[str, Any]:
+    """Live OpenCode serves/sessions, or recent journal runs for inference stacks."""
+    try:
+        c = store.get_required(connection_id)
+    except ConnectionNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    if c.product == "opencode":
+        from agent_anystack.adapters.opencode.runtime import (
+            list_serves_snapshot,
+            list_sessions,
+        )
+
+        return {
+            "connection_id": c.id,
+            "kind": "agent_runtime",
+            "serves": list_serves_snapshot(),
+            "sessions": [s.as_dict() for s in list_sessions()],
+            "runs": [],
+        }
+
+    # Inference: journal runs only (no fake sessions)
+    runs = [
+        {
+            "run_id": e.run_id,
+            "agent_id": e.agent_id,
+            "user_id": e.user_id,
+            "status": e.status,
+            "model": e.model,
+            "started_at": e.started_at,
+            "ended_at": e.ended_at,
+            "error": e.error,
+        }
+        for e in journal.recent_for_stack(c.stack(), limit=20)
+    ]
+    return {
+        "connection_id": c.id,
+        "kind": "inference",
+        "serves": [],
+        "sessions": [],
+        "runs": runs,
+    }
+
+
+@router.post("/stacks/connections/{connection_id}/serves/stop")
+async def stop_connection_serve(
+    connection_id: str,
+    body: StopServeBody,
+    store: ConnectionStore = Depends(get_connection_store),
+    _user_id: str = Depends(get_user_id),
+) -> dict[str, Any]:
+    try:
+        c = store.get_required(connection_id)
+    except ConnectionNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if c.product != "opencode":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="serve stop only applies to opencode connections",
+        )
+    from agent_anystack.adapters.opencode.runtime import stop_serve_by_cwd
+
+    try:
+        await stop_serve_by_cwd(body.cwd)
+    except RuntimeError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"ok": True, "cwd": body.cwd}
+
+
+@router.post("/stacks/connections/{connection_id}/sessions/{session_id}/kill")
+async def kill_connection_session(
+    connection_id: str,
+    session_id: str,
+    store: ConnectionStore = Depends(get_connection_store),
+    _user_id: str = Depends(get_user_id),
+) -> dict[str, Any]:
+    try:
+        c = store.get_required(connection_id)
+    except ConnectionNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if c.product != "opencode":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="session kill only applies to opencode connections",
+        )
+    from agent_anystack.adapters.opencode.runtime import kill_session
+
+    try:
+        row = await kill_session(session_id)
+    except KeyError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return {"ok": True, "session": row.as_dict()}
 
 
 @router.post("/stacks/connections/{connection_id}/test")

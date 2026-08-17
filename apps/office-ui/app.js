@@ -248,7 +248,167 @@
     );
     actions.append(testBtn, toggleBtn);
     card.appendChild(actions);
+    const runtimes = document.createElement("div");
+    runtimes.className = "connection-runtimes";
+    runtimes.dataset.connectionId = c.id;
+    card.appendChild(runtimes);
+    fillConnectionRuntimes(runtimes, c);
     return card;
+  }
+
+  async function fillConnectionRuntimes(box, c) {
+    box.innerHTML = `<p class="desk-meta">Loading runtimes…</p>`;
+    try {
+      const res = await api(
+        `/stacks/connections/${encodeURIComponent(c.id)}/runtimes`
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `runtimes ${res.status}`);
+      box.innerHTML = "";
+      const head = document.createElement("div");
+      head.className = "runtime-head";
+      const h = document.createElement("strong");
+      h.textContent =
+        c.product === "opencode" ? "Runtimes" : "Recent runs";
+      const refresh = document.createElement("button");
+      refresh.type = "button";
+      refresh.className = "btn ghost btn-xs";
+      refresh.textContent = "Refresh";
+      refresh.addEventListener("click", () => fillConnectionRuntimes(box, c));
+      head.append(h, refresh);
+      box.appendChild(head);
+
+      if (c.product === "opencode") {
+        const serves = data.serves || [];
+        const sessions = data.sessions || [];
+        if (!serves.length && !sessions.length) {
+          const empty = document.createElement("p");
+          empty.className = "desk-meta";
+          empty.textContent = "No live serves or sessions.";
+          box.appendChild(empty);
+          return;
+        }
+        for (const s of serves) {
+          const row = document.createElement("div");
+          row.className = "runtime-row";
+          const label = document.createElement("p");
+          label.className = "desk-meta";
+          const cwdShort = String(s.cwd || "").split(/[/\\]/).slice(-2).join("/") || s.cwd;
+          label.textContent = [
+            `serve :${s.port}`,
+            cwdShort,
+            s.alive ? "alive" : "dead",
+            s.busy ? `busy×${s.busy}` : "idle",
+            `idle ${s.idle_seconds || 0}s`,
+          ].join(" · ");
+          const stop = document.createElement("button");
+          stop.type = "button";
+          stop.className = "btn ghost btn-xs";
+          stop.textContent = "Stop serve";
+          stop.disabled = !!s.busy;
+          stop.addEventListener("click", () =>
+            stopServe(c.id, s.cwd, box, c)
+          );
+          row.append(label, stop);
+          box.appendChild(row);
+        }
+        for (const sess of sessions) {
+          const row = document.createElement("div");
+          row.className = "runtime-row";
+          const label = document.createElement("p");
+          label.className = "desk-meta";
+          label.textContent = [
+            sess.session_id,
+            sess.agent_id || "—",
+            sess.status,
+            sess.run_id || "",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          const kill = document.createElement("button");
+          kill.type = "button";
+          kill.className = "btn ghost btn-xs";
+          kill.textContent = "Kill session";
+          kill.disabled = sess.status === "killed" || sess.status === "ended";
+          kill.addEventListener("click", () =>
+            killSession(c.id, sess.session_id, box, c)
+          );
+          row.append(label, kill);
+          box.appendChild(row);
+        }
+      } else {
+        const runs = data.runs || [];
+        if (!runs.length) {
+          const empty = document.createElement("p");
+          empty.className = "desk-meta";
+          empty.textContent = "No journal runs yet.";
+          box.appendChild(empty);
+          return;
+        }
+        for (const r of runs.slice(0, 8)) {
+          const row = document.createElement("div");
+          row.className = "runtime-row";
+          const label = document.createElement("p");
+          label.className = "desk-meta";
+          label.textContent = [
+            r.run_id,
+            r.agent_id,
+            r.status,
+            r.model,
+            r.started_at,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          row.appendChild(label);
+          box.appendChild(row);
+        }
+      }
+    } catch (e) {
+      box.innerHTML = "";
+      const err = document.createElement("p");
+      err.className = "error";
+      err.hidden = false;
+      err.textContent = String(e.message || e);
+      box.appendChild(err);
+    }
+  }
+
+  async function stopServe(connectionId, cwd, box, c) {
+    const err = $("#connections-error");
+    err.hidden = true;
+    try {
+      const res = await api(
+        `/stacks/connections/${encodeURIComponent(connectionId)}/serves/stop`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cwd }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `stop ${res.status}`);
+      await fillConnectionRuntimes(box, c);
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function killSession(connectionId, sessionId, box, c) {
+    const err = $("#connections-error");
+    err.hidden = true;
+    try {
+      const res = await api(
+        `/stacks/connections/${encodeURIComponent(connectionId)}/sessions/${encodeURIComponent(sessionId)}/kill`,
+        { method: "POST" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `kill ${res.status}`);
+      await fillConnectionRuntimes(box, c);
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
   }
 
   async function testConnection(id) {

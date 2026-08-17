@@ -225,6 +225,7 @@ class ChatRunService:
                     model=runtime.model,
                     messages=messages,
                     run_id=run_id,
+                    user_id=user_id,
                 ):
                     if event.get("type") == "token":
                         assistant_parts.append(event.get("text") or "")
@@ -304,6 +305,7 @@ class ChatRunService:
         model: str,
         messages: list[dict[str, Any]],
         run_id: str,
+        user_id: str,
     ) -> AsyncIterator[dict]:
         if agent.workspace is None or not (agent.workspace.path or "").strip():
             raise StackError(
@@ -330,6 +332,8 @@ class ChatRunService:
             system=system,
             user_message=user_message,
             run_id=run_id,
+            agent_id=agent.id,
+            user_id=user_id,
         ):
             yield event
 
