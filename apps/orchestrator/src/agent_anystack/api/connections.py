@@ -212,7 +212,7 @@ async def stop_connection_serve(
     from agent_anystack.adapters.opencode.runtime import stop_serve_by_cwd
 
     try:
-        await stop_serve_by_cwd(body.cwd)
+        await stop_serve_by_cwd(body.cwd, connection_id=c.id)
     except RuntimeError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
@@ -243,6 +243,92 @@ async def kill_connection_session(
     except KeyError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"ok": True, "session": row.as_dict()}
+
+
+class RegisterModelBody(BaseModel):
+    inference_connection_id: str
+    inference_model_id: str
+
+
+@router.get("/stacks/connections/{connection_id}/inference-candidates")
+async def inference_candidates(
+    connection_id: str,
+    store: ConnectionStore = Depends(get_connection_store),
+    ollama: OllamaModelManager = Depends(get_ollama),
+    bedrock: BedrockProviderStore = Depends(get_bedrock_store),
+    _user_id: str = Depends(get_user_id),
+) -> dict[str, Any]:
+    """Inference catalog rows that can be Test & registered onto OpenCode."""
+    try:
+        c = store.get_required(connection_id)
+    except ConnectionNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if c.product != "opencode":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="inference candidates only apply to opencode connections",
+        )
+    from agent_anystack.adapters.opencode.providers import list_inference_candidates
+
+    rows = await list_inference_candidates(store, bedrock=bedrock, ollama=ollama)
+    registered = {m.inference_model_id for m in c.registered_models}
+    for row in rows:
+        row["registered"] = row["model_id"] in registered
+    return {
+        "connection_id": c.id,
+        "candidates": rows,
+        "registered_models": [m.as_dict() for m in c.registered_models],
+    }
+
+
+@router.post("/stacks/connections/{connection_id}/models/register")
+async def register_opencode_model(
+    connection_id: str,
+    body: RegisterModelBody,
+    store: ConnectionStore = Depends(get_connection_store),
+    bedrock: BedrockProviderStore = Depends(get_bedrock_store),
+    settings: Settings = Depends(get_settings),
+    _user_id: str = Depends(get_user_id),
+) -> dict[str, Any]:
+    """Inject Inference into OpenCode serve and persist the working provider/model pair."""
+    from agent_anystack.adapters.opencode.register import RegisterError, register_inference_model
+
+    try:
+        return await register_inference_model(
+            store=store,
+            connection_id=connection_id,
+            inference_connection_id=body.inference_connection_id,
+            inference_model_id=body.inference_model_id,
+            settings=settings,
+            bedrock=bedrock,
+        )
+    except ConnectionNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except RegisterError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.delete("/stacks/connections/{connection_id}/models/{model_ref:path}")
+async def delete_opencode_model(
+    connection_id: str,
+    model_ref: str,
+    store: ConnectionStore = Depends(get_connection_store),
+    _user_id: str = Depends(get_user_id),
+) -> dict[str, Any]:
+    try:
+        c = store.get_required(connection_id)
+    except ConnectionNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if c.product != "opencode":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="registered models only apply to opencode connections",
+        )
+    try:
+        updated = store.remove_registered_model(c.id, model_ref)
+    except KeyError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return {"ok": True, "connection": updated.as_dict()}
 
 
 @router.post("/stacks/connections/{connection_id}/test")

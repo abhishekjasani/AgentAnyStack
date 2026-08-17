@@ -106,6 +106,11 @@ class OpenCodeAdapter:
         run_id: str,
         agent_id: str = "",
         user_id: str = "",
+        connection_id: str = "opencode",
+        provider_id: str = "",
+        model_id: str = "",
+        extra_env: dict[str, str] | None = None,
+        config_hash: str = "",
     ) -> AsyncIterator[dict[str, Any]]:
         from agent_anystack.adapters.opencode.runtime import (
             begin_busy,
@@ -113,9 +118,17 @@ class OpenCodeAdapter:
             finish_session,
             register_session,
         )
+        from agent_anystack.adapters.opencode.serve import serve_key
 
-        serve = await ensure_serve(cwd)
-        begin_busy(cwd)
+        cid = (connection_id or "opencode").strip() or "opencode"
+        key = serve_key(cid, cwd)
+        serve = await ensure_serve(
+            cwd,
+            connection_id=cid,
+            extra_env=extra_env,
+            config_hash=config_hash,
+        )
+        begin_busy(key)
         session_id = ""
         try:
             async for event in self._run_chat_inner(
@@ -127,6 +140,8 @@ class OpenCodeAdapter:
                 run_id=run_id,
                 agent_id=agent_id,
                 user_id=user_id,
+                provider_id=provider_id,
+                model_id=model_id,
             ):
                 if event.get("type") == "meta_extra" and event.get("opencode_session_id"):
                     session_id = str(event["opencode_session_id"])
@@ -136,13 +151,14 @@ class OpenCodeAdapter:
                         user_id=user_id,
                         run_id=run_id,
                         cwd=cwd,
+                        connection_id=cid,
                         base_url=str(event.get("base_url") or serve.base_url),
                     )
                 yield event
         finally:
             if session_id:
                 finish_session(session_id, status="idle")
-            end_busy(cwd)
+            end_busy(key)
 
     async def _run_chat_inner(
         self,
@@ -155,10 +171,16 @@ class OpenCodeAdapter:
         run_id: str,
         agent_id: str,
         user_id: str,
+        provider_id: str = "",
+        model_id: str = "",
     ) -> AsyncIterator[dict[str, Any]]:
         _ = (cwd, agent_id, user_id)
         client = make_client(serve.base_url, timeout=self.timeout)
-        provider_id, model_id = parse_model_ref(model or DEFAULT_MODEL)
+        if provider_id.strip() and model_id.strip():
+            pid, mid = provider_id.strip(), model_id.strip()
+        else:
+            pid, mid = parse_model_ref(model or DEFAULT_MODEL)
+
 
         try:
             session = await client.session.create(
@@ -234,14 +256,14 @@ class OpenCodeAdapter:
         # falls back to amazon-bedrock defaults.
         chat_kwargs: dict[str, Any] = {
             "id": session_id,
-            "model_id": model_id,
-            "provider_id": provider_id,
+            "model_id": mid,
+            "provider_id": pid,
             "parts": [{"type": "text", "text": packed_user}],
             "extra_body": {
                 "agent": self.agent_name,
                 "model": {
-                    "providerID": provider_id,
-                    "modelID": model_id,
+                    "providerID": pid,
+                    "modelID": mid,
                 },
             },
         }

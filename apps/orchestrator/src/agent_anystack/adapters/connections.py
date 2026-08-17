@@ -33,6 +33,84 @@ def utc_now_iso() -> str:
 
 
 @dataclass
+class RegisteredOpencodeModel:
+    """Model proven via OpenCode session.chat — desk dropdown source."""
+
+    inference_connection_id: str
+    inference_model_id: str
+    display_name: str
+    provider_id: str
+    model_id: str
+    ref: str
+    tested_at: str
+    inference_product: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def parse_registered_model(row: dict[str, Any]) -> RegisteredOpencodeModel | None:
+    ref = str(row.get("ref") or "").strip()
+    provider_id = str(row.get("provider_id") or "").strip()
+    model_id = str(row.get("model_id") or "").strip()
+    inference_model_id = str(row.get("inference_model_id") or model_id).strip()
+    if not ref and provider_id and model_id:
+        ref = f"{provider_id}/{model_id}"
+    if not ref:
+        return None
+    return RegisteredOpencodeModel(
+        inference_connection_id=str(row.get("inference_connection_id") or ""),
+        inference_model_id=inference_model_id,
+        display_name=str(row.get("display_name") or inference_model_id or ref),
+        provider_id=provider_id,
+        model_id=model_id or inference_model_id,
+        ref=ref,
+        tested_at=str(row.get("tested_at") or ""),
+        inference_product=str(row.get("inference_product") or ""),
+    )
+
+
+# Lookup aliases so desks/API can use oc-local while stored id stays opencode.
+CONNECTION_ALIASES: dict[str, str] = {
+    "oc-local": "opencode",
+    "ollama-local": "ollama",
+    "bed-prod": "bedrock",
+}
+
+
+_DEFAULTS: tuple[dict[str, Any], ...] = (
+    {
+        "id": "ollama",
+        "kind": "inference",
+        "product": "ollama",
+        "label": "Ollama",
+        "aliases": ["ollama-local"],
+        "enabled": True,
+        "status": "unknown",
+    },
+    {
+        "id": "bedrock",
+        "kind": "inference",
+        "product": "bedrock",
+        "label": "AWS Bedrock",
+        "aliases": ["bed-prod"],
+        "enabled": True,
+        "status": "unknown",
+    },
+    {
+        "id": "opencode",
+        "kind": "agent_runtime",
+        "product": "opencode",
+        "label": "OpenCode",
+        "aliases": ["oc-local"],
+        "enabled": True,
+        "status": "unknown",
+        "registered_models": [],
+    },
+)
+
+
+@dataclass
 class StackConnection:
     id: str
     kind: Kind
@@ -43,6 +121,8 @@ class StackConnection:
     last_error: str | None = None
     tested_at: str | None = None
     meta: dict[str, Any] = field(default_factory=dict)
+    aliases: list[str] = field(default_factory=list)
+    registered_models: list[RegisteredOpencodeModel] = field(default_factory=list)
 
     def stack(self) -> str:
         """Desk stack alias for this product."""
@@ -52,7 +132,17 @@ class StackConnection:
         d = asdict(self)
         d["stack"] = self.stack()
         d["kind_label"] = _kind_label(self.kind)
+        d["registered_models"] = [m.as_dict() for m in self.registered_models]
         return d
+
+    def find_registered(self, model: str) -> RegisteredOpencodeModel | None:
+        raw = (model or "").strip()
+        if not raw:
+            return None
+        for m in self.registered_models:
+            if raw in (m.ref, m.inference_model_id, m.model_id, f"{m.provider_id}/{m.model_id}"):
+                return m
+        return None
 
 
 def _kind_label(kind: str) -> str:
@@ -63,34 +153,6 @@ def _kind_label(kind: str) -> str:
     if kind == "external":
         return "External agent"
     return kind
-
-
-_DEFAULTS: tuple[dict[str, Any], ...] = (
-    {
-        "id": "ollama",
-        "kind": "inference",
-        "product": "ollama",
-        "label": "Ollama",
-        "enabled": True,
-        "status": "unknown",
-    },
-    {
-        "id": "bedrock",
-        "kind": "inference",
-        "product": "bedrock",
-        "label": "AWS Bedrock",
-        "enabled": True,
-        "status": "unknown",
-    },
-    {
-        "id": "opencode",
-        "kind": "agent_runtime",
-        "product": "opencode",
-        "label": "OpenCode",
-        "enabled": True,
-        "status": "unknown",
-    },
-)
 
 
 class ConnectionStore:
@@ -110,6 +172,13 @@ class ConnectionStore:
             if d["id"] not in by_id:
                 by_id[d["id"]] = dict(d)
                 changed = True
+            else:
+                aliases = list(d.get("aliases") or [])
+                cur = list(by_id[d["id"]].get("aliases") or [])
+                merged = list(dict.fromkeys([*cur, *aliases]))
+                if merged != cur:
+                    by_id[d["id"]]["aliases"] = merged
+                    changed = True
         if changed or not self.path.is_file():
             self._write_raw(list(by_id.values()))
 
@@ -118,8 +187,9 @@ class ConnectionStore:
 
     def get(self, connection_id: str) -> StackConnection | None:
         cid = (connection_id or "").strip()
+        mapped = CONNECTION_ALIASES.get(cid, cid)
         for c in self.list():
-            if c.id == cid:
+            if c.id == cid or c.id == mapped or cid in c.aliases or mapped in c.aliases:
                 return c
         return None
 
@@ -199,6 +269,26 @@ class ConnectionStore:
             encoding="utf-8",
         )
 
+    def upsert_registered_model(
+        self, connection_id: str, entry: RegisteredOpencodeModel
+    ) -> StackConnection:
+        c = self.get_required(connection_id)
+        rest = [m for m in c.registered_models if m.ref != entry.ref]
+        rest.append(entry)
+        rest.sort(key=lambda m: m.ref)
+        c.registered_models = rest
+        return self.upsert(c)
+
+    def remove_registered_model(self, connection_id: str, ref: str) -> StackConnection:
+        c = self.get_required(connection_id)
+        before = len(c.registered_models)
+        c.registered_models = [
+            m for m in c.registered_models if m.ref != ref and m.inference_model_id != ref
+        ]
+        if len(c.registered_models) == before:
+            raise KeyError(f"registered model not found: {ref}")
+        return self.upsert(c)
+
     @staticmethod
     def _to_raw(c: StackConnection) -> dict[str, Any]:
         return {
@@ -211,6 +301,8 @@ class ConnectionStore:
             "last_error": c.last_error,
             "tested_at": c.tested_at,
             "meta": c.meta or {},
+            "aliases": list(c.aliases or []),
+            "registered_models": [m.as_dict() for m in c.registered_models],
         }
 
     @staticmethod
@@ -221,6 +313,18 @@ class ConnectionStore:
         status = row.get("status") or "unknown"
         if status not in ("unknown", "connected", "error", "disabled"):
             status = "unknown"
+        aliases = [str(a) for a in (row.get("aliases") or []) if str(a).strip()]
+        for d in _DEFAULTS:
+            if d["id"] == row.get("id"):
+                for a in d.get("aliases") or []:
+                    if a not in aliases:
+                        aliases.append(str(a))
+        registered: list[RegisteredOpencodeModel] = []
+        for item in row.get("registered_models") or []:
+            if isinstance(item, dict):
+                parsed = parse_registered_model(item)
+                if parsed:
+                    registered.append(parsed)
         return StackConnection(
             id=str(row["id"]),
             kind=kind,  # type: ignore[arg-type]
@@ -231,6 +335,8 @@ class ConnectionStore:
             last_error=row.get("last_error"),
             tested_at=row.get("tested_at"),
             meta=dict(row.get("meta") or {}),
+            aliases=aliases,
+            registered_models=registered,
         )
 
 

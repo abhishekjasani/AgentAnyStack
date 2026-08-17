@@ -72,6 +72,7 @@ class ChatRunService:
         self._env_aws_session_token = aws_session_token
         self._env_aws_region = aws_region
         self._openai_compatible_timeout = openai_compatible_timeout
+        self._openai_compatible_base_url = openai_compatible_base_url
         self.database_url = database_url
         self._bedrock_store = BedrockProviderStore(bedrock_data_dir(database_url))
         self._connections = connection_store_from_database_url(database_url)
@@ -322,6 +323,26 @@ class ChatRunService:
                 system = content
             elif role == "user":
                 user_message = content
+        cid = (agent.connection_id or "opencode").strip() or "opencode"
+        conn = self._connections.get(cid)
+        pid = mid = ""
+        extra_env: dict[str, str] | None = None
+        cfg_hash = ""
+        if conn is not None and conn.product == "opencode":
+            from agent_anystack.adapters.opencode.providers import prepare_inject
+
+            registered = conn.find_registered(model)
+            if registered is not None:
+                pid, mid = registered.provider_id, registered.model_id
+            _cfg, extra_env, cfg_hash = prepare_inject(
+                database_url=self.database_url,
+                connection=conn,
+                ollama_base_url=self._openai_compatible_base_url,
+                env_access_key_id=self._env_aws_access_key_id,
+                env_secret_access_key=self._env_aws_secret_access_key,
+                env_session_token=self._env_aws_session_token,
+                env_region=self._env_aws_region,
+            )
         harness = OpenCodeAdapter(
             database_url=self.database_url,
             timeout=self._openai_compatible_timeout,
@@ -334,6 +355,11 @@ class ChatRunService:
             run_id=run_id,
             agent_id=agent.id,
             user_id=user_id,
+            connection_id=agent.connection_id or "opencode",
+            provider_id=pid,
+            model_id=mid,
+            extra_env=extra_env,
+            config_hash=cfg_hash,
         ):
             yield event
 

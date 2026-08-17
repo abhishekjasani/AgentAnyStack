@@ -1,4 +1,4 @@
-"""OpenCode serve process supervision — one process per workspace cwd."""
+"""OpenCode serve process supervision — one process per (connection_id, cwd)."""
 
 from __future__ import annotations
 
@@ -16,9 +16,14 @@ from agent_anystack.adapters.llm import StackError
 
 log = logging.getLogger(__name__)
 
-# workdir resolved path → live serve
+# serve_key → live serve
 _serves: dict[str, "OpenCodeServe"] = {}
 _lock = asyncio.Lock()
+
+
+def serve_key(connection_id: str, cwd: Path | str) -> str:
+    cid = (connection_id or "opencode").strip() or "opencode"
+    return f"{cid}::{Path(cwd).resolve()}"
 
 
 def find_opencode_bin() -> str:
@@ -28,7 +33,6 @@ def find_opencode_bin() -> str:
     found = shutil.which("opencode")
     if found:
         return found
-    # curl installer default location inside container/home
     for candidate in (
         Path("/root/.opencode/bin/opencode"),
         Path.home() / ".opencode" / "bin" / "opencode",
@@ -55,6 +59,8 @@ class OpenCodeServe:
     port: int
     process: asyncio.subprocess.Process
     bin_path: str
+    connection_id: str = "opencode"
+    config_hash: str = ""
 
     @property
     def base_url(self) -> str:
@@ -62,6 +68,10 @@ class OpenCodeServe:
 
     def alive(self) -> bool:
         return self.process.returncode is None
+
+    @property
+    def key(self) -> str:
+        return serve_key(self.connection_id, self.cwd)
 
 
 def list_live_serves() -> list[OpenCodeServe]:
@@ -74,7 +84,6 @@ async def _wait_healthy(base_url: str, *, timeout: float = 45.0) -> None:
     async with httpx.AsyncClient(timeout=2.0) as client:
         while asyncio.get_event_loop().time() < deadline:
             try:
-                # Any HTTP response means the server is listening.
                 resp = await client.get(f"{base_url}/session")
                 if resp.status_code < 500:
                     return
@@ -88,8 +97,24 @@ async def _wait_healthy(base_url: str, *, timeout: float = 45.0) -> None:
     )
 
 
-async def ensure_serve(cwd: Path) -> OpenCodeServe:
-    """Start or reuse opencode serve bound to cwd."""
+async def _stop_process(serve: OpenCodeServe) -> None:
+    if serve.process.returncode is None:
+        serve.process.terminate()
+        try:
+            await asyncio.wait_for(serve.process.wait(), timeout=5)
+        except asyncio.TimeoutError:
+            serve.process.kill()
+            await serve.process.wait()
+
+
+async def ensure_serve(
+    cwd: Path,
+    *,
+    connection_id: str = "opencode",
+    extra_env: dict[str, str] | None = None,
+    config_hash: str = "",
+) -> OpenCodeServe:
+    """Start or reuse opencode serve bound to (connection_id, cwd)."""
     from agent_anystack.adapters.opencode.runtime import (
         ensure_sweeper_started,
         touch_serve,
@@ -102,17 +127,25 @@ async def ensure_serve(cwd: Path) -> OpenCodeServe:
             f"workspace path is not a directory: {root}",
             code="opencode_bad_cwd",
         )
-    key = str(root)
+    cid = (connection_id or "opencode").strip() or "opencode"
+    key = serve_key(cid, root)
     async with _lock:
         existing = _serves.get(key)
-        if existing and existing.alive():
-            touch_serve(root)
+        if existing and existing.alive() and (
+            not config_hash or existing.config_hash == config_hash
+        ):
+            touch_serve(key)
             return existing
         if existing:
             _serves.pop(key, None)
+            await _stop_process(existing)
+            log.info("opencode serve restart cwd=%s connection=%s", root, cid)
 
         bin_path = find_opencode_bin()
         port = _free_port()
+        env = {**os.environ, "OPENCODE_CLIENT": "agent-anystack"}
+        if extra_env:
+            env.update({k: v for k, v in extra_env.items() if v})
         proc = await asyncio.create_subprocess_exec(
             bin_path,
             "serve",
@@ -123,9 +156,16 @@ async def ensure_serve(cwd: Path) -> OpenCodeServe:
             cwd=str(root),
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, "OPENCODE_CLIENT": "agent-anystack"},
+            env=env,
         )
-        serve = OpenCodeServe(cwd=root, port=port, process=proc, bin_path=bin_path)
+        serve = OpenCodeServe(
+            cwd=root,
+            port=port,
+            process=proc,
+            bin_path=bin_path,
+            connection_id=cid,
+            config_hash=config_hash,
+        )
         try:
             await _wait_healthy(serve.base_url)
         except Exception:
@@ -145,22 +185,27 @@ async def ensure_serve(cwd: Path) -> OpenCodeServe:
                 code="opencode_serve_failed",
             ) from None
         _serves[key] = serve
-        touch_serve(root)
-        log.info("opencode serve ready cwd=%s port=%s", root, port)
+        touch_serve(key)
+        log.info("opencode serve ready cwd=%s connection=%s port=%s", root, cid, port)
         return serve
 
 
-async def stop_serve(cwd: Path) -> None:
-    key = str(cwd.resolve())
+async def stop_serve(cwd: Path, *, connection_id: str = "opencode") -> None:
+    key = serve_key(connection_id, cwd)
     async with _lock:
         serve = _serves.pop(key, None)
     if serve is None:
         return
-    if serve.process.returncode is None:
-        serve.process.terminate()
-        try:
-            await asyncio.wait_for(serve.process.wait(), timeout=5)
-        except asyncio.TimeoutError:
-            serve.process.kill()
-            await serve.process.wait()
-    log.info("opencode serve stopped cwd=%s", key)
+    await _stop_process(serve)
+    log.info("opencode serve stopped key=%s", key)
+
+
+async def restart_serves_for_connection(connection_id: str) -> int:
+    cid = (connection_id or "").strip()
+    n = 0
+    for serve in list(list_live_serves()):
+        if serve.connection_id != cid:
+            continue
+        await stop_serve(serve.cwd, connection_id=cid)
+        n += 1
+    return n

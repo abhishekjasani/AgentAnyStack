@@ -152,7 +152,8 @@
   function toggleStackModelFields(prefix, stack) {
     const sel = $(`#${prefix}-model`);
     const hint = $(`#${prefix}-model-hint`);
-    fillStackModelSelect(sel, stack, sel?.value || "", hint);
+    const cid = $(`#${prefix}-connection`)?.value || "";
+    fillStackModelSelect(sel, stack, sel?.value || "", hint, cid);
   }
 
   let connectionsCache = [];
@@ -220,6 +221,7 @@
       c.enabled ? "enabled" : "disabled",
       c.tested_at ? `tested ${c.tested_at}` : null,
       `used by: ${used}`,
+      (c.aliases || []).length ? `aka ${c.aliases.join(", ")}` : null,
     ]
       .filter(Boolean)
       .join(" · ");
@@ -253,7 +255,140 @@
     runtimes.dataset.connectionId = c.id;
     card.appendChild(runtimes);
     fillConnectionRuntimes(runtimes, c);
+    if (c.product === "opencode") {
+      const models = document.createElement("div");
+      models.className = "connection-runtimes opencode-register";
+      card.appendChild(models);
+      fillOpencodeRegister(models, c);
+    }
     return card;
+  }
+
+  async function fillOpencodeRegister(box, c) {
+    box.innerHTML = `<p class="desk-meta">Loading Inference models…</p>`;
+    const errEl = $("#connections-error");
+    try {
+      const res = await api(
+        `/stacks/connections/${encodeURIComponent(c.id)}/inference-candidates`
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `candidates ${res.status}`);
+      box.innerHTML = "";
+      const head = document.createElement("div");
+      head.className = "runtime-head";
+      const h = document.createElement("strong");
+      h.textContent = "Registered models";
+      const refresh = document.createElement("button");
+      refresh.type = "button";
+      refresh.className = "btn ghost btn-xs";
+      refresh.textContent = "Refresh";
+      refresh.addEventListener("click", () => fillOpencodeRegister(box, c));
+      head.append(h, refresh);
+      box.appendChild(head);
+
+      const registered = data.registered_models || [];
+      if (!registered.length) {
+        const empty = document.createElement("p");
+        empty.className = "desk-meta";
+        empty.textContent = "None yet — pick an Inference model and Test & register.";
+        box.appendChild(empty);
+      }
+      for (const m of registered) {
+        const row = document.createElement("div");
+        row.className = "runtime-row";
+        const label = document.createElement("p");
+        label.className = "desk-meta";
+        label.textContent = [
+          m.display_name || m.ref,
+          m.ref,
+          m.inference_connection_id,
+          m.tested_at ? `tested ${m.tested_at}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "btn ghost btn-xs";
+        del.textContent = "Remove";
+        del.addEventListener("click", async () => {
+          try {
+            const r = await api(
+              `/stacks/connections/${encodeURIComponent(c.id)}/models/${encodeURIComponent(m.ref)}`,
+              { method: "DELETE" }
+            );
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(d.detail || `delete ${r.status}`);
+            await fillOpencodeRegister(box, c);
+          } catch (e) {
+            errEl.textContent = String(e.message || e);
+            errEl.hidden = false;
+          }
+        });
+        row.append(label, del);
+        box.appendChild(row);
+      }
+
+      const candidates = (data.candidates || []).filter((x) => !x.registered);
+      const form = document.createElement("div");
+      form.className = "runtime-row";
+      const sel = document.createElement("select");
+      sel.setAttribute("aria-label", "Inference model to register");
+      const ph = document.createElement("option");
+      ph.value = "";
+      ph.textContent = candidates.length
+        ? "Select Inference model…"
+        : "No Inference models — Verify & add on Bedrock or pull Ollama";
+      sel.appendChild(ph);
+      for (const cand of candidates) {
+        const o = document.createElement("option");
+        o.value = `${cand.inference_connection_id}\t${cand.model_id}`;
+        o.textContent = `${cand.display_name} (${cand.model_id}) · ${cand.inference_connection_id}`;
+        sel.appendChild(o);
+      }
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn primary btn-xs";
+      btn.textContent = "Test & register";
+      btn.disabled = !candidates.length;
+      btn.addEventListener("click", async () => {
+        const raw = sel.value;
+        if (!raw) return;
+        const [infId, modelId] = raw.split("\t");
+        errEl.hidden = true;
+        btn.disabled = true;
+        btn.textContent = "Testing…";
+        try {
+          const r = await api(
+            `/stacks/connections/${encodeURIComponent(c.id)}/models/register`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                inference_connection_id: infId,
+                inference_model_id: modelId,
+              }),
+            }
+          );
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(d.detail || `register ${r.status}`);
+          await fillOpencodeRegister(box, c);
+        } catch (e) {
+          errEl.textContent = String(e.message || e);
+          errEl.hidden = false;
+          btn.disabled = false;
+          btn.textContent = "Test & register";
+        }
+      });
+      form.append(sel, btn);
+      box.appendChild(form);
+    } catch (e) {
+      box.innerHTML = "";
+      const err = document.createElement("p");
+      err.className = "error";
+      err.hidden = false;
+      err.textContent = String(e.message || e);
+      box.appendChild(err);
+    }
   }
 
   async function fillConnectionRuntimes(box, c) {
@@ -515,7 +650,8 @@
       $(`#${prefix}-model`),
       stack,
       "",
-      $(`#${prefix}-model-hint`)
+      $(`#${prefix}-model-hint`),
+      cid
     );
   }
 
@@ -528,13 +664,16 @@
     await onConnectionChange("create");
   }
 
-  async function fillStackModelSelect(sel, stack, preferred, hintEl) {
+  async function fillStackModelSelect(sel, stack, preferred, hintEl, connectionId) {
     if (!sel) return;
     const prev = preferred || sel.value;
     sel.innerHTML = "";
     if (hintEl) hintEl.textContent = "";
     try {
-      const res = await api(`/stacks/${encodeURIComponent(stack)}/models`);
+      const qs = connectionId
+        ? `?connection_id=${encodeURIComponent(connectionId)}`
+        : "";
+      const res = await api(`/stacks/${encodeURIComponent(stack)}/models${qs}`);
       if (!res.ok) throw new Error(`stack models ${res.status}`);
       const data = await res.json();
       const models = data.models || [];
@@ -716,7 +855,8 @@
         $("#agent-config-model"),
         stack,
         a.model || "",
-        $("#agent-config-model-hint")
+        $("#agent-config-model-hint"),
+        $("#agent-config-connection")?.value || preferredConn
       );
       await loadProjectsInto(
         $("#agent-config-project"),

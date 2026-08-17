@@ -2,9 +2,13 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from agent_anystack.adapters.bedrock_store import BedrockProviderStore, bedrock_data_dir
+from agent_anystack.adapters.connections import (
+    ConnectionStore,
+    connection_store_from_database_url,
+)
 from agent_anystack.adapters.ollama_models import OllamaModelManager
 from agent_anystack.adapters.stack_models import KNOWN_STACKS, list_models_for_stack
 from agent_anystack.api.deps import get_user_id
@@ -24,6 +28,12 @@ def get_ollama_manager(settings: Settings = Depends(get_settings)) -> OllamaMode
     )
 
 
+def get_connection_store(
+    settings: Settings = Depends(get_settings),
+) -> ConnectionStore:
+    return connection_store_from_database_url(settings.database_url)
+
+
 @router.get("/stacks")
 async def list_stacks(_user_id: str = Depends(get_user_id)) -> dict[str, Any]:
     """Known stacks and whether desk chat is wired."""
@@ -33,8 +43,10 @@ async def list_stacks(_user_id: str = Depends(get_user_id)) -> dict[str, Any]:
 @router.get("/stacks/{stack}/models")
 async def stack_models(
     stack: str,
+    connection_id: str | None = Query(default=None),
     ollama: OllamaModelManager = Depends(get_ollama_manager),
     bedrock: BedrockProviderStore = Depends(get_bedrock_store),
+    connections: ConnectionStore = Depends(get_connection_store),
     _user_id: str = Depends(get_user_id),
 ) -> dict[str, Any]:
     """Selectable models for Create/Configure — one shape for every stack."""
@@ -45,5 +57,7 @@ async def stack_models(
         sid,
         ollama=ollama,
         bedrock_store=bedrock,
+        connection_id=connection_id,
+        connections=connections,
     )
     return result.as_dict()

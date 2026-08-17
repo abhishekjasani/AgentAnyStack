@@ -140,6 +140,8 @@ async def create_agent(
             body.model,
             ollama=ollama,
             bedrock_store=bedrock,
+            connection_id=connection_id,
+            connections=connections,
         )
     except StackSelectionError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -222,6 +224,8 @@ async def update_agent(
             next_model,
             ollama=ollama,
             bedrock_store=bedrock,
+            connection_id=connection_id,
+            connections=connections,
         )
     except StackSelectionError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

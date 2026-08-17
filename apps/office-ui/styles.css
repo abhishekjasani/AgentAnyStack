@@ -512,9 +512,9 @@ h1 {
   margin: 0;
   word-break: break-all;
 }
-.btn-xs {
-  font-size: 0.78rem;
-  padding: 0.2rem 0.5rem;
+.opencode-register select {
+  width: 100%;
+  font: inherit;
 }
 .model-progress-bar {
   height: 0.35rem;

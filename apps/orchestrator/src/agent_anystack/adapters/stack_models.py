@@ -32,7 +32,7 @@ KNOWN_STACKS: tuple[dict[str, Any], ...] = (
         "id": "opencode",
         "label": "opencode (agent runtime)",
         "chat": True,
-        "model_source": "opencode_models",
+        "model_source": "opencode_registered",
     },
 )
 
@@ -106,6 +106,8 @@ async def list_models_for_stack(
     *,
     ollama: OllamaModelManager | None = None,
     bedrock_store: BedrockProviderStore | None = None,
+    connection_id: str | None = None,
+    connections: Any | None = None,
 ) -> StackModelsResult:
     """Return selectable models for Create/Configure. Unknown stacks → empty + hint."""
     sid = (stack or "").strip()
@@ -123,7 +125,7 @@ async def list_models_for_stack(
     if sid == "bedrock":
         return _list_bedrock(bedrock_store)
     if sid == "opencode":
-        return await _list_opencode()
+        return _list_opencode_registered(connection_id, connections)
     return StackModelsResult(
         stack=sid,
         selectable=False,
@@ -138,6 +140,8 @@ async def validate_desk_selection(
     *,
     ollama: OllamaModelManager | None = None,
     bedrock_store: BedrockProviderStore | None = None,
+    connection_id: str | None = None,
+    connections: Any | None = None,
 ) -> ResolvedDeskRuntime:
     """Strict check for Create/Configure — chat stack + model in that stack's catalog."""
     sid = normalize_chat_stack(stack)
@@ -149,15 +153,23 @@ async def validate_desk_selection(
         sid,
         ollama=ollama,
         bedrock_store=bedrock_store,
+        connection_id=connection_id,
+        connections=connections,
     )
-    ids = {m.id for m in catalog.models if m.ready}
-    if mid not in ids:
+    chosen: StackModelEntry | None = None
+    for m in catalog.models:
+        if not m.ready:
+            continue
+        if mid in (m.id, m.meta.get("inference_model_id"), m.meta.get("model_id")):
+            chosen = m
+            break
+    if chosen is None:
         hint = catalog.hint or "no selectable models"
         raise StackSelectionError(
             f"model '{mid}' is not selectable for stack '{sid}' — {hint}",
             code="model_not_in_catalog",
         )
-    return ResolvedDeskRuntime(stack=sid, model=mid)
+    return ResolvedDeskRuntime(stack=sid, model=chosen.id)
 
 
 def resolve_desk_runtime(stack: str, model: str) -> ResolvedDeskRuntime:
@@ -222,30 +234,56 @@ async def _list_ollama(ollama: OllamaModelManager | None) -> StackModelsResult:
 
 
 async def _list_opencode() -> StackModelsResult:
-    from agent_anystack.adapters.opencode import list_opencode_models
+    return _list_opencode_registered(None, None)
 
-    rows = await list_opencode_models()
+
+def _list_opencode_registered(
+    connection_id: str | None,
+    connections: Any | None,
+) -> StackModelsResult:
+    if connections is None:
+        return StackModelsResult(
+            stack="opencode",
+            selectable=False,
+            hint="Register a model on Stacks → OpenCode (Test & register) first.",
+            models=[],
+        )
+    cid = (connection_id or "").strip()
+    conn = connections.get(cid) if cid else connections.get("opencode")
+    if conn is None or conn.product != "opencode":
+        return StackModelsResult(
+            stack="opencode",
+            selectable=False,
+            hint="OpenCode connection not found.",
+            models=[],
+        )
     models = [
         StackModelEntry(
-            id=r["id"],
-            display_name=r.get("display_name") or r["id"],
+            id=m.ref,
+            display_name=m.display_name or m.inference_model_id or m.ref,
             ready=True,
-            source="opencode_models",
+            source="opencode_registered",
+            meta={
+                "inference_connection_id": m.inference_connection_id,
+                "inference_model_id": m.inference_model_id,
+                "provider_id": m.provider_id,
+                "model_id": m.model_id,
+                "tested_at": m.tested_at,
+            },
         )
-        for r in rows
-        if r.get("id")
+        for m in conn.registered_models
     ]
     if not models:
         return StackModelsResult(
             stack="opencode",
             selectable=False,
-            hint="No OpenCode models available.",
+            hint="No models registered on this OpenCode connection — Test & register on Stacks first.",
             models=[],
         )
     return StackModelsResult(
         stack="opencode",
         selectable=True,
-        hint=f"{len(models)} OpenCode model(s)",
+        hint=f"{len(models)} registered OpenCode model(s)",
         models=models,
     )
 
