@@ -840,11 +840,16 @@
   async function loadRunThinking(runId) {
     if (!runId) return;
     const err = $("#chat-error");
+    err.hidden = true;
     try {
       const res = await api(`/runs/${encodeURIComponent(runId)}/thinking`);
       if (!res.ok) throw new Error(`thinking ${res.status}`);
       const data = await res.json();
-      const text = (data.text || "").trim() || "(no thinking stored for this run)";
+      const text = (data.text || "").trim();
+      if (!text) {
+        $("#chat-meta").textContent = `run ${runId} · no thinking stored`;
+        return;
+      }
       const box = appendBubble("assistant", "", { tag: `thinking · ${runId}` });
       const body = box.querySelector(".bubble-text");
       if (body) body.textContent = text;
