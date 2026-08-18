@@ -724,19 +724,38 @@
       const res = await api("/stacks/bedrock");
       if (!res.ok) throw new Error(`status ${res.status}`);
       const s = await res.json();
+      const mode = s.auth_mode === "api_key" ? "api_key" : "iam";
       const bits = [
         s.configured ? "credentials configured" : "credentials not set",
+        mode === "api_key" ? "auth=api key" : "auth=IAM",
         s.source ? `source=${s.source}` : null,
         s.region ? `region ${s.region}` : null,
         s.access_key_hint ? `key ${s.access_key_hint}` : null,
         s.has_session_token ? "session token set" : null,
+        s.has_api_key || s.api_key_hint ? `api key ${s.api_key_hint || "set"}` : null,
         s.updated_at ? `updated ${s.updated_at}` : null,
       ].filter(Boolean);
       el.textContent = bits.join(" · ");
       const form = $("#bedrock-creds-form");
       if (form && s.region) form.region.value = s.region;
+      if (form && form.auth_mode) form.auth_mode.value = mode;
+      syncBedrockAuthFields(mode);
     } catch (e) {
       el.textContent = String(e.message || e);
+    }
+  }
+
+  function syncBedrockAuthFields(mode) {
+    const iam = $("#bedrock-iam-fields");
+    const api = $("#bedrock-apikey-fields");
+    if (iam) iam.hidden = mode === "api_key";
+    if (api) api.hidden = mode !== "api_key";
+    const test = $("#bedrock-test");
+    if (test) {
+      test.title =
+        mode === "api_key"
+          ? "Bedrock runtime probe — API key (no catalog model)"
+          : "STS GetCallerIdentity — IAM credentials only";
     }
   }
 
@@ -1768,6 +1787,10 @@
   }
   $("#btn-connections-refresh")?.addEventListener("click", () => loadConnections());
 
+  $("#bedrock-creds-form [name=auth_mode]")?.addEventListener("change", (ev) => {
+    syncBedrockAuthFields(String(ev.target.value || "iam"));
+  });
+
   $("#bedrock-creds-form")?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const form = ev.target;
@@ -1775,14 +1798,16 @@
     const ok = $("#bedrock-creds-ok");
     err.hidden = true;
     ok.hidden = true;
-    const body = {};
+    const body = { auth_mode: String(form.auth_mode?.value || "iam").trim() || "iam" };
     const ak = String(form.access_key_id.value || "").trim();
     const sk = String(form.secret_access_key.value || "").trim();
     const st = String(form.session_token.value || "").trim();
+    const apiKey = String(form.api_key?.value || "").trim();
     const region = String(form.region.value || "").trim();
     if (ak) body.access_key_id = ak;
     if (sk) body.secret_access_key = sk;
     if (st) body.session_token = st;
+    if (apiKey) body.api_key = apiKey;
     if (region) body.region = region;
     try {
       const res = await api("/stacks/bedrock", {
@@ -1797,6 +1822,7 @@
       form.access_key_id.value = "";
       form.secret_access_key.value = "";
       form.session_token.value = "";
+      if (form.api_key) form.api_key.value = "";
       ok.textContent = "Credentials saved (not shown again).";
       ok.hidden = false;
       await loadBedrockStatus();
@@ -1823,7 +1849,11 @@
         throw new Error(msg);
       }
       const arn = data.arn ? String(data.arn).split("/").pop() : "";
-      ok.textContent = `Creds OK · account ${data.account || "?"} · ${arn || data.region || ""}`;
+      if (data.auth === "api_key") {
+        ok.textContent = `API key OK · region ${data.region || ""}`;
+      } else {
+        ok.textContent = `Creds OK · account ${data.account || "?"} · ${arn || data.region || ""}`;
+      }
       ok.hidden = false;
     } catch (e) {
       err.textContent = String(e.message || e);

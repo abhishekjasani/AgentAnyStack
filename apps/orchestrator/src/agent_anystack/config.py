@@ -102,6 +102,13 @@ class Settings(BaseSettings):
         default="us-east-1",
         validation_alias=AliasChoices("AWS_REGION", "AWS_DEFAULT_REGION"),
     )
+    aws_bearer_token_bedrock: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "AWS_BEARER_TOKEN_BEDROCK",
+            "BEDROCK_API_KEY",
+        ),
+    )
 
     # OpenCode CLI binary (optional). Empty → PATH / ~/.opencode/bin.
     opencode_bin: str = Field(

@@ -158,6 +158,7 @@ def bedrock_env(
     env_secret_access_key: str = "",
     env_session_token: str = "",
     env_region: str = "us-east-1",
+    env_api_key: str = "",
 ) -> dict[str, str]:
     from agent_anystack.adapters.bedrock_store import resolve_creds
 
@@ -167,14 +168,18 @@ def bedrock_env(
         env_secret_access_key=env_secret_access_key,
         env_session_token=env_session_token,
         env_region=env_region,
+        env_api_key=env_api_key,
     )
     out: dict[str, str] = {}
-    if creds.access_key_id:
-        out["AWS_ACCESS_KEY_ID"] = creds.access_key_id
-    if creds.secret_access_key:
-        out["AWS_SECRET_ACCESS_KEY"] = creds.secret_access_key
-    if creds.session_token:
-        out["AWS_SESSION_TOKEN"] = creds.session_token
+    if creds.uses_api_key():
+        out["AWS_BEARER_TOKEN_BEDROCK"] = creds.api_key
+    else:
+        if creds.access_key_id:
+            out["AWS_ACCESS_KEY_ID"] = creds.access_key_id
+        if creds.secret_access_key:
+            out["AWS_SECRET_ACCESS_KEY"] = creds.secret_access_key
+        if creds.session_token:
+            out["AWS_SESSION_TOKEN"] = creds.session_token
     if creds.region:
         out["AWS_REGION"] = creds.region
         out["AWS_DEFAULT_REGION"] = creds.region
@@ -191,6 +196,7 @@ def prepare_inject(
     env_secret_access_key: str = "",
     env_session_token: str = "",
     env_region: str = "us-east-1",
+    env_api_key: str = "",
 ) -> tuple[Path, dict[str, str], str]:
     """Write OPENCODE_CONFIG and return (config_path, extra_env, hash)."""
     bedrock = BedrockProviderStore(bedrock_data_dir(database_url))
@@ -220,6 +226,7 @@ def prepare_inject(
                 env_secret_access_key=env_secret_access_key,
                 env_session_token=env_session_token,
                 env_region=env_region,
+                env_api_key=env_api_key,
             )
         )
     extra_env["OPENCODE_CONFIG"] = str(path)

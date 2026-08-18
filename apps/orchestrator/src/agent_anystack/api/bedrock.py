@@ -22,11 +22,13 @@ router = APIRouter(tags=["bedrock"])
 
 
 class BedrockCredsPut(BaseModel):
-    """Write-only. Omit or blank id/secret to leave stored; session_token sent when set."""
+    """Write-only. Omit or blank secrets to leave stored; session_token sent when set."""
 
     access_key_id: str | None = Field(default=None, max_length=128)
     secret_access_key: str | None = Field(default=None, max_length=256)
     session_token: str | None = Field(default=None, max_length=4096)
+    api_key: str | None = Field(default=None, max_length=8192)
+    auth_mode: str | None = Field(default=None, max_length=16)
     region: str | None = Field(default=None, max_length=64)
 
 
@@ -49,11 +51,14 @@ def _adapter_from_store(
         env_secret_access_key=settings.aws_secret_access_key,
         env_session_token=settings.aws_session_token,
         env_region=settings.aws_region,
+        env_api_key=settings.aws_bearer_token_bedrock,
     )
     return BedrockAdapter(
         access_key_id=creds.access_key_id,
         secret_access_key=creds.secret_access_key,
         session_token=creds.session_token,
+        api_key=creds.api_key,
+        auth_mode=creds.auth_mode,
         region=creds.region,
         timeout=min(120.0, settings.openai_compatible_timeout),
     )
@@ -65,23 +70,39 @@ async def bedrock_status(
     settings: Settings = Depends(get_settings),
     _user_id: str = Depends(get_user_id),
 ) -> dict[str, Any]:
-    """Status only — never returns access_key_id or secret_access_key."""
+    """Status only — never returns access_key_id, secret, or api_key."""
     status_body = store.status()
     # Env fallback counts as configured for operators who skip UI put.
     if not status_body["configured"]:
-        env_ok = bool(
+        env_iam = bool(
             (settings.aws_access_key_id or "").strip()
             and (settings.aws_secret_access_key or "").strip()
         )
-        if env_ok:
+        env_api = bool((settings.aws_bearer_token_bedrock or "").strip())
+        if env_api:
             status_body = {
                 **status_body,
                 "configured": True,
+                "auth_mode": "api_key",
+                "region": (settings.aws_region or "us-east-1").strip() or "us-east-1",
+                "access_key_hint": None,
+                "has_session_token": False,
+                "has_api_key": True,
+                "api_key_hint": None,
+                "source": "env",
+            }
+        elif env_iam:
+            status_body = {
+                **status_body,
+                "configured": True,
+                "auth_mode": "iam",
                 "region": (settings.aws_region or "us-east-1").strip() or "us-east-1",
                 "access_key_hint": None,
                 "has_session_token": bool(
                     (settings.aws_session_token or "").strip()
                 ),
+                "has_api_key": False,
+                "api_key_hint": None,
                 "source": "env",
             }
         else:
@@ -103,15 +124,20 @@ async def bedrock_put_creds(
         ak = body.access_key_id
         sk = body.secret_access_key
         st = body.session_token
+        api = body.api_key
         if ak is not None and not ak.strip():
             ak = None
         if sk is not None and not sk.strip():
             sk = None
+        if api is not None and not api.strip():
+            api = None
         # session_token: omit from body = leave; non-empty = set; explicit "" clears
         return store.put_creds(
             access_key_id=ak,
             secret_access_key=sk,
             session_token=st,
+            api_key=api,
+            auth_mode=body.auth_mode,
             region=body.region,
         )
     except ValueError as exc:
@@ -124,12 +150,12 @@ async def bedrock_test(
     settings: Settings = Depends(get_settings),
     _user_id: str = Depends(get_user_id),
 ) -> dict[str, Any]:
-    """Creds-only probe via STS GetCallerIdentity (no Converse / model)."""
+    """Creds-only probe: STS for IAM, Bedrock runtime for API key (no catalog model)."""
     adapter = _adapter_from_store(store, settings)
     if not adapter.configured():
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            detail="Bedrock not configured — PUT credentials first (or set AWS_* env).",
+            detail="Bedrock not configured — PUT IAM keys or a Bedrock API key first (or set AWS_* / AWS_BEARER_TOKEN_BEDROCK env).",
         )
     try:
         ident = await adapter.test_credentials()

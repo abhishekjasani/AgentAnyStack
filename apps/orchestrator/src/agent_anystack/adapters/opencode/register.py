@@ -267,6 +267,7 @@ async def register_inference_model(
         env_secret_access_key=settings.aws_secret_access_key,
         env_session_token=settings.aws_session_token,
         env_region=settings.aws_region,
+        env_api_key=settings.aws_bearer_token_bedrock,
     )
     cwd = scratch_cwd_for(settings.database_url, oc.id)
     try:

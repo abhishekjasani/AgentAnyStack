@@ -63,6 +63,7 @@ def get_chat_service(
         aws_secret_access_key=settings.aws_secret_access_key,
         aws_session_token=settings.aws_session_token,
         aws_region=settings.aws_region,
+        aws_bearer_token_bedrock=settings.aws_bearer_token_bedrock,
         database_url=settings.database_url,
     )
 

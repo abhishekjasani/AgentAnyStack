@@ -381,11 +381,14 @@ async def test_connection(
                 env_secret_access_key=settings.aws_secret_access_key,
                 env_session_token=settings.aws_session_token,
                 env_region=settings.aws_region,
+                env_api_key=settings.aws_bearer_token_bedrock,
             )
             adapter = BedrockAdapter(
                 access_key_id=creds.access_key_id,
                 secret_access_key=creds.secret_access_key,
                 session_token=creds.session_token,
+                api_key=creds.api_key,
+                auth_mode=creds.auth_mode,
                 region=creds.region,
             )
             if not adapter.configured():
@@ -395,6 +398,8 @@ async def test_connection(
                 meta = {
                     "account": ident.get("account") or ident.get("Account"),
                     "arn": ident.get("arn") or ident.get("Arn"),
+                    "auth": ident.get("auth") or creds.auth_mode,
+                    "region": ident.get("region") or creds.region,
                 }
                 ok = True
         else:

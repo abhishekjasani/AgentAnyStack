@@ -1,4 +1,4 @@
-"""AWS Bedrock Runtime adapter — Access Key ID + Secret + optional Session Token + Region.
+"""AWS Bedrock Runtime adapter — IAM keys or Bedrock API key + Region.
 
 Uses Converse / ConverseStream. Desk stack=`bedrock`; Office soft jobs stay openai-compatible.
 """
@@ -7,14 +7,19 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+import os
+import threading
+from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from agent_anystack.adapters.llm import ChatTurnResult, StackError, ToolCallRequest
 
+_BEARER_LOCK = threading.Lock()
+
 
 class BedrockAdapter:
-    """Bedrock Converse API — auth via IAM access key (+ session token for STS)."""
+    """Bedrock Converse API — IAM access key or Amazon Bedrock API key."""
 
     def __init__(
         self,
@@ -23,23 +28,60 @@ class BedrockAdapter:
         secret_access_key: str,
         region: str,
         session_token: str = "",
+        api_key: str = "",
+        auth_mode: str = "iam",
         timeout: float = 300.0,
     ) -> None:
         self.access_key_id = (access_key_id or "").strip()
         self.secret_access_key = (secret_access_key or "").strip()
         self.session_token = (session_token or "").strip()
+        self.api_key = (api_key or "").strip()
+        self.auth_mode = (auth_mode or "iam").strip() or "iam"
         self.region = (region or "").strip() or "us-east-1"
         self.timeout = timeout
 
+    def uses_api_key(self) -> bool:
+        return self.auth_mode == "api_key" and bool(self.api_key)
+
     def configured(self) -> bool:
+        if self.uses_api_key():
+            return True
         return bool(self.access_key_id and self.secret_access_key)
+
+    @contextmanager
+    def _bearer_env(self) -> Iterator[None]:
+        if not self.uses_api_key():
+            yield
+            return
+        iam_keys = (
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_SESSION_TOKEN",
+        )
+        with _BEARER_LOCK:
+            prev_bearer = os.environ.get("AWS_BEARER_TOKEN_BEDROCK")
+            prev_iam = {k: os.environ.get(k) for k in iam_keys}
+            os.environ["AWS_BEARER_TOKEN_BEDROCK"] = self.api_key
+            for k in iam_keys:
+                os.environ.pop(k, None)
+            try:
+                yield
+            finally:
+                if prev_bearer is None:
+                    os.environ.pop("AWS_BEARER_TOKEN_BEDROCK", None)
+                else:
+                    os.environ["AWS_BEARER_TOKEN_BEDROCK"] = prev_bearer
+                for k, v in prev_iam.items():
+                    if v is None:
+                        os.environ.pop(k, None)
+                    else:
+                        os.environ[k] = v
 
     def _boto_kwargs(self) -> dict[str, Any]:
         if not self.configured():
             raise StackError(
-                "Bedrock not configured — set AWS_ACCESS_KEY_ID, "
-                "AWS_SECRET_ACCESS_KEY, AWS_REGION "
-                "(and AWS_SESSION_TOKEN when using temporary creds).",
+                "Bedrock not configured — set IAM access key + secret, "
+                "or a Bedrock API key, plus region.",
                 code="bedrock_not_configured",
             )
         try:
@@ -51,16 +93,17 @@ class BedrockAdapter:
             ) from exc
         kwargs: dict[str, Any] = {
             "region_name": self.region,
-            "aws_access_key_id": self.access_key_id,
-            "aws_secret_access_key": self.secret_access_key,
             "config": Config(
                 read_timeout=int(self.timeout),
                 connect_timeout=min(60, int(self.timeout)),
                 retries={"max_attempts": 2},
             ),
         }
-        if self.session_token:
-            kwargs["aws_session_token"] = self.session_token
+        if not self.uses_api_key():
+            kwargs["aws_access_key_id"] = self.access_key_id
+            kwargs["aws_secret_access_key"] = self.secret_access_key
+            if self.session_token:
+                kwargs["aws_session_token"] = self.session_token
         return kwargs
 
     def _client(self, service: str = "bedrock-runtime") -> Any:
@@ -74,7 +117,9 @@ class BedrockAdapter:
         return boto3.client(service, **self._boto_kwargs())
 
     async def test_credentials(self) -> dict[str, str]:
-        """Validate access key / secret / session token via STS GetCallerIdentity (no model)."""
+        """IAM: STS GetCallerIdentity. API key: Bedrock runtime probe (no model)."""
+        if self.uses_api_key():
+            return await self._test_api_key()
 
         def _run() -> dict[str, str]:
             client = self._client("sts")
@@ -84,6 +129,7 @@ class BedrockAdapter:
                 "arn": str(ident.get("Arn") or ""),
                 "user_id": str(ident.get("UserId") or ""),
                 "region": self.region,
+                "auth": "iam",
             }
 
         try:
@@ -95,6 +141,45 @@ class BedrockAdapter:
                 f"AWS credential check failed: {exc}",
                 code="bedrock_creds_invalid",
             ) from exc
+
+    async def _test_api_key(self) -> dict[str, str]:
+        import httpx
+
+        url = (
+            f"https://bedrock-runtime.{self.region}.amazonaws.com"
+            "/model/_aas-creds-probe/converse"
+        )
+        try:
+            async with httpx.AsyncClient(timeout=min(30.0, float(self.timeout))) as client:
+                resp = await client.post(
+                    url,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {self.api_key}",
+                    },
+                    json={
+                        "messages": [
+                            {"role": "user", "content": [{"text": "ping"}]}
+                        ]
+                    },
+                )
+        except httpx.HTTPError as exc:
+            raise StackError(
+                f"Bedrock API key check failed: {exc}",
+                code="bedrock_creds_invalid",
+            ) from exc
+        if resp.status_code in (401, 403):
+            raise StackError(
+                f"Bedrock API key rejected ({resp.status_code})",
+                code="bedrock_creds_invalid",
+            )
+        return {
+            "account": "",
+            "arn": "",
+            "user_id": "",
+            "region": self.region,
+            "auth": "api_key",
+        }
 
     async def stream_chat(
         self,
@@ -114,36 +199,37 @@ class BedrockAdapter:
 
         def _run() -> None:
             try:
-                client = self._client()
-                resp = client.converse_stream(**kwargs)
-                stream = resp.get("stream")
-                if stream is None:
-                    queue.put_nowait(("error", StackError(
-                        "Bedrock converse_stream returned no stream.",
-                        code="bedrock_empty_stream",
-                    )))
-                    return
-                for event in stream:
-                    if "contentBlockDelta" in event:
-                        delta = event["contentBlockDelta"].get("delta") or {}
-                        text = delta.get("text") or ""
-                        if text:
-                            queue.put_nowait(("delta", text))
-                    elif "messageStop" in event:
-                        break
-                    elif "internalServerException" in event:
+                with self._bearer_env():
+                    client = self._client()
+                    resp = client.converse_stream(**kwargs)
+                    stream = resp.get("stream")
+                    if stream is None:
                         queue.put_nowait(("error", StackError(
-                            str(event["internalServerException"]),
-                            code="bedrock_http",
+                            "Bedrock converse_stream returned no stream.",
+                            code="bedrock_empty_stream",
                         )))
                         return
-                    elif "validationException" in event:
-                        queue.put_nowait(("error", StackError(
-                            str(event["validationException"]),
-                            code="bedrock_validation",
-                        )))
-                        return
-                queue.put_nowait(("done", None))
+                    for event in stream:
+                        if "contentBlockDelta" in event:
+                            delta = event["contentBlockDelta"].get("delta") or {}
+                            text = delta.get("text") or ""
+                            if text:
+                                queue.put_nowait(("delta", text))
+                        elif "messageStop" in event:
+                            break
+                        elif "internalServerException" in event:
+                            queue.put_nowait(("error", StackError(
+                                str(event["internalServerException"]),
+                                code="bedrock_http",
+                            )))
+                            return
+                        elif "validationException" in event:
+                            queue.put_nowait(("error", StackError(
+                                str(event["validationException"]),
+                                code="bedrock_validation",
+                            )))
+                            return
+                    queue.put_nowait(("done", None))
             except StackError as exc:
                 queue.put_nowait(("error", exc))
             except Exception as exc:  # noqa: BLE001
@@ -202,8 +288,9 @@ class BedrockAdapter:
 
         def _run() -> ChatTurnResult:
             try:
-                client = self._client()
-                resp = client.converse(**kwargs)
+                with self._bearer_env():
+                    client = self._client()
+                    resp = client.converse(**kwargs)
             except StackError:
                 raise
             except Exception as exc:  # noqa: BLE001

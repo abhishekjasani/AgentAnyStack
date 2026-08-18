@@ -411,24 +411,40 @@
 
         <h2 class="memory-h2">Inference · AWS Bedrock</h2>
         <p class="lede">
-          Write-only credentials (never returned by GET). <strong>Test</strong> checks
-          keys via STS only (no model). Verify an inference id into the catalog, then
-          pick it when creating a desk on the Bedrock connection.
+          Write-only credentials (never returned by GET). Authenticate with
+          <strong>AWS access key + secret</strong> (optional session token) or a
+          <strong>Bedrock API key</strong>. Region is required for both.
+          <strong>Test</strong> checks IAM via STS, or the API key against Bedrock
+          runtime (no catalog model). Then verify an inference id into the catalog.
         </p>
         <p id="bedrock-status" class="desk-meta"></p>
         <form id="bedrock-creds-form" class="form memory-form">
-          <label>AWS access key ID
-            <input name="access_key_id" type="password" autocomplete="off"
-              placeholder="leave blank to keep existing" />
+          <label>Authenticate with
+            <select name="auth_mode">
+              <option value="iam">AWS access key + secret</option>
+              <option value="api_key">Bedrock API key</option>
+            </select>
           </label>
-          <label>AWS secret access key
-            <input name="secret_access_key" type="password" autocomplete="off"
-              placeholder="leave blank to keep existing" />
-          </label>
-          <label>AWS session token (STS / temporary)
-            <input name="session_token" type="password" autocomplete="off"
-              placeholder="optional; leave blank to keep existing" />
-          </label>
+          <div id="bedrock-iam-fields">
+            <label>AWS access key ID
+              <input name="access_key_id" type="password" autocomplete="off"
+                placeholder="leave blank to keep existing" />
+            </label>
+            <label>AWS secret access key
+              <input name="secret_access_key" type="password" autocomplete="off"
+                placeholder="leave blank to keep existing" />
+            </label>
+            <label>AWS session token (STS / temporary)
+              <input name="session_token" type="password" autocomplete="off"
+                placeholder="optional; leave blank to keep existing" />
+            </label>
+          </div>
+          <div id="bedrock-apikey-fields" hidden>
+            <label>Bedrock API key
+              <input name="api_key" type="password" autocomplete="off"
+                placeholder="leave blank to keep existing" />
+            </label>
+          </div>
           <label>Region
             <input name="region" type="text" value="us-east-1" placeholder="us-east-1" />
           </label>
@@ -436,7 +452,7 @@
           <p id="bedrock-creds-ok" class="desk-meta" hidden></p>
           <div class="form-actions memory-actions">
             <button type="submit" class="btn primary">Save credentials</button>
-            <button type="button" class="btn ghost" id="bedrock-test" title="STS GetCallerIdentity — credentials only">Test</button>
+            <button type="button" class="btn ghost" id="bedrock-test" title="Check stored credentials">Test</button>
           </div>
         </form>
         <form id="bedrock-model-form" class="form memory-form">

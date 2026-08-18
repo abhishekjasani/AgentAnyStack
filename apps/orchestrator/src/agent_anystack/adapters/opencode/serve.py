@@ -146,6 +146,13 @@ async def ensure_serve(
         env = {**os.environ, "OPENCODE_CLIENT": "agent-anystack"}
         if extra_env:
             env.update({k: v for k, v in extra_env.items() if v})
+            if extra_env.get("AWS_BEARER_TOKEN_BEDROCK"):
+                for k in (
+                    "AWS_ACCESS_KEY_ID",
+                    "AWS_SECRET_ACCESS_KEY",
+                    "AWS_SESSION_TOKEN",
+                ):
+                    env.pop(k, None)
         proc = await asyncio.create_subprocess_exec(
             bin_path,
             "serve",

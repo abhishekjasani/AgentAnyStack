@@ -1,7 +1,7 @@
 # AgentAnyStack
 
 **Tagline:** Any stack. One orchestrator.  
-**License:** Apache-2.0 · **Release:** v0 early · SemVer `0.3.5`
+**License:** Apache-2.0 · **Release:** v0 early · SemVer `0.3.6`
 
 ## What it is
 
@@ -81,7 +81,7 @@ Full product surface. Markers: **Available** · **In progress** · **Planned**
 | Ollama / OpenAI-compatible local models | Available |
 | Cursor adapter | Planned |
 | Claude API adapter | Planned |
-| AWS Bedrock adapter | Built (`stack: bedrock` · Access Key ID + Secret + Region) |
+| AWS Bedrock adapter | Built (`stack: bedrock` · IAM keys or Bedrock API key + Region) |
 | Unified stack models | `GET /stacks`, `GET /stacks/{stack}/models` |
 | Org catalog: MCP · Skills · API/creds | Planned |
 | Gated MCP (`_locked`) after human approve | Planned |

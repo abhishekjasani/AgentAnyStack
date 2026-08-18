@@ -313,6 +313,15 @@ h1 {
 }
 .form textarea { resize: vertical; min-height: 8rem; }
 .form-actions { margin-top: 0.5rem; }
+#bedrock-iam-fields,
+#bedrock-apikey-fields {
+  display: grid;
+  gap: 0.9rem;
+}
+#bedrock-iam-fields[hidden],
+#bedrock-apikey-fields[hidden] {
+  display: none;
+}
 .memory-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .memory-form #gold-content { min-height: 12rem; }
 .memory-h2 {

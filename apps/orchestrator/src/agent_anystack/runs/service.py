@@ -59,6 +59,7 @@ class ChatRunService:
         aws_secret_access_key: str = "",
         aws_session_token: str = "",
         aws_region: str = "us-east-1",
+        aws_bearer_token_bedrock: str = "",
         database_url: str = "sqlite:///./data/office.db",
     ) -> None:
         self.repo = repo
@@ -71,6 +72,7 @@ class ChatRunService:
         self._env_aws_secret_access_key = aws_secret_access_key
         self._env_aws_session_token = aws_session_token
         self._env_aws_region = aws_region
+        self._env_aws_bearer_token_bedrock = aws_bearer_token_bedrock
         self._openai_compatible_timeout = openai_compatible_timeout
         self._openai_compatible_base_url = openai_compatible_base_url
         self.database_url = database_url
@@ -93,11 +95,14 @@ class ChatRunService:
             env_secret_access_key=self._env_aws_secret_access_key,
             env_session_token=self._env_aws_session_token,
             env_region=self._env_aws_region,
+            env_api_key=self._env_aws_bearer_token_bedrock,
         )
         return BedrockAdapter(
             access_key_id=creds.access_key_id,
             secret_access_key=creds.secret_access_key,
             session_token=creds.session_token,
+            api_key=creds.api_key,
+            auth_mode=creds.auth_mode,
             region=creds.region,
             timeout=self._openai_compatible_timeout,
         )
@@ -355,6 +360,7 @@ class ChatRunService:
                 env_secret_access_key=self._env_aws_secret_access_key,
                 env_session_token=self._env_aws_session_token,
                 env_region=self._env_aws_region,
+                env_api_key=self._env_aws_bearer_token_bedrock,
             )
         harness = OpenCodeAdapter(
             database_url=self.database_url,
