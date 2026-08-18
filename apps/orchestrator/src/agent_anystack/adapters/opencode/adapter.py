@@ -12,9 +12,13 @@ import httpx
 from opencode_ai import APIStatusError, AsyncOpencode, AsyncStream
 
 from agent_anystack.adapters.llm import StackError
-from agent_anystack.adapters.opencode.events import EventMapper, parse_model_ref
+from agent_anystack.adapters.opencode.events import (
+    EventMapper,
+    collect_reasoning_from_messages,
+    parse_model_ref,
+)
 from agent_anystack.adapters.opencode.serve import ensure_serve
-from agent_anystack.adapters.opencode.thinking import append_thinking
+from agent_anystack.adapters.opencode.thinking import append_thinking, read_thinking
 
 log = logging.getLogger(__name__)
 
@@ -80,6 +84,35 @@ async def _auto_permission_once(
         log.warning("opencode permission once failed %s: %s", path, exc)
     except Exception as exc:  # noqa: BLE001
         log.warning("opencode permission once error %s: %s", path, exc)
+
+
+async def _harvest_thinking(
+    client: AsyncOpencode,
+    *,
+    session_id: str,
+    database_url: str,
+    run_id: str,
+) -> AsyncIterator[dict[str, Any]]:
+    """If SSE missed reasoning parts, load them from the session after idle."""
+    rows: Any = None
+    try:
+        fn = getattr(client.session, "messages", None)
+        if callable(fn):
+            rows = await fn(id=session_id)
+    except Exception:  # noqa: BLE001
+        rows = None
+    if rows is None:
+        try:
+            rows = await client.get(
+                f"/session/{session_id}/message",
+                cast_to=list,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.debug("opencode thinking harvest failed: %s", exc)
+            return
+    for chunk in collect_reasoning_from_messages(rows):
+        append_thinking(database_url, run_id, chunk)
+        yield {"type": "thinking", "text": chunk}
 
 
 class OpenCodeAdapter:
@@ -358,6 +391,17 @@ class OpenCodeAdapter:
                         "message": "timed out waiting for opencode session idle",
                         "code": "opencode_timeout",
                     }
+
+            if not failed and got_token:
+                stored = read_thinking(self.database_url, run_id).get("text") or ""
+                if not str(stored).strip():
+                    async for ev in _harvest_thinking(
+                        client,
+                        session_id=session_id,
+                        database_url=self.database_url,
+                        run_id=run_id,
+                    ):
+                        yield ev
         finally:
             stop.set()
             watcher.cancel()

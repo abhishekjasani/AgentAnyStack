@@ -2,7 +2,7 @@ id: pythondeveloper
 name: pythondeveloper
 team: developers
 stack: opencode
-model: amazon-bedrock/mistral.voxtral-mini-3b-2507
+model: amazon-bedrock/moonshot.kimi-k2-thinking
 connection_id: opencode
 persona:
   domain: general
