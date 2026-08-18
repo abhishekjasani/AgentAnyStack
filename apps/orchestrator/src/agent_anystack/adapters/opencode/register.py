@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
+
+from opencode_ai import AsyncStream
 
 from agent_anystack.adapters.bedrock_store import BedrockProviderStore
 from agent_anystack.adapters.connections import (
@@ -12,8 +15,8 @@ from agent_anystack.adapters.connections import (
     utc_now_iso,
 )
 from agent_anystack.adapters.llm import StackError
-from agent_anystack.adapters.opencode.adapter import make_client
-from agent_anystack.adapters.opencode.events import parse_model_ref
+from agent_anystack.adapters.opencode.adapter import _auto_permission_once, make_client
+from agent_anystack.adapters.opencode.events import EventMapper, parse_model_ref
 from agent_anystack.adapters.opencode.providers import (
     candidate_pairs,
     list_inference_candidates,
@@ -29,7 +32,7 @@ from agent_anystack.config import Settings
 
 log = logging.getLogger(__name__)
 
-_PING = "Reply with the single word pong and nothing else."
+_PING = "Reply with a single short word and nothing else."
 
 
 class RegisterError(ValueError):
@@ -39,25 +42,120 @@ class RegisterError(ValueError):
 
 
 async def _try_chat(base_url: str, provider_id: str, model_id: str, timeout: float) -> str | None:
+    """Prove a real turn: ≥1 assistant token then session.idle. None = pass."""
     client = make_client(base_url, timeout=timeout)
     session_id = ""
+    watcher: asyncio.Task[None] | None = None
+    chat_task: asyncio.Task[Any] | None = None
+    stop = asyncio.Event()
     try:
         session = await client.session.create(extra_body={"title": "aas-register"})
         session_id = session.id
-        await client.session.chat(
-            id=session_id,
-            model_id=model_id,
-            provider_id=provider_id,
-            parts=[{"type": "text", "text": _PING}],
-            extra_body={
-                "agent": "build",
-                "model": {"providerID": provider_id, "modelID": model_id},
-            },
+        mapper = EventMapper(session_id)
+        queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+
+        async def watch() -> None:
+            try:
+                stream = await client.get(
+                    "/event",
+                    cast_to=dict[str, object],
+                    stream=True,
+                    stream_cls=AsyncStream[dict[str, object]],
+                )
+                async for event in stream:
+                    if not isinstance(event, dict):
+                        continue
+                    for office_ev in mapper.map(event):
+                        if office_ev.get("type") == "opencode_permission":
+                            pid = office_ev.get("permission_id")
+                            if pid:
+                                await _auto_permission_once(client, session_id, str(pid))
+                            continue
+                        await queue.put(office_ev)
+                        if office_ev.get("type") in ("session_idle", "error"):
+                            stop.set()
+                            await queue.put(None)
+                            return
+                        if stop.is_set():
+                            await queue.put(None)
+                            return
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                await queue.put(
+                    {
+                        "type": "error",
+                        "message": f"opencode event stream failed: {exc}",
+                    }
+                )
+                stop.set()
+                await queue.put(None)
+
+        watcher = asyncio.create_task(watch())
+        await asyncio.sleep(0.15)
+        chat_task = asyncio.create_task(
+            client.session.chat(
+                id=session_id,
+                model_id=model_id,
+                provider_id=provider_id,
+                parts=[{"type": "text", "text": _PING}],
+                extra_body={
+                    "agent": "build",
+                    "model": {"providerID": provider_id, "modelID": model_id},
+                },
+            )
         )
-        return None
+
+        got_token = False
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + max(15.0, float(timeout))
+        while True:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                if got_token:
+                    return "timed out waiting for session idle after tokens"
+                return "timed out with no assistant tokens from OpenCode"
+            try:
+                item = await asyncio.wait_for(queue.get(), timeout=min(1.0, remaining))
+            except asyncio.TimeoutError:
+                if chat_task.done() and chat_task.exception():
+                    return f"opencode chat failed: {chat_task.exception()}"
+                continue
+            if item is None:
+                break
+            kind = item.get("type")
+            if kind == "token" and str(item.get("text") or "").strip():
+                got_token = True
+            elif kind == "error":
+                return str(item.get("message") or "opencode error")
+            elif kind == "session_idle":
+                if got_token:
+                    return None
+                return "session idle with no assistant tokens"
+
+        if chat_task.done() and chat_task.exception():
+            return f"opencode chat failed: {chat_task.exception()}"
+        if got_token and stop.is_set():
+            return None
+        if got_token:
+            return "tokens received but session did not go idle"
+        return "no assistant tokens received"
     except Exception as exc:  # noqa: BLE001
         return str(exc)
     finally:
+        stop.set()
+        if watcher is not None:
+            watcher.cancel()
+            try:
+                await watcher
+            except asyncio.CancelledError:
+                pass
+        if chat_task is not None and not chat_task.done():
+            chat_task.cancel()
+            try:
+                await chat_task
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
         if session_id:
             try:
                 await client.session.delete(id=session_id)
@@ -116,6 +214,12 @@ async def register_inference_model(
         raise RegisterError(f"'{inference_connection_id}' is not an Inference connection")
     if not inf.enabled:
         raise RegisterError(f"Inference connection '{inf.id}' is disabled")
+    if inf.status == "error":
+        detail = inf.last_error or "Inference Test is in error"
+        raise RegisterError(
+            f"Inference '{inf.id}' last Test failed ({detail}) — "
+            "fix credentials and Test that connection first"
+        )
 
     from agent_anystack.adapters.ollama_models import OllamaModelManager
 
