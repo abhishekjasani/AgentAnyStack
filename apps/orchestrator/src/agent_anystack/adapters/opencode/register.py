@@ -48,6 +48,7 @@ async def _try_chat(base_url: str, provider_id: str, model_id: str, timeout: flo
     watcher: asyncio.Task[None] | None = None
     chat_task: asyncio.Task[Any] | None = None
     stop = asyncio.Event()
+    chat_in_flight = asyncio.Event()
     try:
         session = await client.session.create(extra_body={"title": "aas-register"})
         session_id = session.id
@@ -71,6 +72,11 @@ async def _try_chat(base_url: str, provider_id: str, model_id: str, timeout: flo
                             if pid:
                                 await _auto_permission_once(client, session_id, str(pid))
                             continue
+                        if (
+                            office_ev.get("type") == "session_idle"
+                            and not chat_in_flight.is_set()
+                        ):
+                            continue
                         await queue.put(office_ev)
                         if office_ev.get("type") in ("session_idle", "error"):
                             stop.set()
@@ -93,6 +99,7 @@ async def _try_chat(base_url: str, provider_id: str, model_id: str, timeout: flo
 
         watcher = asyncio.create_task(watch())
         await asyncio.sleep(0.15)
+        chat_in_flight.set()
         chat_task = asyncio.create_task(
             client.session.chat(
                 id=session_id,

@@ -262,6 +262,19 @@ class ChatRunService:
             error = f"unexpected: {exc}"
             yield {"type": "error", "message": error, "code": "internal"}
 
+        if (
+            runtime.stack == "opencode"
+            and status == "ok"
+            and not "".join(assistant_parts).strip()
+        ):
+            status = "error"
+            error = "opencode session went idle with no assistant tokens"
+            yield {
+                "type": "error",
+                "message": error,
+                "code": "opencode_no_tokens",
+            }
+
         self.journal.append(
             JournalEntry(
                 run_id=run_id,

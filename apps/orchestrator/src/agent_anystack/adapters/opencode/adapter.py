@@ -196,6 +196,7 @@ class OpenCodeAdapter:
         yield {"type": "meta_extra", "opencode_session_id": session_id, "base_url": serve.base_url}
 
         stop = asyncio.Event()
+        chat_in_flight = asyncio.Event()
         queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
         mapper = EventMapper(session_id)
 
@@ -212,11 +213,18 @@ class OpenCodeAdapter:
                         continue
                     for office_ev in mapper.map(event):
                         if office_ev.get("type") == "opencode_permission":
-                            pid = office_ev.get("permission_id")
-                            if pid:
+                            perm_id = office_ev.get("permission_id")
+                            if perm_id:
                                 await _auto_permission_once(
-                                    client, session_id, str(pid)
+                                    client, session_id, str(perm_id)
                                 )
+                            continue
+                        # New sessions are idle before chat; ignore that or we
+                        # close the turn with zero tokens.
+                        if (
+                            office_ev.get("type") == "session_idle"
+                            and not chat_in_flight.is_set()
+                        ):
                             continue
                         if office_ev.get("type") == "thinking":
                             append_thinking(
@@ -270,49 +278,85 @@ class OpenCodeAdapter:
         if system.strip():
             chat_kwargs["system"] = system.strip()
 
+        chat_in_flight.set()
         chat_task = asyncio.create_task(client.session.chat(**chat_kwargs))
 
+        got_token = False
+        failed = False
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + max(30.0, float(self.timeout))
         try:
             while True:
-                try:
-                    item = await asyncio.wait_for(queue.get(), timeout=1.0)
-                except asyncio.TimeoutError:
-                    if chat_task.done() and stop.is_set():
-                        break
-                    if chat_task.done() and chat_task.exception():
-                        exc = chat_task.exception()
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    failed = True
+                    if got_token:
                         yield {
                             "type": "error",
-                            "message": f"opencode chat failed: {exc}",
+                            "message": "timed out waiting for opencode session idle",
+                            "code": "opencode_timeout",
+                        }
+                    else:
+                        yield {
+                            "type": "error",
+                            "message": "timed out with no assistant tokens from OpenCode",
+                            "code": "opencode_no_tokens",
+                        }
+                    break
+                try:
+                    item = await asyncio.wait_for(
+                        queue.get(), timeout=min(1.0, remaining)
+                    )
+                except asyncio.TimeoutError:
+                    if chat_task.done() and chat_task.exception():
+                        failed = True
+                        yield {
+                            "type": "error",
+                            "message": f"opencode chat failed: {chat_task.exception()}",
                             "code": "opencode_chat",
                         }
                         break
                     continue
                 if item is None:
                     break
-                if item.get("type") == "session_idle":
+                kind = item.get("type")
+                if kind == "token" and str(item.get("text") or "").strip():
+                    got_token = True
+                if kind == "session_idle":
                     break
                 yield item
-                if item.get("type") == "error":
+                if kind == "error":
+                    failed = True
                     break
 
-            if not chat_task.done():
+            if not failed and chat_task.done() and chat_task.exception():
+                failed = True
+                yield {
+                    "type": "error",
+                    "message": f"opencode chat failed: {chat_task.exception()}",
+                    "code": "opencode_chat",
+                }
+            if not failed and not got_token:
+                failed = True
+                yield {
+                    "type": "error",
+                    "message": (
+                        "opencode session went idle with no assistant tokens "
+                        "(ignored empty idle before chat)"
+                    ),
+                    "code": "opencode_no_tokens",
+                }
+            if not failed and not chat_task.done():
                 try:
-                    await asyncio.wait_for(stop.wait(), timeout=120)
+                    await asyncio.wait_for(
+                        stop.wait(),
+                        timeout=min(120.0, max(1.0, deadline - loop.time())),
+                    )
                 except asyncio.TimeoutError:
                     yield {
                         "type": "error",
                         "message": "timed out waiting for opencode session idle",
                         "code": "opencode_timeout",
-                    }
-            else:
-                try:
-                    await chat_task
-                except Exception as exc:  # noqa: BLE001
-                    yield {
-                        "type": "error",
-                        "message": f"opencode chat failed: {exc}",
-                        "code": "opencode_chat",
                     }
         finally:
             stop.set()
@@ -321,6 +365,12 @@ class OpenCodeAdapter:
                 await watcher
             except asyncio.CancelledError:
                 pass
+            if not chat_task.done():
+                chat_task.cancel()
+                try:
+                    await chat_task
+                except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                    pass
             try:
                 await client.close()
             except Exception:  # noqa: BLE001
