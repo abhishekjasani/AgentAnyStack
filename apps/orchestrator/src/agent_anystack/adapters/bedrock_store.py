@@ -106,11 +106,9 @@ class BedrockProviderStore:
         api_key = str(data.get("api_key") or data.get("bedrock_api_key") or "")
         mode = str(data.get("auth_mode") or "").strip()
         if mode not in (AUTH_IAM, AUTH_API_KEY):
-            mode = (
-                AUTH_API_KEY
-                if api_key.strip() and not (access.strip() and secret.strip())
-                else AUTH_IAM
-            )
+            mode = AUTH_IAM
+        if api_key.strip() and not (access.strip() and secret.strip()):
+            mode = AUTH_API_KEY
         return BedrockCreds(
             access_key_id=access,
             secret_access_key=secret,
