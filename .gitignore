@@ -42,3 +42,6 @@ Thumbs.db
 
 # product / design docs — local future-dev reference (not shipped in git)
 docs/
+
+#opencode
+opencode.json

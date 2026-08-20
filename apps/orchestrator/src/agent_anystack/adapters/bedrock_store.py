@@ -159,7 +159,7 @@ class BedrockProviderStore:
         else:
             new_mode = cur.auth_mode or AUTH_IAM
         if new_mode == AUTH_API_KEY:
-            if not new_api:
+            if not new_api and not cur.api_key:
                 raise ValueError(
                     "Bedrock API key is required "
                     "(or leave blank only when already configured)."

@@ -42,3 +42,6 @@ apps/office-ui/dist
 .DS_Store
 Thumbs.db
 *.swp
+
+#opencode
+opencode.json
