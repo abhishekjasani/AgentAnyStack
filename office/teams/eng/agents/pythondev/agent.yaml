@@ -1,6 +1,6 @@
-id: pythondeveloper
+id: pythondev
 name: pythondeveloper
-team: developers
+team: eng
 stack: opencode
 model: amazon-bedrock/moonshot.kimi-k2-thinking
 connection_id: opencode
@@ -11,7 +11,7 @@ persona:
 autonomy:
   default: 50
 workspace:
-  project_id: python-demo-7bd09c83
+  project_id: python-demo-076d1bb5
   path: /projects/python-demo
 system_prompt_file: ./AGENT.md
 registrations:

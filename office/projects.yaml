@@ -1,11 +1,6 @@
 projects:
-- id: python-demo-7bd09c83
-  name: Python demo
+- id: python-demo-076d1bb5
+  name: python_demo
   slug: python-demo
   path: /projects/python-demo
-  status: active
-- id: medalia-cf7e42ac
-  name: Medalia
-  slug: medalia
-  path: /projects/medalia
   status: active

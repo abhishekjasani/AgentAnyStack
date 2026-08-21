@@ -36,12 +36,7 @@ class BedrockAdapter:
         self.secret_access_key = (secret_access_key or "").strip()
         self.session_token = (session_token or "").strip()
         self.api_key = (api_key or "").strip()
-        mode = (auth_mode or "iam").strip() or "iam"
-        if (api_key or "").strip() and not (
-            (access_key_id or "").strip() and (secret_access_key or "").strip()
-        ):
-            mode = "api_key"
-        self.auth_mode = mode
+        self.auth_mode = (auth_mode or "iam").strip() or "iam"
         self.region = (region or "").strip() or "us-east-1"
         self.timeout = timeout
 
