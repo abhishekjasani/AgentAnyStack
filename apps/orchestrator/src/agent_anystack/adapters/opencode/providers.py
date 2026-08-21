@@ -240,43 +240,71 @@ async def list_inference_candidates(
     ollama: OllamaModelManager | None,
 ) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
     for c in store.list():
         if c.kind != "inference" or not c.enabled:
             continue
-        if c.product == "bedrock":
-            for m in bedrock.list_models():
+
+        # 1. Models stored directly in connection's verified_models
+        for vm in c.verified_models:
+            key = (c.id, vm.model_id)
+            if key not in seen:
+                seen.add(key)
                 out.append(
                     {
                         "inference_connection_id": c.id,
-                        "inference_product": "bedrock",
-                        "model_id": m.id,
-                        "display_name": m.display_name or m.id,
+                        "inference_product": c.product,
+                        "model_id": vm.model_id,
+                        "display_name": vm.display_name or vm.model_id,
                         "meta": {
-                            "verified_at": m.verified_at,
-                            "region": m.region,
+                            "verified_at": vm.verified_at,
+                            "region": vm.region,
                         },
                     }
                 )
-        elif c.product == "ollama":
-            if ollama is None:
-                continue
+
+        # 2. Bedrock store catalog fallback for bedrock connection
+        if c.product == "bedrock":
+            for m in bedrock.list_models():
+                key = (c.id, m.id)
+                if key not in seen:
+                    seen.add(key)
+                    out.append(
+                        {
+                            "inference_connection_id": c.id,
+                            "inference_product": "bedrock",
+                            "model_id": m.id,
+                            "display_name": m.display_name or m.id,
+                            "meta": {
+                                "verified_at": m.verified_at,
+                                "region": m.region,
+                            },
+                        }
+                    )
+
+        # 3. Installed Ollama models fallback for ollama connection
+        elif c.product in ("ollama", "openai-compatible") and ollama is not None:
             try:
                 reachable = await ollama.ping()
-                if not reachable:
-                    continue
-                rows = await ollama.list_installed()
+                if reachable:
+                    rows = await ollama.list_installed()
+                    for row in rows:
+                        if not row.name:
+                            continue
+                        key = (c.id, row.name)
+                        if key not in seen:
+                            seen.add(key)
+                            out.append(
+                                {
+                                    "inference_connection_id": c.id,
+                                    "inference_product": c.product,
+                                    "model_id": row.name,
+                                    "display_name": row.name,
+                                    "meta": {},
+                                }
+                            )
             except OllamaModelsError:
-                continue
-            for row in rows:
-                if not row.name:
-                    continue
-                out.append(
-                    {
-                        "inference_connection_id": c.id,
-                        "inference_product": "ollama",
-                        "model_id": row.name,
-                        "display_name": row.name,
-                        "meta": {},
-                    }
-                )
+                pass
+
     return out

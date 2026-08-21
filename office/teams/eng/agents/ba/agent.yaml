@@ -1,0 +1,24 @@
+id: ba
+name: ba
+team: eng
+stack: opencode
+model: amazon-bedrock/mistral.ministral-3-3b-instruct
+connection_id: opencode
+persona:
+  domain: general
+  channels: []
+  risk_class: read_draft
+autonomy:
+  default: 50
+workspace:
+  project_id: loan-portal-5e7434c9
+  path: /projects/loan-portal
+system_prompt_file: ./AGENT.md
+registrations:
+  mcp: []
+  skills: []
+  apis: []
+tools:
+  mode: worker
+max_input_tokens: -1
+max_output_tokens: -1

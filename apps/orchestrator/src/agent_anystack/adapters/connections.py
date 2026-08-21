@@ -33,6 +33,31 @@ def utc_now_iso() -> str:
 
 
 @dataclass
+class VerifiedInferenceModel:
+    """Model verified on an Inference connection card."""
+
+    model_id: str
+    display_name: str
+    verified_at: str
+    region: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def parse_verified_model(row: dict[str, Any]) -> VerifiedInferenceModel | None:
+    mid = str(row.get("model_id") or "").strip()
+    if not mid:
+        return None
+    return VerifiedInferenceModel(
+        model_id=mid,
+        display_name=str(row.get("display_name") or mid),
+        verified_at=str(row.get("verified_at") or ""),
+        region=row.get("region"),
+    )
+
+
+@dataclass
 class RegisteredOpencodeModel:
     """Model proven via OpenCode session.chat — desk dropdown source."""
 
@@ -123,6 +148,7 @@ class StackConnection:
     meta: dict[str, Any] = field(default_factory=dict)
     aliases: list[str] = field(default_factory=list)
     registered_models: list[RegisteredOpencodeModel] = field(default_factory=list)
+    verified_models: list[VerifiedInferenceModel] = field(default_factory=list)
 
     def stack(self) -> str:
         """Desk stack alias for this product."""
@@ -133,6 +159,7 @@ class StackConnection:
         d["stack"] = self.stack()
         d["kind_label"] = _kind_label(self.kind)
         d["registered_models"] = [m.as_dict() for m in self.registered_models]
+        d["verified_models"] = [m.as_dict() for m in self.verified_models]
         return d
 
     def find_registered(self, model: str) -> RegisteredOpencodeModel | None:
@@ -149,9 +176,9 @@ def _kind_label(kind: str) -> str:
     if kind == "inference":
         return "Inference"
     if kind == "agent_runtime":
-        return "Agent runtime"
+        return "Coding harness"
     if kind == "external":
-        return "External agent"
+        return "External agents"
     return kind
 
 
@@ -269,6 +296,14 @@ class ConnectionStore:
             encoding="utf-8",
         )
 
+    def delete_connection(self, connection_id: str) -> bool:
+        rows = self._read_raw()
+        filtered = [r for r in rows if r.get("id") != connection_id]
+        if len(filtered) == len(rows):
+            return False
+        self._write_raw(filtered)
+        return True
+
     def upsert_registered_model(
         self, connection_id: str, entry: RegisteredOpencodeModel
     ) -> StackConnection:
@@ -289,6 +324,26 @@ class ConnectionStore:
             raise KeyError(f"registered model not found: {ref}")
         return self.upsert(c)
 
+    def upsert_verified_model(
+        self, connection_id: str, entry: VerifiedInferenceModel
+    ) -> StackConnection:
+        c = self.get_required(connection_id)
+        rest = [m for m in c.verified_models if m.model_id != entry.model_id]
+        rest.append(entry)
+        rest.sort(key=lambda m: m.model_id)
+        c.verified_models = rest
+        return self.upsert(c)
+
+    def remove_verified_model(self, connection_id: str, model_id: str) -> StackConnection:
+        c = self.get_required(connection_id)
+        before = len(c.verified_models)
+        c.verified_models = [
+            m for m in c.verified_models if m.model_id != model_id
+        ]
+        if len(c.verified_models) == before:
+            raise KeyError(f"verified model not found: {model_id}")
+        return self.upsert(c)
+
     @staticmethod
     def _to_raw(c: StackConnection) -> dict[str, Any]:
         return {
@@ -303,6 +358,7 @@ class ConnectionStore:
             "meta": c.meta or {},
             "aliases": list(c.aliases or []),
             "registered_models": [m.as_dict() for m in c.registered_models],
+            "verified_models": [m.as_dict() for m in c.verified_models],
         }
 
     @staticmethod
@@ -325,6 +381,12 @@ class ConnectionStore:
                 parsed = parse_registered_model(item)
                 if parsed:
                     registered.append(parsed)
+        verified: list[VerifiedInferenceModel] = []
+        for item in row.get("verified_models") or []:
+            if isinstance(item, dict):
+                p_ver = parse_verified_model(item)
+                if p_ver:
+                    verified.append(p_ver)
         return StackConnection(
             id=str(row["id"]),
             kind=kind,  # type: ignore[arg-type]
@@ -337,6 +399,7 @@ class ConnectionStore:
             meta=dict(row.get("meta") or {}),
             aliases=aliases,
             registered_models=registered,
+            verified_models=verified,
         )
 
 

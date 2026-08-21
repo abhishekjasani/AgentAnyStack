@@ -58,9 +58,21 @@ def _apply_limits(
 class OpenAICompatibleAdapter:
     """One wire for any OpenAI chat-completions server — switch host via base_url."""
 
-    def __init__(self, base_url: str, timeout: float = 120.0) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout: float = 120.0,
+        api_key: str | None = None,
+    ) -> None:
         self.base_url = _normalize_base_url(base_url)
         self.timeout = timeout
+        self.api_key = api_key
+
+    def _headers(self) -> dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
 
     async def stream_chat(
         self,
@@ -76,9 +88,10 @@ class OpenAICompatibleAdapter:
             "stream": True,
         }
         _apply_limits(payload, max_tokens=max_tokens)
+        headers = self._headers()
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                async with client.stream("POST", url, json=payload) as resp:
+                async with client.stream("POST", url, json=payload, headers=headers) as resp:
                     if resp.status_code >= 400:
                         body = (await resp.aread()).decode("utf-8", errors="replace")
                         raise StackError(
@@ -158,9 +171,10 @@ class OpenAICompatibleAdapter:
         if tools:
             payload["tools"] = tools
         _apply_limits(payload, max_tokens=max_tokens)
+        headers = self._headers()
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(url, json=payload)
+                resp = await client.post(url, json=payload, headers=headers)
                 if resp.status_code >= 400:
                     raise StackError(
                         _friendly_http_error(

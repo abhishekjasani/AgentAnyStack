@@ -12,7 +12,10 @@ from agent_anystack.adapters.bedrock_store import BedrockProviderStore, bedrock_
 from agent_anystack.adapters.connections import (
     ConnectionNotFound,
     ConnectionStore,
+    StackConnection,
+    VerifiedInferenceModel,
     connection_store_from_database_url,
+    utc_now_iso,
 )
 from agent_anystack.adapters.ollama_models import OllamaModelManager
 from agent_anystack.adapters.opencode import list_opencode_models
@@ -90,9 +93,9 @@ async def list_connections(
                 "label": (
                     "Inference"
                     if k == "inference"
-                    else "Agent runtime"
+                    else "Coding harness"
                     if k == "agent_runtime"
-                    else "External agent"
+                    else "External agents"
                 ),
                 "connections": grouped.get(k, []),
             }
@@ -139,8 +142,242 @@ async def patch_connection(
     return c.as_dict()
 
 
-class StopServeBody(BaseModel):
-    cwd: str
+class CreateConnectionBody(BaseModel):
+    id: str
+    label: str
+    kind: str = "inference"
+    product: str = "openai-compatible"
+    preset: str | None = None
+    base_url: str | None = None
+    api_key: str | None = None
+    access_key_id: str | None = None
+    secret_access_key: str | None = None
+    session_token: str | None = None
+    auth_mode: str | None = None
+    region: str | None = None
+    enabled: bool = True
+
+
+class VerifyModelBody(BaseModel):
+    model_id: str
+    display_name: str | None = None
+
+
+@router.post("/stacks/connections")
+async def create_or_update_connection(
+    body: CreateConnectionBody,
+    store: ConnectionStore = Depends(get_connection_store),
+    bedrock_store: BedrockProviderStore = Depends(get_bedrock_store),
+    _user_id: str = Depends(get_user_id),
+) -> dict[str, Any]:
+    """Add or update a connection card."""
+    cid = body.id.strip().lower()
+    if not cid:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="connection id is required")
+
+    existing = store.get(cid)
+    meta = existing.meta.copy() if existing else {}
+
+    if body.preset:
+        meta["preset"] = body.preset
+    if body.base_url is not None:
+        meta["base_url"] = body.base_url.strip()
+    if body.region is not None:
+        meta["region"] = body.region.strip()
+    if body.api_key is not None and body.api_key.strip():
+        meta["api_key"] = body.api_key.strip()
+        meta["has_api_key"] = True
+
+    if body.product == "bedrock":
+        ak = body.access_key_id if body.access_key_id and body.access_key_id.strip() else None
+        sk = body.secret_access_key if body.secret_access_key and body.secret_access_key.strip() else None
+        st = body.session_token if body.session_token and body.session_token.strip() else None
+        apk = body.api_key if body.api_key and body.api_key.strip() else None
+        reg = body.region or "us-east-1"
+        am = body.auth_mode or ("api_key" if apk else "iam")
+        bedrock_store.put_creds(
+            access_key_id=ak,
+            secret_access_key=sk,
+            session_token=st,
+            api_key=apk,
+            auth_mode=am,
+            region=reg,
+        )
+
+    conn = StackConnection(
+        id=cid,
+        kind=body.kind if body.kind in ("inference", "agent_runtime", "external") else "inference",  # type: ignore
+        product=body.product or "openai-compatible",
+        label=body.label or cid,
+        enabled=body.enabled,
+        status=existing.status if existing else "unknown",
+        last_error=existing.last_error if existing else None,
+        tested_at=existing.tested_at if existing else None,
+        meta=meta,
+        aliases=existing.aliases if existing else [],
+        registered_models=existing.registered_models if existing else [],
+        verified_models=existing.verified_models if existing else [],
+    )
+
+    saved = store.upsert(conn)
+    return saved.as_dict()
+
+
+@router.delete("/stacks/connections/{connection_id}")
+async def delete_connection_card(
+    connection_id: str,
+    store: ConnectionStore = Depends(get_connection_store),
+    _user_id: str = Depends(get_user_id),
+) -> dict[str, Any]:
+    deleted = store.delete_connection(connection_id)
+    if not deleted:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"connection not found: {connection_id}")
+    return {"ok": True, "connection_id": connection_id}
+
+
+@router.post("/stacks/connections/enable-ollama-local")
+async def enable_ollama_local_connection(
+    store: ConnectionStore = Depends(get_connection_store),
+    settings: Settings = Depends(get_settings),
+    _user_id: str = Depends(get_user_id),
+) -> dict[str, Any]:
+    """One-click 'Enable as Inference' for Ollama on Local Models tab."""
+    conn_id = "ollama-local"
+    existing = store.get(conn_id) or store.get("ollama")
+    base_url = settings.openai_compatible_base_url or "http://127.0.0.1:11434/v1"
+
+    if existing:
+        existing.enabled = True
+        existing.status = "unknown"
+        existing.meta["base_url"] = base_url
+        existing.meta["preset"] = "ollama"
+        saved = store.upsert(existing)
+    else:
+        conn = StackConnection(
+            id=conn_id,
+            kind="inference",
+            product="openai-compatible",
+            label="Ollama Local",
+            enabled=True,
+            status="unknown",
+            meta={"base_url": base_url, "preset": "ollama"},
+            aliases=["ollama"],
+        )
+        saved = store.upsert(conn)
+
+    return saved.as_dict()
+
+
+@router.post("/stacks/connections/{connection_id}/verify-model")
+async def verify_and_add_model(
+    connection_id: str,
+    body: VerifyModelBody,
+    store: ConnectionStore = Depends(get_connection_store),
+    bedrock_store: BedrockProviderStore = Depends(get_bedrock_store),
+    settings: Settings = Depends(get_settings),
+    _user_id: str = Depends(get_user_id),
+) -> dict[str, Any]:
+    """Verify model against connection endpoint and store inside card's verified_models."""
+    try:
+        c = store.get_required(connection_id)
+    except ConnectionNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    model_id = body.model_id.strip()
+    if not model_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="model_id is required")
+
+    display_name = (body.display_name or model_id).strip() or model_id
+
+    if c.product == "bedrock":
+        from agent_anystack.adapters.bedrock import BedrockAdapter
+        from agent_anystack.adapters.bedrock_store import resolve_creds
+
+        creds = resolve_creds(
+            bedrock_store,
+            env_access_key_id=settings.aws_access_key_id,
+            env_secret_access_key=settings.aws_secret_access_key,
+            env_session_token=settings.aws_session_token,
+            env_region=settings.aws_region,
+            env_api_key=settings.aws_bearer_token_bedrock,
+        )
+        adapter = BedrockAdapter(
+            access_key_id=creds.access_key_id,
+            secret_access_key=creds.secret_access_key,
+            session_token=creds.session_token,
+            api_key=creds.api_key,
+            auth_mode=creds.auth_mode,
+            region=creds.region,
+        )
+        try:
+            await adapter.complete_chat(
+                model=model_id,
+                messages=[{"role": "user", "content": "Reply OK"}],
+                max_tokens=8,
+            )
+        except Exception as exc:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=f"Bedrock verify failed: {exc}") from exc
+
+        region = creds.region
+    else:
+        # OpenAI-compatible / Ollama / Groq / Zen / Custom
+        from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+
+        base_url = c.meta.get("base_url") or settings.openai_compatible_base_url or "http://127.0.0.1:11434/v1"
+        api_key = c.meta.get("api_key")
+        adapter = OpenAICompatibleAdapter(base_url=base_url, api_key=api_key)
+        try:
+            await adapter.complete_chat(
+                model=model_id,
+                messages=[{"role": "user", "content": "Reply OK"}],
+                max_tokens=8,
+            )
+        except Exception as exc:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=f"Inference verify failed: {exc}") from exc
+
+        region = None
+
+    entry = VerifiedInferenceModel(
+        model_id=model_id,
+        display_name=display_name,
+        verified_at=utc_now_iso(),
+        region=region,
+    )
+    updated = store.upsert_verified_model(c.id, entry)
+
+    # Also sync to bedrock_store if bedrock
+    if c.product == "bedrock":
+        from agent_anystack.adapters.bedrock_store import BedrockModelEntry
+        bedrock_store.upsert_model(
+            BedrockModelEntry(
+                id=model_id,
+                display_name=display_name,
+                verified_at=entry.verified_at,
+                region=region,
+            )
+        )
+
+    return {"ok": True, "connection": updated.as_dict(), "verified_model": entry.as_dict()}
+
+
+@router.delete("/stacks/connections/{connection_id}/verified-models/{model_id:path}")
+async def delete_verified_model(
+    connection_id: str,
+    model_id: str,
+    store: ConnectionStore = Depends(get_connection_store),
+    bedrock_store: BedrockProviderStore = Depends(get_bedrock_store),
+    _user_id: str = Depends(get_user_id),
+) -> dict[str, Any]:
+    try:
+        c = store.get_required(connection_id)
+        updated = store.remove_verified_model(c.id, model_id)
+    except KeyError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    if c.product == "bedrock":
+        bedrock_store.delete_model(model_id)
+
+    return {"ok": True, "connection": updated.as_dict()}
 
 
 @router.get("/stacks/connections/{connection_id}/runtimes")

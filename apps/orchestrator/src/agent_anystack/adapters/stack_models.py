@@ -120,6 +120,27 @@ async def list_models_for_stack(
             models=[],
         )
 
+    if connection_id and connections:
+        conn = connections.get(connection_id)
+        if conn and conn.verified_models:
+            v_models = [
+                StackModelEntry(
+                    id=m.model_id,
+                    display_name=m.display_name or m.model_id,
+                    ready=True,
+                    source="connection_verified",
+                    meta={"verified_at": m.verified_at, "region": m.region},
+                )
+                for m in conn.verified_models
+            ]
+            if v_models:
+                return StackModelsResult(
+                    stack=sid,
+                    selectable=True,
+                    hint=f"{len(v_models)} verified model(s) on {conn.label}",
+                    models=v_models,
+                )
+
     if sid == "openai-compatible":
         return await _list_ollama(ollama)
     if sid == "bedrock":

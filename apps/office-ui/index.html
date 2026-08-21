@@ -21,6 +21,7 @@
         <button type="button" class="nav-item" data-view="memory">Memory</button>
         <button type="button" class="nav-item" data-view="approvals">Approvals</button>
         <button type="button" class="nav-item" data-view="stacks">Stacks</button>
+        <button type="button" class="nav-item" data-view="local-models">Local Models</button>
         <button type="button" class="nav-item" data-view="floor">Floor</button>
         <button type="button" class="nav-item" data-view="analytics">Analytics</button>
         <button type="button" class="nav-item" data-view="connect">Connect</button>
@@ -381,16 +382,103 @@
               <strong>Test &amp; register</strong> from Inference.
             </p>
           </div>
-          <button type="button" class="btn ghost" id="btn-connections-refresh">Refresh</button>
+          <div class="form-actions memory-actions">
+            <button type="button" class="btn primary" id="btn-open-add-connection">+ Add connection</button>
+            <button type="button" class="btn ghost" id="btn-connections-refresh">Refresh</button>
+          </div>
         </header>
+
+        <!-- Add/Edit Connection Form -->
+        <details id="add-connection-panel" class="form memory-form" style="margin-bottom: 1.5rem;" hidden>
+          <summary id="add-connection-title" style="font-weight: 600; cursor: pointer; padding: 0.5rem 0;">Add Inference Connection</summary>
+          <form id="add-connection-form" class="form">
+            <label>Connection ID
+              <input name="id" required pattern="^[a-z0-9_-]+$" placeholder="e.g. zen-prod, groq, ollama-local" />
+            </label>
+            <label>Label
+              <input name="label" required placeholder="e.g. Groq, Zen, Ollama Local" />
+            </label>
+            <label>Provider Type
+              <select name="product" id="conn-product-select">
+                <option value="openai-compatible">OpenAI-compatible (Groq, Zen, Ollama, Custom)</option>
+                <option value="bedrock">AWS Bedrock</option>
+              </select>
+            </label>
+
+            <!-- OpenAI Compatible Fields -->
+            <div id="conn-openai-fields">
+              <label>Preset
+                <select name="preset" id="conn-preset-select">
+                  <option value="custom">Custom</option>
+                  <option value="ollama">Ollama (http://127.0.0.1:11434/v1)</option>
+                  <option value="groq">Groq (https://api.groq.com/openai/v1)</option>
+                  <option value="zen">Zen (https://api.zen.ai/v1)</option>
+                </select>
+              </label>
+              <label>Base URL
+                <input name="base_url" id="conn-base-url-input" placeholder="http://127.0.0.1:11434/v1" />
+              </label>
+              <label>API Key / Secret (optional for local Ollama)
+                <input name="api_key" type="password" autocomplete="off" placeholder="gsk_..." />
+              </label>
+            </div>
+
+            <!-- AWS Bedrock Fields -->
+            <div id="conn-bedrock-fields" hidden>
+              <label>Authentication Mode
+                <select name="auth_mode" id="conn-bedrock-auth-mode">
+                  <option value="iam">AWS Access Key + Secret</option>
+                  <option value="api_key">Bedrock API Key</option>
+                </select>
+              </label>
+              <div id="conn-bedrock-iam-group">
+                <label>AWS Access Key ID
+                  <input name="access_key_id" type="password" autocomplete="off" placeholder="AKIA..." />
+                </label>
+                <label>AWS Secret Access Key
+                  <input name="secret_access_key" type="password" autocomplete="off" placeholder="Secret..." />
+                </label>
+                <label>AWS Session Token (optional)
+                  <input name="session_token" type="password" autocomplete="off" placeholder="Token..." />
+                </label>
+              </div>
+              <div id="conn-bedrock-apikey-group" hidden>
+                <label>Bedrock API Key
+                  <input name="bedrock_api_key" type="password" autocomplete="off" placeholder="API key..." />
+                </label>
+              </div>
+              <label>Region
+                <input name="region" value="us-east-1" placeholder="us-east-1" />
+              </label>
+            </div>
+
+            <p id="add-connection-error" class="error" hidden></p>
+            <p id="add-connection-ok" class="desk-meta" hidden></p>
+            <div class="form-actions memory-actions" style="margin-top: 1rem;">
+              <button type="submit" class="btn primary">Save Connection</button>
+              <button type="button" class="btn ghost" id="btn-cancel-add-connection">Cancel</button>
+            </div>
+          </form>
+        </details>
+
         <p id="connections-error" class="error" hidden></p>
         <div id="connections-by-kind" class="connections-by-kind"></div>
+      </section>
 
-        <h2 class="memory-h2">Inference · Ollama models</h2>
-        <p class="lede">
-          Pull curated local models into Ollama (CPU by default; NVIDIA GPU via
-          <code>docker-compose.gpu.yml</code>). Use when a desk is on the Ollama connection.
-        </p>
+      <section id="view-local-models" class="view" hidden>
+        <header class="view-head">
+          <div>
+            <h1>Local Models</h1>
+            <p class="lede">
+              Manage local Ollama models (CPU by default; NVIDIA GPU via
+              <code>docker-compose.gpu.yml</code>).
+            </p>
+          </div>
+          <div class="form-actions memory-actions">
+            <button type="button" class="btn primary" id="btn-enable-ollama-inference" title="One-click create ollama-local connection in Stacks">Enable as Inference</button>
+          </div>
+        </header>
+
         <div class="memory-actions" style="margin-bottom: 0.75rem">
           <button type="button" class="btn ghost" id="btn-stacks-refresh">Refresh models</button>
           <button type="button" class="btn ghost" id="btn-stacks-health">Check GPU</button>
@@ -408,69 +496,6 @@
         <p id="stacks-error" class="error" hidden></p>
         <p id="stacks-note" class="stub-note" hidden></p>
         <ul id="stacks-catalog" class="model-list"></ul>
-
-        <h2 class="memory-h2">Inference · AWS Bedrock</h2>
-        <p class="lede">
-          Write-only credentials (never returned by GET). Authenticate with
-          <strong>AWS access key + secret</strong> (optional session token) or a
-          <strong>Bedrock API key</strong>. Region is required for both.
-          <strong>Test</strong> checks IAM via STS, or the API key against Bedrock
-          runtime (no catalog model). Then verify an inference id into the catalog.
-        </p>
-        <p id="bedrock-status" class="desk-meta"></p>
-        <form id="bedrock-creds-form" class="form memory-form">
-          <label>Authenticate with
-            <select name="auth_mode">
-              <option value="iam">AWS access key + secret</option>
-              <option value="api_key">Bedrock API key</option>
-            </select>
-          </label>
-          <div id="bedrock-iam-fields">
-            <label>AWS access key ID
-              <input name="access_key_id" type="password" autocomplete="off"
-                placeholder="leave blank to keep existing" />
-            </label>
-            <label>AWS secret access key
-              <input name="secret_access_key" type="password" autocomplete="off"
-                placeholder="leave blank to keep existing" />
-            </label>
-            <label>AWS session token (STS / temporary)
-              <input name="session_token" type="password" autocomplete="off"
-                placeholder="optional; leave blank to keep existing" />
-            </label>
-          </div>
-          <div id="bedrock-apikey-fields" hidden>
-            <label>Bedrock API key
-              <input name="api_key" type="password" autocomplete="off"
-                placeholder="leave blank to keep existing" />
-            </label>
-          </div>
-          <label>Region
-            <input name="region" type="text" value="us-east-1" placeholder="us-east-1" />
-          </label>
-          <p id="bedrock-creds-error" class="error" hidden></p>
-          <p id="bedrock-creds-ok" class="desk-meta" hidden></p>
-          <div class="form-actions memory-actions">
-            <button type="submit" class="btn primary">Save credentials</button>
-            <button type="button" class="btn ghost" id="bedrock-test" title="Check stored credentials">Test</button>
-          </div>
-        </form>
-        <form id="bedrock-model-form" class="form memory-form">
-          <label>Inference / model id
-            <input name="inference_id" required maxlength="200"
-              placeholder="amazon.nova-lite-v1:0" />
-          </label>
-          <label>Display name (optional)
-            <input name="display_name" maxlength="128" placeholder="Nova Lite" />
-          </label>
-          <p id="bedrock-model-error" class="error" hidden></p>
-          <p id="bedrock-model-ok" class="desk-meta" hidden></p>
-          <div class="form-actions memory-actions">
-            <button type="submit" class="btn primary">Verify &amp; add</button>
-            <button type="button" class="btn ghost" id="bedrock-models-refresh">Refresh</button>
-          </div>
-        </form>
-        <ul id="bedrock-models-list" class="model-list"></ul>
       </section>
       <section id="view-floor" class="view stub" hidden>
         <h1>Floor</h1>

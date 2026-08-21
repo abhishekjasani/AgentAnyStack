@@ -30,8 +30,9 @@
     if (name === "approvals") loadApprovals();
     if (name === "stacks") {
       loadConnections();
+    }
+    if (name === "local-models") {
       loadStacks();
-      loadBedrockPanel();
     }
     if (name === "create") {
       loadCreateConnections();
@@ -219,6 +220,8 @@
       c.kind_label || c.kind,
       `status: ${c.status}`,
       c.enabled ? "enabled" : "disabled",
+      c.meta?.base_url ? `base: ${c.meta.base_url}` : null,
+      c.meta?.region ? `region: ${c.meta.region}` : null,
       c.tested_at ? `tested ${c.tested_at}` : null,
       `used by: ${used}`,
       (c.aliases || []).length ? `aka ${c.aliases.join(", ")}` : null,
@@ -249,12 +252,42 @@
       setConnectionEnabled(c.id, !c.enabled)
     );
     actions.append(testBtn, toggleBtn);
+
+    if (c.id !== "opencode" && c.id !== "ollama" && c.id !== "bedrock") {
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "btn danger";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", async () => {
+        if (!confirm(`Delete connection '${c.label || c.id}'?`)) return;
+        try {
+          const res = await api(`/stacks/connections/${encodeURIComponent(c.id)}`, { method: "DELETE" });
+          if (!res.ok) throw new Error(`delete failed ${res.status}`);
+          await loadConnections();
+        } catch (e) {
+          const errEl = $("#connections-error");
+          errEl.textContent = String(e.message || e);
+          errEl.hidden = false;
+        }
+      });
+      actions.append(delBtn);
+    }
+
     card.appendChild(actions);
+
     const runtimes = document.createElement("div");
     runtimes.className = "connection-runtimes";
     runtimes.dataset.connectionId = c.id;
     card.appendChild(runtimes);
     fillConnectionRuntimes(runtimes, c);
+
+    if (c.kind === "inference") {
+      const verBox = document.createElement("div");
+      verBox.className = "connection-runtimes opencode-register";
+      card.appendChild(verBox);
+      fillInferenceVerifiedModels(verBox, c);
+    }
+
     if (c.product === "opencode") {
       const models = document.createElement("div");
       models.className = "connection-runtimes opencode-register";
@@ -262,6 +295,123 @@
       fillOpencodeRegister(models, c);
     }
     return card;
+  }
+
+  function fillInferenceVerifiedModels(box, c) {
+    box.innerHTML = "";
+    const head = document.createElement("div");
+    head.className = "runtime-head";
+    const h = document.createElement("strong");
+    h.textContent = "Verified models";
+    head.appendChild(h);
+    box.appendChild(head);
+
+    const verified = c.verified_models || [];
+    if (!verified.length) {
+      const empty = document.createElement("p");
+      empty.className = "desk-meta";
+      empty.textContent = "No verified models yet — add and verify a model below.";
+      box.appendChild(empty);
+    } else {
+      for (const m of verified) {
+        const row = document.createElement("div");
+        row.className = "runtime-row";
+        const label = document.createElement("p");
+        label.className = "desk-meta";
+        label.textContent = [
+          m.display_name || m.model_id,
+          m.model_id,
+          m.verified_at ? `verified ${m.verified_at}` : null,
+          m.region ? `region: ${m.region}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "btn ghost btn-xs";
+        del.textContent = "Remove";
+        del.addEventListener("click", async () => {
+          try {
+            const r = await api(
+              `/stacks/connections/${encodeURIComponent(c.id)}/verified-models/${encodeURIComponent(m.model_id)}`,
+              { method: "DELETE" }
+            );
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(d.detail || `delete ${r.status}`);
+            await loadConnections();
+          } catch (e) {
+            const errEl = $("#connections-error");
+            errEl.textContent = String(e.message || e);
+            errEl.hidden = false;
+          }
+        });
+        row.append(label, del);
+        box.appendChild(row);
+      }
+    }
+
+    const form = document.createElement("form");
+    form.className = "form memory-form";
+    form.style.marginTop = "0.5rem";
+    const inputRow = document.createElement("div");
+    inputRow.className = "form-actions memory-actions";
+    inputRow.style.gap = "0.5rem";
+
+    const midInput = document.createElement("input");
+    midInput.type = "text";
+    midInput.required = true;
+    midInput.placeholder = c.product === "bedrock" ? "e.g. amazon.nova-lite-v1:0" : "e.g. llama-3.3-70b-versatile";
+    midInput.style.flex = "1";
+
+    const dnameInput = document.createElement("input");
+    dnameInput.type = "text";
+    dnameInput.placeholder = "Display name (optional)";
+    dnameInput.style.flex = "1";
+
+    const verifyBtn = document.createElement("button");
+    verifyBtn.type = "submit";
+    verifyBtn.className = "btn primary btn-xs";
+    verifyBtn.textContent = "Verify & add";
+
+    inputRow.append(midInput, dnameInput, verifyBtn);
+    form.appendChild(inputRow);
+
+    const formErr = document.createElement("p");
+    formErr.className = "error";
+    formErr.hidden = true;
+    form.appendChild(formErr);
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const modelId = midInput.value.trim();
+      const displayName = dnameInput.value.trim();
+      if (!modelId) return;
+
+      verifyBtn.disabled = true;
+      verifyBtn.textContent = "Verifying…";
+      formErr.hidden = true;
+
+      try {
+        const res = await api(
+          `/stacks/connections/${encodeURIComponent(c.id)}/verify-model`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model_id: modelId, display_name: displayName }),
+          }
+        );
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.detail || `verify failed (${res.status})`);
+        await loadConnections();
+      } catch (err) {
+        formErr.textContent = String(err.message || err);
+        formErr.hidden = false;
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = "Verify & add";
+      }
+    });
+
+    box.appendChild(form);
   }
 
   async function fillOpencodeRegister(box, c) {
@@ -1770,6 +1920,103 @@
       }
       showView(btn.dataset.view);
     });
+  });
+
+  $("#btn-open-add-connection")?.addEventListener("click", () => {
+    const panel = $("#add-connection-panel");
+    if (panel) panel.hidden = !panel.hidden;
+  });
+
+  $("#btn-cancel-add-connection")?.addEventListener("click", () => {
+    const panel = $("#add-connection-panel");
+    if (panel) panel.hidden = true;
+  });
+
+  $("#conn-product-select")?.addEventListener("change", (ev) => {
+    const isBedrock = ev.target.value === "bedrock";
+    const openaiFields = $("#conn-openai-fields");
+    const bedrockFields = $("#conn-bedrock-fields");
+    if (openaiFields) openaiFields.hidden = isBedrock;
+    if (bedrockFields) bedrockFields.hidden = !isBedrock;
+  });
+
+  $("#conn-preset-select")?.addEventListener("change", (ev) => {
+    const val = ev.target.value;
+    const urlInput = $("#conn-base-url-input");
+    if (!urlInput) return;
+    if (val === "ollama") urlInput.value = "http://127.0.0.1:11434/v1";
+    if (val === "groq") urlInput.value = "https://api.groq.com/openai/v1";
+    if (val === "zen") urlInput.value = "https://api.zen.ai/v1";
+  });
+
+  $("#conn-bedrock-auth-mode")?.addEventListener("change", (ev) => {
+    const isApiKey = ev.target.value === "api_key";
+    const iamGroup = $("#conn-bedrock-iam-group");
+    const apikeyGroup = $("#conn-bedrock-apikey-group");
+    if (iamGroup) iamGroup.hidden = isApiKey;
+    if (apikeyGroup) apikeyGroup.hidden = !isApiKey;
+  });
+
+  $("#add-connection-form")?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const form = ev.target;
+    const err = $("#add-connection-error");
+    const ok = $("#add-connection-ok");
+    err.hidden = true;
+    ok.hidden = true;
+
+    const prod = form.product?.value || "openai-compatible";
+    const body = {
+      id: form.id?.value?.trim(),
+      label: form.label?.value?.trim(),
+      kind: "inference",
+      product: prod,
+      preset: form.preset?.value || "custom",
+      base_url: form.base_url?.value?.trim(),
+      api_key: form.api_key?.value?.trim(),
+      access_key_id: form.access_key_id?.value?.trim(),
+      secret_access_key: form.secret_access_key?.value?.trim(),
+      session_token: form.session_token?.value?.trim(),
+      auth_mode: form.auth_mode?.value || "iam",
+      region: form.region?.value?.trim() || "us-east-1",
+      enabled: true,
+    };
+
+    if (prod === "bedrock" && form.bedrock_api_key?.value?.trim()) {
+      body.api_key = form.bedrock_api_key.value.trim();
+    }
+
+    try {
+      const res = await api("/stacks/connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `save connection failed (${res.status})`);
+      ok.textContent = `Connection '${data.label || data.id}' saved successfully.`;
+      ok.hidden = false;
+      $("#add-connection-panel").hidden = true;
+      await loadConnections();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  });
+
+  $("#btn-enable-ollama-inference")?.addEventListener("click", async () => {
+    const err = $("#stacks-error");
+    err.hidden = true;
+    try {
+      const res = await api("/stacks/connections/enable-ollama-local", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `enable failed (${res.status})`);
+      alert(`Enabled connection '${data.label || data.id}' in Stacks.`);
+      showView("stacks");
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
   });
 
   $("#btn-open-create").addEventListener("click", () => showView("create"));

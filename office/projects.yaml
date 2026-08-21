@@ -4,3 +4,8 @@ projects:
   slug: python-demo
   path: /projects/python-demo
   status: active
+- id: loan-portal-5e7434c9
+  name: loan portal
+  slug: loan-portal
+  path: /projects/loan-portal
+  status: active
