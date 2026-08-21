@@ -1,7 +1,7 @@
 # AgentAnyStack
 
 **Tagline:** Any stack. One orchestrator.  
-**License:** Apache-2.0 · **Release:** v0 early · SemVer `0.3.11`
+**License:** Apache-2.0 · **Release:** v0 early · SemVer `0.3.12`
 
 ## What it is
 
@@ -78,10 +78,10 @@ Full product surface. Markers: **Available** · **In progress** · **Planned**
 
 | Capability | Status |
 | --- | --- |
-| Ollama / OpenAI-compatible local models | Available |
-| Cursor adapter | Planned |
-| Claude API adapter | Planned |
-| AWS Bedrock adapter | Built (`stack: bedrock` · IAM keys or Bedrock API key + Region) |
+| Ollama / Local Models tab | Available (SSE pull, GPU health check, flush, delete, 1-click Enable as Inference) |
+| Stacks kinds: Inference, Coding harness, External agents | Available (`Inference` cards with per-card verified models; `Coding harness` OpenCode with registered models) |
+| AWS Bedrock adapter | Available (`stack: bedrock` · IAM access/secret/token or Bedrock API key + Region) |
+| OpenAI-compatible Inference presets | Available (Ollama, Groq, Zen, Custom base URLs & API keys) |
 | Unified stack models | `GET /stacks`, `GET /stacks/{stack}/models` |
 | Org catalog: MCP · Skills · API/creds | Planned |
 | Gated MCP (`_locked`) after human approve | Planned |

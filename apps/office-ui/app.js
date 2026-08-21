@@ -282,6 +282,15 @@
     fillConnectionRuntimes(runtimes, c);
 
     if (c.kind === "inference") {
+      const cfgBox = document.createElement("div");
+      cfgBox.className = "connection-runtimes opencode-register";
+      card.appendChild(cfgBox);
+      if (c.product === "bedrock") {
+        fillBedrockCredsForm(cfgBox, c);
+      } else {
+        fillConfigureConnectionForm(cfgBox, c);
+      }
+
       const verBox = document.createElement("div");
       verBox.className = "connection-runtimes opencode-register";
       card.appendChild(verBox);
@@ -295,6 +304,349 @@
       fillOpencodeRegister(models, c);
     }
     return card;
+  }
+
+  async function fillBedrockCredsForm(box, c) {
+    box.innerHTML = "";
+
+    const details = document.createElement("details");
+    details.className = "form memory-form";
+    details.style.marginTop = "0.5rem";
+
+    const summary = document.createElement("summary");
+    summary.style.fontWeight = "600";
+    summary.style.cursor = "pointer";
+    summary.style.padding = "0.35rem 0";
+    summary.textContent = "Configure AWS Bedrock Credentials (IAM vs API Key)";
+    details.appendChild(summary);
+
+    const statusLine = document.createElement("p");
+    statusLine.className = "desk-meta";
+    statusLine.style.marginBottom = "0.5rem";
+    statusLine.textContent = "Loading credential status…";
+    details.appendChild(statusLine);
+
+    const form = document.createElement("form");
+    form.className = "form memory-form";
+
+    const authLabel = document.createElement("label");
+    authLabel.textContent = "Authenticate with ";
+    const authSelect = document.createElement("select");
+    authSelect.name = "auth_mode";
+
+    const optIam = document.createElement("option");
+    optIam.value = "iam";
+    optIam.textContent = "AWS Access Key + Secret (IAM)";
+
+    const optApiKey = document.createElement("option");
+    optApiKey.value = "api_key";
+    optApiKey.textContent = "Bedrock API Key";
+
+    authSelect.append(optIam, optApiKey);
+    authLabel.appendChild(authSelect);
+    form.appendChild(authLabel);
+
+    const iamGroup = document.createElement("div");
+    iamGroup.className = "bedrock-iam-group";
+
+    const akLabel = document.createElement("label");
+    akLabel.textContent = "AWS Access Key ID ";
+    const akInput = document.createElement("input");
+    akInput.name = "access_key_id";
+    akInput.type = "password";
+    akInput.autocomplete = "off";
+    akInput.placeholder = "leave blank to keep existing";
+    akLabel.appendChild(akInput);
+
+    const skLabel = document.createElement("label");
+    skLabel.textContent = "AWS Secret Access Key ";
+    const skInput = document.createElement("input");
+    skInput.name = "secret_access_key";
+    skInput.type = "password";
+    skInput.autocomplete = "off";
+    skInput.placeholder = "leave blank to keep existing";
+    skLabel.appendChild(skInput);
+
+    const stLabel = document.createElement("label");
+    stLabel.textContent = "AWS Session Token (STS) ";
+    const stInput = document.createElement("input");
+    stInput.name = "session_token";
+    stInput.type = "password";
+    stInput.autocomplete = "off";
+    stInput.placeholder = "optional; leave blank to keep existing";
+    stLabel.appendChild(stInput);
+
+    iamGroup.append(akLabel, skLabel, stLabel);
+    form.appendChild(iamGroup);
+
+    const apikeyGroup = document.createElement("div");
+    apikeyGroup.className = "bedrock-apikey-group";
+    apikeyGroup.hidden = true;
+
+    const apkLabel = document.createElement("label");
+    apkLabel.textContent = "Bedrock API Key ";
+    const apkInput = document.createElement("input");
+    apkInput.name = "api_key";
+    apkInput.type = "password";
+    apkInput.autocomplete = "off";
+    apkInput.placeholder = "leave blank to keep existing";
+    apkLabel.appendChild(apkInput);
+
+    apikeyGroup.appendChild(apkLabel);
+    form.appendChild(apikeyGroup);
+
+    const regLabel = document.createElement("label");
+    regLabel.textContent = "Region ";
+    const regInput = document.createElement("input");
+    regInput.name = "region";
+    regInput.type = "text";
+    regInput.placeholder = "us-east-1 / ap-south-1";
+    regInput.value = c.meta?.region || "us-east-1";
+    regLabel.appendChild(regInput);
+    form.appendChild(regLabel);
+
+    const formErr = document.createElement("p");
+    formErr.className = "error";
+    formErr.hidden = true;
+
+    const formOk = document.createElement("p");
+    formOk.className = "desk-meta";
+    formOk.hidden = true;
+
+    const actions = document.createElement("div");
+    actions.className = "form-actions memory-actions";
+    actions.style.marginTop = "0.5rem";
+
+    const saveBtn = document.createElement("button");
+    saveBtn.type = "submit";
+    saveBtn.className = "btn primary btn-xs";
+    saveBtn.textContent = "Save Credentials";
+
+    const testBtn = document.createElement("button");
+    testBtn.type = "button";
+    testBtn.className = "btn ghost btn-xs";
+    testBtn.textContent = "Test Credentials";
+
+    actions.append(saveBtn, testBtn);
+    form.append(formErr, formOk, actions);
+    details.appendChild(form);
+    box.appendChild(details);
+
+    try {
+      const res = await api("/stacks/bedrock");
+      if (res.ok) {
+        const s = await res.json();
+        const mode = s.auth_mode === "api_key" ? "api_key" : "iam";
+        authSelect.value = mode;
+        iamGroup.hidden = mode === "api_key";
+        apikeyGroup.hidden = mode !== "api_key";
+        if (s.region) regInput.value = s.region;
+
+        const bits = [
+          s.configured ? "credentials configured" : "credentials not set",
+          mode === "api_key" ? "auth=API Key" : "auth=IAM (access+secret)",
+          s.source ? `source=${s.source}` : null,
+          s.region ? `region ${s.region}` : null,
+          s.access_key_hint ? `key ${s.access_key_hint}` : null,
+          s.has_api_key || s.api_key_hint ? `api key ${s.api_key_hint || "set"}` : null,
+        ].filter(Boolean);
+        statusLine.textContent = bits.join(" · ");
+      }
+    } catch (_) {
+      statusLine.textContent = "Could not fetch Bedrock status";
+    }
+
+    authSelect.addEventListener("change", () => {
+      const isApiKey = authSelect.value === "api_key";
+      iamGroup.hidden = isApiKey;
+      apikeyGroup.hidden = !isApiKey;
+    });
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      formErr.hidden = true;
+      formOk.hidden = true;
+      saveBtn.disabled = true;
+
+      const body = {
+        auth_mode: authSelect.value,
+        region: regInput.value.trim() || "us-east-1",
+      };
+      if (akInput.value.trim()) body.access_key_id = akInput.value.trim();
+      if (skInput.value.trim()) body.secret_access_key = skInput.value.trim();
+      if (stInput.value.trim()) body.session_token = stInput.value.trim();
+      if (apkInput.value.trim()) body.api_key = apkInput.value.trim();
+
+      try {
+        const res = await api("/stacks/bedrock", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || `save ${res.status}`);
+
+        akInput.value = "";
+        skInput.value = "";
+        stInput.value = "";
+        apkInput.value = "";
+
+        formOk.textContent = "Credentials saved securely.";
+        formOk.hidden = false;
+        await loadConnections();
+      } catch (err) {
+        formErr.textContent = String(err.message || err);
+        formErr.hidden = false;
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+
+    testBtn.addEventListener("click", async () => {
+      formErr.hidden = true;
+      formOk.hidden = true;
+      testBtn.disabled = true;
+      testBtn.textContent = "Testing…";
+
+      try {
+        const res = await api("/stacks/bedrock/test", { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const detail = typeof data.detail === "object" ? data.detail.message : data.detail;
+          throw new Error(detail || `test failed ${res.status}`);
+        }
+        const mode = data.auth || authSelect.value;
+        const msg = mode === "api_key"
+          ? `Bedrock API key verified! Region: ${data.region || regInput.value}`
+          : `IAM verified! Account: ${data.account || "ok"} · ARN: ${data.arn || "ok"}`;
+        formOk.textContent = msg;
+        formOk.hidden = false;
+      } catch (err) {
+        formErr.textContent = String(err.message || err);
+        formErr.hidden = false;
+      } finally {
+        testBtn.disabled = false;
+        testBtn.textContent = "Test Credentials";
+      }
+    });
+  }
+
+  function fillConfigureConnectionForm(box, c) {
+    const details = document.createElement("details");
+    details.className = "form memory-form";
+    details.style.marginTop = "0.5rem";
+
+    const summary = document.createElement("summary");
+    summary.style.fontWeight = "600";
+    summary.style.cursor = "pointer";
+    summary.style.padding = "0.35rem 0";
+    summary.textContent = "Configure Connection (Base URL & API Key)";
+    details.appendChild(summary);
+
+    const form = document.createElement("form");
+    form.className = "form memory-form";
+
+    const presetLabel = document.createElement("label");
+    presetLabel.textContent = "Preset ";
+    const presetSelect = document.createElement("select");
+    presetSelect.name = "preset";
+
+    ["custom", "ollama", "groq", "zen"].forEach((p) => {
+      const opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = p === "custom" ? "Custom" : p === "ollama" ? "Ollama" : p === "groq" ? "Groq" : "Zen";
+      if (c.meta?.preset === p) opt.selected = true;
+      presetSelect.appendChild(opt);
+    });
+    presetLabel.appendChild(presetSelect);
+    form.appendChild(presetLabel);
+
+    const urlLabel = document.createElement("label");
+    urlLabel.textContent = "Base URL ";
+    const urlInput = document.createElement("input");
+    urlInput.name = "base_url";
+    urlInput.type = "text";
+    urlInput.placeholder = "http://127.0.0.1:11434/v1";
+    urlInput.value = c.meta?.base_url || "";
+    urlLabel.appendChild(urlInput);
+    form.appendChild(urlLabel);
+
+    const keyLabel = document.createElement("label");
+    keyLabel.textContent = "API Key / Secret ";
+    const keyInput = document.createElement("input");
+    keyInput.name = "api_key";
+    keyInput.type = "password";
+    keyInput.autocomplete = "off";
+    keyInput.placeholder = c.meta?.has_api_key ? "leave blank to keep existing key" : "optional for local Ollama";
+    keyLabel.appendChild(keyInput);
+    form.appendChild(keyLabel);
+
+    const formErr = document.createElement("p");
+    formErr.className = "error";
+    formErr.hidden = true;
+
+    const formOk = document.createElement("p");
+    formOk.className = "desk-meta";
+    formOk.hidden = true;
+
+    const actions = document.createElement("div");
+    actions.className = "form-actions memory-actions";
+    actions.style.marginTop = "0.5rem";
+
+    const saveBtn = document.createElement("button");
+    saveBtn.type = "submit";
+    saveBtn.className = "btn primary btn-xs";
+    saveBtn.textContent = "Save Settings";
+
+    actions.appendChild(saveBtn);
+    form.append(formErr, formOk, actions);
+    details.appendChild(form);
+    box.appendChild(details);
+
+    presetSelect.addEventListener("change", () => {
+      const val = presetSelect.value;
+      if (val === "ollama") urlInput.value = "http://127.0.0.1:11434/v1";
+      if (val === "groq") urlInput.value = "https://api.groq.com/openai/v1";
+      if (val === "zen") urlInput.value = "https://api.zen.ai/v1";
+    });
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      formErr.hidden = true;
+      formOk.hidden = true;
+      saveBtn.disabled = true;
+
+      const body = {
+        id: c.id,
+        label: c.label,
+        kind: c.kind,
+        product: c.product,
+        preset: presetSelect.value,
+        base_url: urlInput.value.trim(),
+        api_key: keyInput.value.trim() || undefined,
+        enabled: c.enabled,
+      };
+
+      try {
+        const res = await api("/stacks/connections", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || `save failed (${res.status})`);
+
+        keyInput.value = "";
+        formOk.textContent = "Connection settings updated.";
+        formOk.hidden = false;
+        await loadConnections();
+      } catch (err) {
+        formErr.textContent = String(err.message || err);
+        formErr.hidden = false;
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
   }
 
   function fillInferenceVerifiedModels(box, c) {
