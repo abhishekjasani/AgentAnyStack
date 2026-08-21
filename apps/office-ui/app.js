@@ -178,10 +178,33 @@
       for (const group of data.by_kind || []) {
         const section = document.createElement("section");
         section.className = "connection-kind";
+
+        const head = document.createElement("div");
+        head.style.display = "flex";
+        head.style.justifyContent = "space-between";
+        head.style.alignItems = "center";
+        head.style.marginBottom = "0.75rem";
+
         const h = document.createElement("h2");
         h.className = "memory-h2";
+        h.style.margin = "0";
         h.textContent = group.label || group.kind;
-        section.appendChild(h);
+        head.appendChild(h);
+
+        if (group.kind === "inference") {
+          const addBtn = document.createElement("button");
+          addBtn.type = "button";
+          addBtn.className = "btn primary btn-xs";
+          addBtn.id = "btn-open-add-connection";
+          addBtn.textContent = "+ Add connection";
+          addBtn.addEventListener("click", () => {
+            const panel = $("#add-connection-panel");
+            if (panel) panel.hidden = !panel.hidden;
+          });
+          head.appendChild(addBtn);
+        }
+
+        section.appendChild(head);
         const grid = document.createElement("div");
         grid.className = "connection-grid";
         const list = group.connections || [];
