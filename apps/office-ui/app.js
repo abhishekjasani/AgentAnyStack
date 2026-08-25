@@ -178,33 +178,10 @@
       for (const group of data.by_kind || []) {
         const section = document.createElement("section");
         section.className = "connection-kind";
-
-        const head = document.createElement("div");
-        head.style.display = "flex";
-        head.style.justifyContent = "space-between";
-        head.style.alignItems = "center";
-        head.style.marginBottom = "0.75rem";
-
         const h = document.createElement("h2");
         h.className = "memory-h2";
-        h.style.margin = "0";
         h.textContent = group.label || group.kind;
-        head.appendChild(h);
-
-        if (group.kind === "inference") {
-          const addBtn = document.createElement("button");
-          addBtn.type = "button";
-          addBtn.className = "btn primary btn-xs";
-          addBtn.id = "btn-open-add-connection";
-          addBtn.textContent = "+ Add connection";
-          addBtn.addEventListener("click", () => {
-            const panel = $("#add-connection-panel");
-            if (panel) panel.hidden = !panel.hidden;
-          });
-          head.appendChild(addBtn);
-        }
-
-        section.appendChild(head);
+        section.appendChild(h);
         const grid = document.createElement("div");
         grid.className = "connection-grid";
         const list = group.connections || [];
@@ -2297,14 +2274,9 @@
     });
   });
 
-  $("#btn-open-add-connection")?.addEventListener("click", () => {
-    const panel = $("#add-connection-panel");
-    if (panel) panel.hidden = !panel.hidden;
-  });
-
   $("#btn-cancel-add-connection")?.addEventListener("click", () => {
     const panel = $("#add-connection-panel");
-    if (panel) panel.hidden = true;
+    if (panel) panel.open = false;
   });
 
   $("#conn-product-select")?.addEventListener("change", (ev) => {
@@ -2371,7 +2343,7 @@
       if (!res.ok) throw new Error(data.detail || `save connection failed (${res.status})`);
       ok.textContent = `Connection '${data.label || data.id}' saved successfully.`;
       ok.hidden = false;
-      $("#add-connection-panel").hidden = true;
+      $("#add-connection-panel").open = false;
       await loadConnections();
     } catch (e) {
       err.textContent = String(e.message || e);
