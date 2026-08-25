@@ -211,6 +211,29 @@ class OpenAICompatibleAdapter:
                 code="openai_compatible_timeout",
             ) from exc
 
+    async def list_models(self) -> list[str]:
+        """Query GET /models (or /v1/models) to discover available models."""
+        url = f"{self.base_url}/models"
+        headers = self._headers()
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(url, headers=headers)
+                if resp.status_code >= 400:
+                    return []
+                data = resp.json()
+                items = data.get("data") or data.get("models") or []
+                if isinstance(items, list):
+                    out = []
+                    for item in items:
+                        if isinstance(item, dict) and item.get("id"):
+                            out.append(str(item["id"]))
+                        elif isinstance(item, str):
+                            out.append(item)
+                    return out
+                return []
+        except Exception:
+            return []
+
 
 def _parse_tool_calls(raw: Any) -> list[ToolCallRequest]:
     if not isinstance(raw, list):

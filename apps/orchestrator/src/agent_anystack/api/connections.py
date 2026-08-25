@@ -155,6 +155,7 @@ class CreateConnectionBody(BaseModel):
     session_token: str | None = None
     auth_mode: str | None = None
     region: str | None = None
+    model_name: str | None = None
     enabled: bool = True
 
 
@@ -168,6 +169,7 @@ async def create_or_update_connection(
     body: CreateConnectionBody,
     store: ConnectionStore = Depends(get_connection_store),
     bedrock_store: BedrockProviderStore = Depends(get_bedrock_store),
+    settings: Settings = Depends(get_settings),
     _user_id: str = Depends(get_user_id),
 ) -> dict[str, Any]:
     """Add or update a connection card."""
@@ -187,6 +189,8 @@ async def create_or_update_connection(
     if body.api_key is not None and body.api_key.strip():
         meta["api_key"] = body.api_key.strip()
         meta["has_api_key"] = True
+    if body.model_name is not None and body.model_name.strip():
+        meta["model_name"] = body.model_name.strip()
 
     if body.product == "bedrock":
         ak = body.access_key_id if body.access_key_id and body.access_key_id.strip() else None
@@ -218,6 +222,74 @@ async def create_or_update_connection(
         registered_models=existing.registered_models if existing else [],
         verified_models=existing.verified_models if existing else [],
     )
+
+    if conn.kind == "inference" and body.model_name and body.model_name.strip():
+        model_id = body.model_name.strip()
+        try:
+            if conn.product == "bedrock":
+                from agent_anystack.adapters.bedrock import BedrockAdapter
+                from agent_anystack.adapters.bedrock_store import resolve_creds, BedrockModelEntry
+
+                creds = resolve_creds(
+                    bedrock_store,
+                    env_access_key_id=settings.aws_access_key_id,
+                    env_secret_access_key=settings.aws_secret_access_key,
+                    env_session_token=settings.aws_session_token,
+                    env_region=settings.aws_region,
+                    env_api_key=settings.aws_bearer_token_bedrock,
+                )
+                adapter = BedrockAdapter(
+                    access_key_id=creds.access_key_id,
+                    secret_access_key=creds.secret_access_key,
+                    session_token=creds.session_token,
+                    api_key=creds.api_key,
+                    auth_mode=creds.auth_mode,
+                    region=creds.region,
+                )
+                await adapter.complete_chat(
+                    model=model_id,
+                    messages=[{"role": "user", "content": "Reply OK"}],
+                    max_tokens=8,
+                )
+                region = creds.region
+                bedrock_store.upsert_model(
+                    BedrockModelEntry(
+                        id=model_id,
+                        display_name=model_id,
+                        verified_at=utc_now_iso(),
+                        region=region,
+                    )
+                )
+            else:
+                from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+
+                base_url = meta.get("base_url") or settings.openai_compatible_base_url or "http://127.0.0.1:11434/v1"
+                api_key = meta.get("api_key")
+                adapter = OpenAICompatibleAdapter(base_url=base_url, api_key=api_key)
+                await adapter.complete_chat(
+                    model=model_id,
+                    messages=[{"role": "user", "content": "Reply OK"}],
+                    max_tokens=8,
+                )
+                region = None
+
+            entry = VerifiedInferenceModel(
+                model_id=model_id,
+                display_name=model_id,
+                verified_at=utc_now_iso(),
+                region=region,
+            )
+            rest = [m for m in conn.verified_models if m.model_id != model_id]
+            rest.append(entry)
+            rest.sort(key=lambda m: m.model_id)
+            conn.verified_models = rest
+            conn.status = "ok"
+            conn.tested_at = utc_now_iso()
+            conn.last_error = None
+        except Exception as exc:
+            conn.status = "error"
+            conn.last_error = f"Model '{model_id}' verify failed: {exc}"
+            conn.tested_at = utc_now_iso()
 
     saved = store.upsert(conn)
     return saved.as_dict()
@@ -638,9 +710,73 @@ async def test_connection(
                     "auth": ident.get("auth") or creds.auth_mode,
                     "region": ident.get("region") or creds.region,
                 }
+                # Also test model completion if a model is specified or verified
+                target_model = c.verified_models[0].model_id if c.verified_models else c.meta.get("model_name")
+                if target_model:
+                    try:
+                        res_text = await adapter.complete_chat(
+                            model=target_model,
+                            messages=[{"role": "user", "content": "Reply OK"}],
+                            max_tokens=8,
+                        )
+                        meta["model"] = target_model
+                        meta["response"] = res_text[:50] if res_text else "OK"
+                    except Exception as exc:
+                        error = f"Bedrock model '{target_model}' call failed: {exc}"
+                        ok = False
+                        updated = store.set_test_result(connection_id, ok=ok, error=error, meta=meta)
+                        return {"ok": ok, "error": error, "connection": updated.as_dict()}
                 ok = True
         else:
-            error = f"no test implemented for product '{c.product}'"
+            # OpenAI-compatible / Groq / Zen / Ollama / Custom
+            from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+
+            base_url = c.meta.get("base_url") or settings.openai_compatible_base_url or "http://127.0.0.1:11434/v1"
+            api_key = c.meta.get("api_key")
+            adapter = OpenAICompatibleAdapter(base_url=base_url, api_key=api_key)
+
+            target_model = None
+            if c.verified_models:
+                target_model = c.verified_models[0].model_id
+            elif c.meta.get("model_name"):
+                target_model = c.meta.get("model_name")
+            elif c.meta.get("default_model"):
+                target_model = c.meta.get("default_model")
+
+            if not target_model:
+                try:
+                    discovered = await adapter.list_models()
+                    if discovered:
+                        target_model = discovered[0]
+                except Exception:
+                    pass
+
+            if not target_model:
+                error = "No model specified or found to test. Please specify a Model Name in settings or add a verified model."
+                ok = False
+            else:
+                try:
+                    res_text = await adapter.complete_chat(
+                        model=target_model,
+                        messages=[{"role": "user", "content": "Reply OK"}],
+                        max_tokens=8,
+                    )
+                    ok = True
+                    meta = {
+                        "model": target_model,
+                        "response": res_text[:50] if res_text else "OK",
+                        "base_url": base_url,
+                    }
+                    if not any(m.model_id == target_model for m in c.verified_models):
+                        entry = VerifiedInferenceModel(
+                            model_id=target_model,
+                            display_name=target_model,
+                            verified_at=utc_now_iso(),
+                        )
+                        c = store.upsert_verified_model(c.id, entry)
+                except Exception as exc:
+                    error = f"Model '{target_model}' call failed: {exc}"
+                    ok = False
     except StackError as exc:
         error = str(exc)
         ok = False

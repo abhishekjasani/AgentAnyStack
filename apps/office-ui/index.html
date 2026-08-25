@@ -417,6 +417,9 @@
               <label>API Key / Secret (optional for local Ollama)
                 <input name="api_key" type="password" autocomplete="off" placeholder="gsk_..." />
               </label>
+              <label>Model Name (optional)
+                <input name="model_name" id="conn-model-name-input" placeholder="e.g. zen-1 or llama-3.3-70b-versatile" />
+              </label>
             </div>
 
             <!-- AWS Bedrock Fields -->
@@ -445,6 +448,9 @@
               </div>
               <label>Region
                 <input name="region" value="us-east-1" placeholder="us-east-1" />
+              </label>
+              <label>Model Name (optional)
+                <input name="bedrock_model_name" placeholder="e.g. amazon.nova-lite-v1:0" />
               </label>
             </div>
 

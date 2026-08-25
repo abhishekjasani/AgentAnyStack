@@ -581,6 +581,16 @@
     keyLabel.appendChild(keyInput);
     form.appendChild(keyLabel);
 
+    const modelLabel = document.createElement("label");
+    modelLabel.textContent = "Model Name ";
+    const modelInput = document.createElement("input");
+    modelInput.name = "model_name";
+    modelInput.type = "text";
+    modelInput.placeholder = "e.g. zen-1 or llama-3.3-70b-versatile";
+    modelInput.value = c.meta?.model_name || "";
+    modelLabel.appendChild(modelInput);
+    form.appendChild(modelLabel);
+
     const formErr = document.createElement("p");
     formErr.className = "error";
     formErr.hidden = true;
@@ -624,6 +634,7 @@
         preset: presetSelect.value,
         base_url: urlInput.value.trim(),
         api_key: keyInput.value.trim() || undefined,
+        model_name: modelInput.value.trim() || undefined,
         enabled: c.enabled,
       };
 
@@ -2313,6 +2324,7 @@
     ok.hidden = true;
 
     const prod = form.product?.value || "openai-compatible";
+    const modelName = form.model_name?.value?.trim() || form.bedrock_model_name?.value?.trim();
     const body = {
       id: form.id?.value?.trim(),
       label: form.label?.value?.trim(),
@@ -2321,6 +2333,7 @@
       preset: form.preset?.value || "custom",
       base_url: form.base_url?.value?.trim(),
       api_key: form.api_key?.value?.trim(),
+      model_name: modelName || undefined,
       access_key_id: form.access_key_id?.value?.trim(),
       secret_access_key: form.secret_access_key?.value?.trim(),
       session_token: form.session_token?.value?.trim(),
