@@ -252,6 +252,7 @@ async def register_inference_model(
 
     extra = [
         {
+            "inference_connection_id": match["inference_connection_id"],
             "inference_product": match["inference_product"],
             "inference_model_id": match["model_id"],
             "model_id": match["model_id"],
@@ -268,6 +269,7 @@ async def register_inference_model(
         env_session_token=settings.aws_session_token,
         env_region=settings.aws_region,
         env_api_key=settings.aws_bearer_token_bedrock,
+        store=store,
     )
     cwd = scratch_cwd_for(settings.database_url, oc.id)
     try:
@@ -280,7 +282,11 @@ async def register_inference_model(
     except StackError as exc:
         raise RegisterError(str(exc), code=exc.code) from exc
 
-    pairs = candidate_pairs(match["inference_product"], match["model_id"])
+    pairs = candidate_pairs(
+        match["inference_product"],
+        match["model_id"],
+        inference_connection_id=inf.id,
+    )
     for p in await _cli_pairs(match["model_id"]):
         if p not in pairs:
             pairs.insert(0, p)

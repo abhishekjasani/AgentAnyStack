@@ -394,6 +394,7 @@ class ChatRunService:
                 env_session_token=self._env_aws_session_token,
                 env_region=self._env_aws_region,
                 env_api_key=self._env_aws_bearer_token_bedrock,
+                store=self._connections,
             )
         harness = OpenCodeAdapter(
             database_url=self.database_url,

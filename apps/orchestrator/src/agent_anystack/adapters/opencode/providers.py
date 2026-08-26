@@ -41,10 +41,15 @@ def config_hash(payload: dict[str, Any], extra_env: dict[str, str]) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
-def candidate_pairs(product: str, model_id: str) -> list[tuple[str, str]]:
+def candidate_pairs(
+    product: str,
+    model_id: str,
+    inference_connection_id: str = "",
+) -> list[tuple[str, str]]:
     """Ordered (provider_id, model_id) guesses for OpenCode session.chat."""
     mid = (model_id or "").strip()
     product = (product or "").strip()
+    cid = (inference_connection_id or "").strip()
     seen: set[tuple[str, str]] = set()
     out: list[tuple[str, str]] = []
 
@@ -58,12 +63,22 @@ def candidate_pairs(product: str, model_id: str) -> list[tuple[str, str]]:
     if product == "bedrock":
         add("amazon-bedrock", mid)
         add("bedrock", mid)
+        if cid and cid not in ("bedrock", "bed-prod"):
+            add(cid, mid)
         if "/" in mid:
             add("amazon-bedrock", mid.split("/", 1)[1])
-    elif product == "ollama":
-        add("ollama", mid)
+    elif product in ("ollama", "openai-compatible"):
+        if cid:
+            add(cid, mid)
+        if product == "ollama" or cid in ("ollama", "ollama-local"):
+            add("ollama", mid)
         add("openai-compatible", mid)
+        if "/" in mid:
+            p, m = mid.split("/", 1)
+            add(p, m)
     else:
+        if cid:
+            add(cid, mid)
         add("opencode", mid)
         if "/" in mid:
             p, m = mid.split("/", 1)
@@ -85,23 +100,40 @@ def _provider_block_bedrock(
     }
 
 
+def _provider_block_openai_compatible(
+    *,
+    name: str = "OpenAI",
+    base_url: str = "",
+    api_key: str | None = None,
+    models: list[tuple[str, str]],
+) -> dict[str, Any]:
+    model_map: dict[str, Any] = {}
+    for mid, mname in models:
+        model_map[mid] = {"name": mname or mid}
+    url = (base_url or "http://127.0.0.1:11434/v1").rstrip("/")
+    if not url.endswith("/v1") and not url.endswith("/v1beta1") and "/v1" not in url:
+        url = f"{url}/v1"
+    options: dict[str, Any] = {"baseURL": url}
+    if api_key:
+        options["apiKey"] = api_key
+    return {
+        "npm": "@ai-sdk/openai-compatible",
+        "name": name,
+        "options": options,
+        "models": model_map,
+    }
+
+
 def _provider_block_ollama(
     *,
     base_url: str,
     models: list[tuple[str, str]],
 ) -> dict[str, Any]:
-    model_map: dict[str, Any] = {}
-    for mid, name in models:
-        model_map[mid] = {"name": name or mid}
-    url = (base_url or "http://127.0.0.1:11434/v1").rstrip("/")
-    if not url.endswith("/v1"):
-        url = f"{url}/v1"
-    return {
-        "npm": "@ai-sdk/openai-compatible",
-        "name": "Ollama",
-        "options": {"baseURL": url},
-        "models": model_map,
-    }
+    return _provider_block_openai_compatible(
+        name="Ollama",
+        base_url=base_url or "http://127.0.0.1:11434/v1",
+        models=models,
+    )
 
 
 def build_opencode_config(
@@ -109,25 +141,71 @@ def build_opencode_config(
     models: list[RegisteredOpencodeModel | dict[str, Any]],
     ollama_base_url: str,
     bedrock_region: str,
+    connections: list[StackConnection] | None = None,
+    store: ConnectionStore | None = None,
 ) -> dict[str, Any]:
     """opencode.json provider map covering registered + candidate models."""
+    conn_map: dict[str, StackConnection] = {}
+    if connections:
+        for c in connections:
+            conn_map[c.id] = c
+            for a in c.aliases:
+                conn_map[a] = c
+    elif store:
+        for c in store.list():
+            conn_map[c.id] = c
+            for a in c.aliases:
+                conn_map[a] = c
+
     bedrock_models: list[tuple[str, str]] = []
     ollama_models: list[tuple[str, str]] = []
+    custom_providers: dict[str, dict[str, Any]] = {}
+
     for row in models:
         if isinstance(row, RegisteredOpencodeModel):
             product = row.inference_product
             mid = row.model_id or row.inference_model_id
             name = row.display_name
+            inf_conn_id = row.inference_connection_id
+            prov_id = row.provider_id
         else:
             product = str(row.get("inference_product") or "")
             mid = str(row.get("model_id") or row.get("inference_model_id") or "")
             name = str(row.get("display_name") or mid)
+            inf_conn_id = str(row.get("inference_connection_id") or "")
+            prov_id = str(row.get("provider_id") or "")
+
         if not mid:
             continue
+
+        conn = conn_map.get(inf_conn_id) or conn_map.get(product)
+        if conn and not product:
+            product = conn.product
+
         if product == "bedrock":
             bedrock_models.append((mid, name))
-        elif product == "ollama":
+        elif product == "ollama" or (
+            product == "openai-compatible"
+            and (inf_conn_id in ("ollama", "ollama-local") or not inf_conn_id)
+        ):
             ollama_models.append((mid, name))
+        elif product == "openai-compatible" or inf_conn_id:
+            pkey = prov_id or inf_conn_id or "openai-compatible"
+            pname = (conn.label if conn else "") or pkey
+            p_base_url = (conn.meta.get("base_url") if conn else "") or ollama_base_url
+            p_api_key = conn.meta.get("api_key") if conn else None
+
+            if pkey not in custom_providers:
+                custom_providers[pkey] = {
+                    "name": pname,
+                    "base_url": p_base_url,
+                    "api_key": p_api_key,
+                    "models": [],
+                }
+            custom_providers[pkey]["models"].append((mid, name))
+        else:
+            ollama_models.append((mid, name))
+
     provider: dict[str, Any] = {}
     if bedrock_models:
         provider["amazon-bedrock"] = _provider_block_bedrock(
@@ -139,6 +217,14 @@ def build_opencode_config(
             base_url=ollama_base_url,
             models=ollama_models,
         )
+    for pkey, pdata in custom_providers.items():
+        provider[pkey] = _provider_block_openai_compatible(
+            name=pdata["name"],
+            base_url=pdata["base_url"],
+            api_key=pdata["api_key"],
+            models=pdata["models"],
+        )
+
     return {
         "$schema": "https://opencode.ai/config.json",
         "provider": provider,
@@ -197,8 +283,10 @@ def prepare_inject(
     env_session_token: str = "",
     env_region: str = "us-east-1",
     env_api_key: str = "",
+    store: ConnectionStore | None = None,
 ) -> tuple[Path, dict[str, str], str]:
     """Write OPENCODE_CONFIG and return (config_path, extra_env, hash)."""
+    conn_store = store or ConnectionStore(bedrock_data_dir(database_url))
     bedrock = BedrockProviderStore(bedrock_data_dir(database_url))
     rows: list[RegisteredOpencodeModel | dict[str, Any]] = list(
         connection.registered_models
@@ -209,6 +297,7 @@ def prepare_inject(
         models=rows,
         ollama_base_url=ollama_base_url,
         bedrock_region=region,
+        store=conn_store,
     )
     path = config_path_for(database_url, connection.id)
     write_opencode_config(path, payload)
@@ -285,26 +374,27 @@ async def list_inference_candidates(
 
         # 3. Installed Ollama models fallback for ollama connection
         elif c.product in ("ollama", "openai-compatible") and ollama is not None:
-            try:
-                reachable = await ollama.ping()
-                if reachable:
-                    rows = await ollama.list_installed()
-                    for row in rows:
-                        if not row.name:
-                            continue
-                        key = (c.id, row.name)
-                        if key not in seen:
-                            seen.add(key)
-                            out.append(
-                                {
-                                    "inference_connection_id": c.id,
-                                    "inference_product": c.product,
-                                    "model_id": row.name,
-                                    "display_name": row.name,
-                                    "meta": {},
-                                }
-                            )
-            except OllamaModelsError:
-                pass
+            if c.id in ("ollama", "ollama-local") or c.meta.get("preset") == "ollama" or c.product == "ollama":
+                try:
+                    reachable = await ollama.ping()
+                    if reachable:
+                        rows = await ollama.list_installed()
+                        for row in rows:
+                            if not row.name:
+                                continue
+                            key = (c.id, row.name)
+                            if key not in seen:
+                                seen.add(key)
+                                out.append(
+                                    {
+                                        "inference_connection_id": c.id,
+                                        "inference_product": c.product,
+                                        "model_id": row.name,
+                                        "display_name": row.name,
+                                        "meta": {},
+                                    }
+                                )
+                except OllamaModelsError:
+                    pass
 
     return out
