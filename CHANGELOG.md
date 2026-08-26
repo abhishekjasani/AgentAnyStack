@@ -7,19 +7,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 
 ### Added
-- CONTRIBUTING.md with beginner-friendly contribution guide
-- CHANGELOG.md
-- Simple Makefile for common developer commands
-- Updated documentation structure with clear canonical vs architecture distinction
-- Community channels (GitHub Discussions + Discord)
+- `CONTRIBUTING.md` with beginner-friendly contribution guide
+- Clean public `CHANGELOG.md`
+- Simple `Makefile` for common commands (`make dev`, `make test`, `make lint`, `make format`)
+- Made `docs/` public (vision documents + architecture notes)
+- Updated community section (GitHub Issues + personal LinkedIn)
+- Standardized naming to `PROJECT_OVERVIEW.md`
 
 ### Changed
-- `docs/` is now public (previously gitignored)
-- Updated `docs/README.md` to reflect 360° vision and current status
+- Softer, more welcoming language around core vision documents
+- Clear standard fork + PR workflow in contribution guide
 
-## [0.3.21] - 2026-08
+## [0.3.22] - 2026-08-26
 
-**Initial open source preparation release.**
+### Improved
+- Configurable hierarchical token limits for OpenCode (model → connection → preset → defaults)
+- Better compatibility with strict providers (e.g. Groq)
+- Improved model registration candidate selection and lightweight health probes
+- Expanded unit tests for providers and inference candidates
 
-See `docs/PROJECT_OVERVIEW.md` and `docs/IMPLEMENTATION.md` for full details.
+## [0.3.21] - 2026-08-26
+
+### Fixed
+- Inference connection candidate isolation (prevented cross-connection model leakage)
+- Legacy Bedrock fallback behavior
+- Cleaned stale models from catalog
+- Added dedicated unit tests
+
+## [0.3.20] - 2026-08-26
+
+### Fixed
+- OpenCode session registry cleanup after kill
+- Stale session pruning on serve shutdown
+- UI ghost rows in Runtimes panel
+- Added runtime test suite
+
+## [0.3.19] - 2026-08-26
+
+### Changed
+- Removed redundant "Label" field from connection form
+- Simplified UI and backend to use Connection ID directly
+
+See `docs/PROJECT_OVERVIEW.md` for the full product vision.
 

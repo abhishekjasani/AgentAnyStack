@@ -33,12 +33,13 @@ projects/*
 node_modules/
 apps/office-ui/dist/
 
-# ide / os
+# ide / os + personal files
 .idea/
 .vscode/
 *.swp
 .DS_Store
 Thumbs.db
+*.lnk
 
 # docs/ is public (vision + architecture/)
 # mockups/ is excluded (better for website / visual assets)
