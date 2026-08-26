@@ -13,12 +13,12 @@ Thank you for wanting to help! This project is in early stages (v0.3.21+). We we
 
 - `README.md` — project overview
 - `docs/PRODUCT_OVERVIEW.md` — 360° vision and pillars
-- `docs/MEMORY_ARCHITECTURE.md` — canonical memory design
-- `docs/ORCHESTRATOR.md` — control plane, HITL, autonomy
+- `docs/MEMORY_ARCHITECTURE.md` — memory philosophy
+- `docs/ORCHESTRATOR.md` — control plane, HITL and autonomy model
 - `docs/IMPLEMENTATION.md` — current tech stack and status
 - `CONTRIBUTING.md` (this file)
 
-**Docs Structure Note:** Top-level `docs/*.md` files are the **canonical vision**. `docs/architecture/` contains engineering notes and earlier snapshots. Always update the canonical file first when changing design.
+**Vision Note:** The top-level vision documents describe the core product philosophy. Improvements that increase clarity or add useful examples are welcome. For larger changes to the foundational ideas, we recommend starting a discussion in GitHub Discussions first.
 
 ## Development
 
@@ -60,11 +60,8 @@ Look for issues labeled `good-first-issue`. Common starters:
 
 ## Community
 
-- **GitHub Discussions** — ask questions, suggest ideas, find collaborators
-- **Discord** — real-time chat (invite link in README)
-- **LinkedIn** — announcements only
-
-Questions? Open a Discussion or comment on an issue.
+- Questions, ideas, and contributions: use **GitHub Issues**
+- Connect with the author: [LinkedIn](https://www.linkedin.com/in/abhishek-j-81444613a/)
 
 We appreciate your help building the agent office!
 

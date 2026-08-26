@@ -150,15 +150,12 @@ Set `OFFICE_REPO_PATH`, `DATABASE_URL`, and `OLLAMA_BASE_URL` in `.env`.
 
 ---
 
-## Community & Contributing
+## Community
 
-- **GitHub Discussions** — questions, ideas, help wanted
-- **Discord** — real-time chat (invite link coming soon)
-- **LinkedIn** — announcements only
+- Questions, ideas, and contributions: use **GitHub Issues**
+- Connect with the author: [LinkedIn](https://www.linkedin.com/in/abhishek-j-81444613a/)
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute. We especially welcome new developers — the guide is written to be easy to follow.
-
-## Documentation
 
 | Doc | Contents |
 | --- | --- |

@@ -1,6 +1,6 @@
 # Docs index — AgentAnyStack
 
-**Note for Contributors:** This `docs/` folder is now public. Top-level files (`PRODUCT_OVERVIEW.md`, `MEMORY_ARCHITECTURE.md`, `ORCHESTRATOR.md`, `IMPLEMENTATION.md`, etc.) represent the **full 360° vision**. `architecture/` contains engineering notes and earlier implementation snapshots. Read the canonical top-level files first. See `CONTRIBUTING.md` for details.
+**Vision Note:** The top-level documents represent the core product philosophy and 360° vision. Improvements for clarity or examples are welcome. For significant changes to foundational ideas, please open a GitHub Discussion first.
 
 Start here if you are a **coding agent** or new contributor building the product.
 
