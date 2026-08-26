@@ -40,8 +40,10 @@ apps/office-ui/dist/
 .DS_Store
 Thumbs.db
 
-# product / design docs — local future-dev reference (not shipped in git)
-docs/
+# docs/ is public (vision + architecture/)
+# mockups/ is excluded (better for website / visual assets)
+
+docs/mockups/
 
 #opencode
 opencode.json

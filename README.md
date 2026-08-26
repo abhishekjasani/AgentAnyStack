@@ -150,23 +150,27 @@ Set `OFFICE_REPO_PATH`, `DATABASE_URL`, and `OLLAMA_BASE_URL` in `.env`.
 
 ---
 
+## Community & Contributing
+
+- **GitHub Discussions** — questions, ideas, help wanted
+- **Discord** — real-time chat (invite link coming soon)
+- **LinkedIn** — announcements only
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute. We especially welcome new developers — the guide is written to be easy to follow.
+
 ## Documentation
 
 | Doc | Contents |
 | --- | --- |
-| [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) | Product definition |
-| [V0_SCOPE.md](./V0_SCOPE.md) | Current release boundaries |
+| [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) | Product definition & 360° vision |
+| [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) | Memory model (canonical) |
+| [ORCHESTRATOR.md](./ORCHESTRATOR.md) | Control plane, HITL, autonomy |
 | [IMPLEMENTATION.md](./IMPLEMENTATION.md) | Engineering notes |
 | [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) | Agent file format |
-| [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) | Memory model |
-| [ORCHESTRATOR.md](./ORCHESTRATOR.md) | Control plane |
+| [STACK_ADAPTERS.md](./STACK_ADAPTERS.md) | Stack adapters |
 | [ANALYTICS.md](./ANALYTICS.md) | Analytics |
 | [CONNECT.md](./CONNECT.md) | External channels |
 | [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md) | Scenarios |
-| [mockups/](./mockups/) | UI vision |
+| [docs/architecture/](./docs/architecture/) | Engineering implementation notes |
 
----
-
-## License
-
-Apache License 2.0. See `LICENSE` at repository root.
+**Note:** `docs/` is now public and contains the full vision. See `CONTRIBUTING.md` for guidance on canonical files vs architecture notes.
