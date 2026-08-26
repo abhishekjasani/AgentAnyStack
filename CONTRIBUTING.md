@@ -4,10 +4,11 @@ Thank you for wanting to help! This project is in early stages (v0.3.21+). We we
 
 ## Quick Start
 
-1. Fork and clone the repo
-2. `cp .env.example .env` (fill in required values)
-3. `cd apps/orchestrator && make dev` (or follow README quickstart)
-4. Run `make test` and `make lint` before submitting PRs
+1. **Fork** this repository on GitHub
+2. Clone your fork locally
+3. `cp .env.example .env` (fill required values)
+4. `cd apps/orchestrator && make dev` (or follow README quickstart)
+5. Run `make test` and `make lint` before submitting PRs
 
 ## Read First (Mandatory)
 
@@ -43,13 +44,14 @@ Look for issues labeled `good-first-issue`. Common starters:
 - UI polish in `apps/office-ui/`
 - Add examples to `USE_CASES_MEMORY.md`
 
-## How to Submit Changes
+## How to Submit Changes (Standard Fork + PR workflow)
 
-1. Create a branch (`git checkout -b feature/your-change`)
+1. Create a feature branch on **your fork** (`git checkout -b feature/your-change`)
 2. Make your changes
 3. Run `make test && make lint`
-4. Commit with clear message
-5. Open a Pull Request
+4. Commit with a clear message
+5. Push the branch to your fork
+6. Open a Pull Request from your fork back to this repository
 
 **PR Checklist:**
 - Tests pass
