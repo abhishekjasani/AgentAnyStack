@@ -264,8 +264,8 @@ async def list_inference_candidates(
                     }
                 )
 
-        # 2. Bedrock store catalog fallback for bedrock connection
-        if c.product == "bedrock":
+        # 2. Bedrock store catalog fallback ONLY for legacy bedrock connection with no verified_models
+        if c.product == "bedrock" and not c.verified_models and c.id == "bedrock":
             for m in bedrock.list_models():
                 key = (c.id, m.id)
                 if key not in seen:

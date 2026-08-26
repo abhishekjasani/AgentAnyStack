@@ -161,10 +161,8 @@ async def stop_serve_by_cwd(cwd: str, *, connection_id: str = "opencode") -> boo
     await stop_serve(path, connection_id=connection_id)
     _last_used.pop(key, None)
     _busy.pop(key, None)
-    for row in _sessions.values():
-        if row.key == key and row.status == "active":
-            row.status = "ended"
-            row.ended_at = utc_now_iso()
+    for sid in [sid for sid, row in _sessions.items() if row.key == key]:
+        _sessions.pop(sid, None)
     return True
 
 
@@ -195,6 +193,7 @@ async def kill_session(session_id: str) -> SessionRuntime:
             log.warning("kill_session API calls failed %s: %s", session_id, exc)
     row.status = "killed"
     row.ended_at = utc_now_iso()
+    _sessions.pop(session_id, None)
     return row
 
 
@@ -202,6 +201,7 @@ async def stop_all_opencode_serves(*, force: bool = False) -> int:
     from agent_anystack.adapters.opencode.serve import list_live_serves, stop_serve
 
     n = 0
+    stopped_keys: set[str] = set()
     for serve in list(list_live_serves()):
         key = serve.key
         if not force and _busy.get(key, 0) > 0:
@@ -209,11 +209,13 @@ async def stop_all_opencode_serves(*, force: bool = False) -> int:
         await stop_serve(serve.cwd, connection_id=serve.connection_id)
         _last_used.pop(key, None)
         _busy.pop(key, None)
+        stopped_keys.add(key)
         n += 1
-    for row in _sessions.values():
-        if row.status == "active":
-            row.status = "ended"
-            row.ended_at = utc_now_iso()
+    if force:
+        _sessions.clear()
+    else:
+        for sid in [sid for sid, row in _sessions.items() if row.key in stopped_keys]:
+            _sessions.pop(sid, None)
     return n
 
 
@@ -222,6 +224,7 @@ async def sweep_idle_serves() -> int:
 
     now = time.monotonic()
     stopped = 0
+    stopped_keys: set[str] = set()
     for serve in list(list_live_serves()):
         key = serve.key
         if _busy.get(key, 0) > 0:
@@ -232,7 +235,10 @@ async def sweep_idle_serves() -> int:
         log.info("opencode serve idle TTL key=%s idle=%.0fs", key, now - last)
         await stop_serve(serve.cwd, connection_id=serve.connection_id)
         _last_used.pop(key, None)
+        stopped_keys.add(key)
         stopped += 1
+    for sid in [sid for sid, row in _sessions.items() if row.key in stopped_keys]:
+        _sessions.pop(sid, None)
     return stopped
 
 
