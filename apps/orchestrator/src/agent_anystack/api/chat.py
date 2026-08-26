@@ -65,6 +65,8 @@ def get_chat_service(
         aws_region=settings.aws_region,
         aws_bearer_token_bedrock=settings.aws_bearer_token_bedrock,
         database_url=settings.database_url,
+        opencode_default_context_limit=settings.opencode_default_context_limit,
+        opencode_default_output_limit=settings.opencode_default_output_limit,
     )
 
 

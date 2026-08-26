@@ -100,16 +100,74 @@ def _provider_block_bedrock(
     }
 
 
+def _model_limits(
+    *,
+    row: RegisteredOpencodeModel | dict[str, Any],
+    conn: StackConnection | None = None,
+    default_context: int | None = None,
+    default_output: int | None = None,
+) -> dict[str, int] | None:
+    row_meta: dict[str, Any] = {}
+    if isinstance(row, dict) and isinstance(row.get("meta"), dict):
+        row_meta = row["meta"]
+    conn_meta = conn.meta if conn else {}
+
+    # 1. Row/model level limit
+    if isinstance(row_meta.get("limit"), dict):
+        lim = row_meta["limit"]
+        if "context" in lim and "output" in lim:
+            return {"context": int(lim["context"]), "output": int(lim["output"])}
+    ctx = row_meta.get("context_limit") or row_meta.get("max_context")
+    out = row_meta.get("output_limit") or row_meta.get("max_output") or row_meta.get("max_tokens")
+
+    # 2. Connection level limit
+    if ctx is None:
+        if isinstance(conn_meta.get("limit"), dict):
+            lim = conn_meta["limit"]
+            if "context" in lim and "output" in lim:
+                return {"context": int(lim["context"]), "output": int(lim["output"])}
+        ctx = conn_meta.get("context_limit") or conn_meta.get("max_context")
+    if out is None:
+        out = conn_meta.get("output_limit") or conn_meta.get("max_output") or conn_meta.get("max_tokens")
+
+    # 3. Preset specific defaults (e.g. Groq strictly enforces max output tokens <= 4096/8192)
+    preset = (conn_meta.get("preset") or "").lower() if conn_meta else ""
+    if out is None and preset == "groq":
+        out = 4096
+    if ctx is None and preset == "groq":
+        ctx = 32768
+    elif out is None and preset in ("together", "deepseek"):
+        out = 4096
+
+    # 4. Settings default limits
+    if ctx is None:
+        ctx = default_context
+    if out is None:
+        out = default_output
+
+    if ctx is not None and out is not None:
+        return {"context": int(ctx), "output": int(out)}
+    if ctx is not None:
+        return {"context": int(ctx), "output": int(ctx)}
+    if out is not None:
+        return {"context": int(out), "output": int(out)}
+    return None
+
+
 def _provider_block_openai_compatible(
     *,
     name: str = "OpenAI",
     base_url: str = "",
     api_key: str | None = None,
-    models: list[tuple[str, str]],
+    models: list[dict[str, Any]],
 ) -> dict[str, Any]:
     model_map: dict[str, Any] = {}
-    for mid, mname in models:
-        model_map[mid] = {"name": mname or mid}
+    for m in models:
+        mid = m["id"]
+        entry: dict[str, Any] = {"name": m.get("name") or mid}
+        if m.get("limit"):
+            entry["limit"] = m["limit"]
+        model_map[mid] = entry
     url = (base_url or "http://127.0.0.1:11434/v1").rstrip("/")
     if not url.endswith("/v1") and not url.endswith("/v1beta1") and "/v1" not in url:
         url = f"{url}/v1"
@@ -127,7 +185,7 @@ def _provider_block_openai_compatible(
 def _provider_block_ollama(
     *,
     base_url: str,
-    models: list[tuple[str, str]],
+    models: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return _provider_block_openai_compatible(
         name="Ollama",
@@ -143,6 +201,8 @@ def build_opencode_config(
     bedrock_region: str,
     connections: list[StackConnection] | None = None,
     store: ConnectionStore | None = None,
+    default_context_limit: int | None = None,
+    default_output_limit: int | None = None,
 ) -> dict[str, Any]:
     """opencode.json provider map covering registered + candidate models."""
     conn_map: dict[str, StackConnection] = {}
@@ -158,7 +218,7 @@ def build_opencode_config(
                 conn_map[a] = c
 
     bedrock_models: list[tuple[str, str]] = []
-    ollama_models: list[tuple[str, str]] = []
+    ollama_models: list[dict[str, Any]] = []
     custom_providers: dict[str, dict[str, Any]] = {}
 
     for row in models:
@@ -182,13 +242,23 @@ def build_opencode_config(
         if conn and not product:
             product = conn.product
 
+        limits = _model_limits(
+            row=row,
+            conn=conn,
+            default_context=default_context_limit,
+            default_output=default_output_limit,
+        )
+        model_entry: dict[str, Any] = {"id": mid, "name": name}
+        if limits:
+            model_entry["limit"] = limits
+
         if product == "bedrock":
             bedrock_models.append((mid, name))
         elif product == "ollama" or (
             product == "openai-compatible"
             and (inf_conn_id in ("ollama", "ollama-local") or not inf_conn_id)
         ):
-            ollama_models.append((mid, name))
+            ollama_models.append(model_entry)
         elif product == "openai-compatible" or inf_conn_id:
             pkey = prov_id or inf_conn_id or "openai-compatible"
             pname = (conn.label if conn else "") or pkey
@@ -202,9 +272,9 @@ def build_opencode_config(
                     "api_key": p_api_key,
                     "models": [],
                 }
-            custom_providers[pkey]["models"].append((mid, name))
+            custom_providers[pkey]["models"].append(model_entry)
         else:
-            ollama_models.append((mid, name))
+            ollama_models.append(model_entry)
 
     provider: dict[str, Any] = {}
     if bedrock_models:
@@ -284,6 +354,8 @@ def prepare_inject(
     env_region: str = "us-east-1",
     env_api_key: str = "",
     store: ConnectionStore | None = None,
+    default_context_limit: int | None = None,
+    default_output_limit: int | None = None,
 ) -> tuple[Path, dict[str, str], str]:
     """Write OPENCODE_CONFIG and return (config_path, extra_env, hash)."""
     conn_store = store or ConnectionStore(bedrock_data_dir(database_url))
@@ -298,6 +370,8 @@ def prepare_inject(
         ollama_base_url=ollama_base_url,
         bedrock_region=region,
         store=conn_store,
+        default_context_limit=default_context_limit,
+        default_output_limit=default_output_limit,
     )
     path = config_path_for(database_url, connection.id)
     write_opencode_config(path, payload)

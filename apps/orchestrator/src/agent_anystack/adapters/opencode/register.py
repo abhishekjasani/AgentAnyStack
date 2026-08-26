@@ -107,7 +107,7 @@ async def _try_chat(base_url: str, provider_id: str, model_id: str, timeout: flo
                 provider_id=provider_id,
                 parts=[{"type": "text", "text": _PING}],
                 extra_body={
-                    "agent": "build",
+                    "agent": "title",
                     "model": {"providerID": provider_id, "modelID": model_id},
                 },
             )
@@ -270,6 +270,8 @@ async def register_inference_model(
         env_region=settings.aws_region,
         env_api_key=settings.aws_bearer_token_bedrock,
         store=store,
+        default_context_limit=settings.opencode_default_context_limit,
+        default_output_limit=settings.opencode_default_output_limit,
     )
     cwd = scratch_cwd_for(settings.database_url, oc.id)
     try:
@@ -289,7 +291,7 @@ async def register_inference_model(
     )
     for p in await _cli_pairs(match["model_id"]):
         if p not in pairs:
-            pairs.insert(0, p)
+            pairs.append(p)
 
     last_err = "no candidate pairs"
     for provider_id, model_id in pairs:

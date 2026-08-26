@@ -62,6 +62,8 @@ class ChatRunService:
         aws_region: str = "us-east-1",
         aws_bearer_token_bedrock: str = "",
         database_url: str = "sqlite:///./data/office.db",
+        opencode_default_context_limit: int | None = None,
+        opencode_default_output_limit: int | None = None,
     ) -> None:
         self.repo = repo
         self.journal = journal
@@ -76,6 +78,8 @@ class ChatRunService:
         self._env_aws_bearer_token_bedrock = aws_bearer_token_bedrock
         self._openai_compatible_timeout = openai_compatible_timeout
         self._openai_compatible_base_url = openai_compatible_base_url
+        self._opencode_default_context_limit = opencode_default_context_limit
+        self._opencode_default_output_limit = opencode_default_output_limit
         self.database_url = database_url
         self._bedrock_store = BedrockProviderStore(bedrock_data_dir(database_url))
         self._connections = connection_store_from_database_url(database_url)
@@ -395,6 +399,8 @@ class ChatRunService:
                 env_region=self._env_aws_region,
                 env_api_key=self._env_aws_bearer_token_bedrock,
                 store=self._connections,
+                default_context_limit=self._opencode_default_context_limit,
+                default_output_limit=self._opencode_default_output_limit,
             )
         harness = OpenCodeAdapter(
             database_url=self.database_url,
