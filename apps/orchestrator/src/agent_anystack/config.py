@@ -122,6 +122,21 @@ class Settings(BaseSettings):
         le=86400.0,
         validation_alias=AliasChoices("OPENCODE_SERVE_IDLE_TTL_SECONDS"),
     )
+    # Optional model context/output limits for OpenCode (prevents hardcoded limits).
+    opencode_default_context_limit: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "OPENCODE_DEFAULT_CONTEXT_LIMIT",
+            "OPENCODE_CONTEXT_LIMIT",
+        ),
+    )
+    opencode_default_output_limit: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "OPENCODE_DEFAULT_OUTPUT_LIMIT",
+            "OPENCODE_OUTPUT_LIMIT",
+        ),
+    )
 
     # TODO: platform settings read-only UI (IMPLEMENTATION.md §7.1)
     # TODO: multi-admin / edition switch for org_admins

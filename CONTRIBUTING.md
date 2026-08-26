@@ -54,9 +54,8 @@ Look for issues labeled `good-first-issue`. Common starters:
 **PR Checklist:**
 - Tests pass
 - Linting passes
-- Updates to canonical docs where needed
-- Clear description of what changed and why
-- References any related issue
+- Changes are clear and well explained
+- References any related issue (if applicable)
 
 ## Community
 
