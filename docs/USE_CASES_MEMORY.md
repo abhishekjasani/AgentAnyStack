@@ -2,7 +2,7 @@
 
 AgentAnyStack is an **office for agents**. Each story = **one-line real business** + diagram + **speaker notes** for a large audience.
 
-**Related:** [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [IMPLEMENTATION.md](./IMPLEMENTATION.md) (build handoff)
+**Related:** [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [IMPLEMENTATION.md](./IMPLEMENTATION.md) (build handoff)
 
 > **How to use speaker notes:** Say the bold one-liner first, then the notes. Keep each story under ~60–90 seconds. **Shelf** = shared company/launch board (not one team’s private whiteboard).
 

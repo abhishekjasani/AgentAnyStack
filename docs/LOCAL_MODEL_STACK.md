@@ -4,7 +4,7 @@ Simple notes on running open-weight LLMs ourselves (Ollama, vLLM, SGLang, OpenAI
 
 **Audience:** internal. Simple English.
 **Last updated:** 2026-08-03
-**Related:** [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [IMPLEMENTATION.md](./IMPLEMENTATION.md) (Python orchestrator talks to engines over OpenAI-compatible HTTP)
+**Related:** [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) · [IMPLEMENTATION.md](./IMPLEMENTATION.md) (Python orchestrator talks to engines over OpenAI-compatible HTTP)
 
 ---
 

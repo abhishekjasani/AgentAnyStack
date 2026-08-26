@@ -21,5 +21,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 **Initial open source preparation release.**
 
-See `docs/PRODUCT_OVERVIEW.md` and `docs/IMPLEMENTATION.md` for full details.
+See `docs/PROJECT_OVERVIEW.md` and `docs/IMPLEMENTATION.md` for full details.
 

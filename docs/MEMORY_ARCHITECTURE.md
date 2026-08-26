@@ -4,7 +4,7 @@ How memory works in the agent office. Simple language, decisions + reasons.
 
 **Status:** design (agreed through 2026-08-03, not fully built)
 **Target:** shared OKF in **DB** (Pydantic); gold in **git** per user; orchestrator **Python** — [IMPLEMENTATION.md](./IMPLEMENTATION.md)
-**Related:** [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md) · [LOCAL_MODEL_STACK.md](./LOCAL_MODEL_STACK.md) · [IMPLEMENTATION.md](./IMPLEMENTATION.md)
+**Related:** [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md) · [LOCAL_MODEL_STACK.md](./LOCAL_MODEL_STACK.md) · [IMPLEMENTATION.md](./IMPLEMENTATION.md)
 
 Worked examples (2 teams × 1 project, multi-project, connect line): [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md)
 
@@ -77,7 +77,7 @@ Why OKF fits us:
 
 Day-to-day packing hits the **DB**. Git `memory/` export is backup / leave-path / DR — not the hot read path. Config + gold pull still give a new container the same office; restore shared facts via DB dump or OKF import.
 
-See [PRODUCT_OVERVIEW.md — Office as a git repo](./PRODUCT_OVERVIEW.md#office-as-a-git-repo--same-environment-everywhere).
+See [PROJECT_OVERVIEW.md — Office as a git repo](./PROJECT_OVERVIEW.md#office-as-a-git-repo--same-environment-everywhere).
 
 What OKF does **not** give us (still ours to build): retrieval rules, dedupe/supersede semantics, provenance fields, quarantine. OKF is a **format, not a framework**. Ecosystem is young; we write our own **Pydantic** models + DB mapper (JSON Schema first).
 

@@ -1,6 +1,6 @@
 # Morfgage Office — Commands
 
-> **Legacy prototype grammar** (TS Fastify office). Target product: [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · build: [IMPLEMENTATION.md](./IMPLEMENTATION.md).  
+> **Legacy prototype grammar** (TS Fastify office). Target product: [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) · build: [IMPLEMENTATION.md](./IMPLEMENTATION.md).  
 > Also support **`Office:`** (or no role prefix) for status/knowledge Q&A without an agent — [ORCHESTRATOR.md](./ORCHESTRATOR.md) §2.9.
 
 ## Chat grammar

@@ -2,7 +2,7 @@
 
 Standard, git-reversible agent shape for AgentAnyStack + the **fixed Office Envelope** prepended to every run.
 
-**Related:** [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [STACK_ADAPTERS.md](./STACK_ADAPTERS.md)
+**Related:** [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) · [STACK_ADAPTERS.md](./STACK_ADAPTERS.md)
 
 ---
 

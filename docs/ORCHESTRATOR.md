@@ -4,7 +4,7 @@ The orchestrator is **not an LLM persona**. It is the bridge: routes messages, p
 
 **Status:** design (agreed through 2026-08-14; not fully built)
 **Target runtime:** **Python / FastAPI** (async) — see [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [V0_SCOPE.md](./V0_SCOPE.md). This repo’s Fastify app is a behavior reference only.
-**Related:** [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [CONNECT.md](./CONNECT.md) · [ANALYTICS.md](./ANALYTICS.md)
+**Related:** [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [CONNECT.md](./CONNECT.md) · [ANALYTICS.md](./ANALYTICS.md)
 
 ---
 

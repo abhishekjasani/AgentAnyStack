@@ -159,7 +159,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute. We especially welc
 
 | Doc | Contents |
 | --- | --- |
-| [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) | Product definition & 360° vision |
+| [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) | Product definition & 360° vision |
 | [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) | Memory model (canonical) |
 | [ORCHESTRATOR.md](./ORCHESTRATOR.md) | Control plane, HITL, autonomy |
 | [IMPLEMENTATION.md](./IMPLEMENTATION.md) | Engineering notes |

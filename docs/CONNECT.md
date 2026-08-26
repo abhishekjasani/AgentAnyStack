@@ -2,7 +2,7 @@
 
 SMEs are not always in the Agent Office UI. They work in AutoCAD, IDEs, websites, Slack, etc. **Connect** = those products talk to the **same orchestrator → same agents, memory, HITL**.
 
-**Related:** [V0_SCOPE.md](./V0_SCOPE.md) · [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [ANALYTICS.md](./ANALYTICS.md) · [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) · [IDE_FIRST.md](./IDE_FIRST.md) · [STACK_ADAPTERS.md](./STACK_ADAPTERS.md)
+**Related:** [V0_SCOPE.md](./V0_SCOPE.md) · [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [ANALYTICS.md](./ANALYTICS.md) · [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) · [IDE_FIRST.md](./IDE_FIRST.md) · [STACK_ADAPTERS.md](./STACK_ADAPTERS.md)
 
 **Pillar fit:** Agent office + any-stack / any-channel (not a fifth pillar). Domain × channel × risk already describes seating.
 

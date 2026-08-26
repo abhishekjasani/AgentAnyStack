@@ -6,7 +6,7 @@ Start here if you are a **coding agent** or new contributor building the product
 
 ## Read first
 
-1. **[PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md)** — pillars, hierarchy, office-as-git, 360° vision
+1. **[PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md)** — pillars, hierarchy, office-as-git, 360° vision
 2. **[MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md)** — canonical memory design (gold, OKF, packing)
 3. **[ORCHESTRATOR.md](./ORCHESTRATOR.md)** — HITL, autonomy, office Q&A
 4. **[IMPLEMENTATION.md](./IMPLEMENTATION.md)** — current Python/FastAPI stack and status

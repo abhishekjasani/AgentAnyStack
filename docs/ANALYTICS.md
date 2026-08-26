@@ -2,7 +2,7 @@
 
 Comprehensive analytical tab — **direction**, not a v0 build commitment.
 
-**Related:** [V0_SCOPE.md](./V0_SCOPE.md) · [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [CONNECT.md](./CONNECT.md)
+**Related:** [V0_SCOPE.md](./V0_SCOPE.md) · [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [CONNECT.md](./CONNECT.md)
 
 **Pillar fit:** Controllability + office transparency (not a fifth pillar).
 

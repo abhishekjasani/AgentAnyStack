@@ -2,7 +2,7 @@
 
 **Goal:** Prove the office idea without rushing features. **Base** = working core **and** a simple UI shell so direction is obvious (stubs OK for later tabs).
 
-**Related:** [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [ANALYTICS.md](./ANALYTICS.md) · [CONNECT.md](./CONNECT.md) · [AGENT_DEFINITION.md](./AGENT_DEFINITION.md)
+**Related:** [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) · [ANALYTICS.md](./ANALYTICS.md) · [CONNECT.md](./CONNECT.md) · [AGENT_DEFINITION.md](./AGENT_DEFINITION.md)
 
 ---
 

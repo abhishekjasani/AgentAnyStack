@@ -2,7 +2,7 @@
 
 **Purpose:** How AgentAnyStack integrates **execution engines** behind agent desks — three connection kinds, adapter families, Stacks-tab UX — without rebuilding each product’s tool harness or settings console.
 
-**Related:** [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [IDE_FIRST.md](./IDE_FIRST.md)
+**Related:** [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) · [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [IMPLEMENTATION.md](./IMPLEMENTATION.md) · [IDE_FIRST.md](./IDE_FIRST.md)
 
 ---
 
@@ -264,7 +264,7 @@ Upstream feature parity (full OpenCode router UI, Cursor IDE chrome) is **out of
 | Hooks | File-based | Adapter/policy; blocks → Approvals |
 | HITL headless | No IDE prompts | Office board + `_locked` (catalog-only; wrapper wait) + hooks/sandbox (natives) |
 
-BYO keys — [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) Runtime & ToS.
+BYO keys — [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) Runtime & ToS.
 
 ---
 

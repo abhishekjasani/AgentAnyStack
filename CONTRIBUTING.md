@@ -13,7 +13,7 @@ Thank you for wanting to help! This project is in early stages (v0.3.21+). We we
 ## Read First (Mandatory)
 
 - `README.md` — project overview
-- `docs/PRODUCT_OVERVIEW.md` — 360° vision and pillars
+- `docs/PROJECT_OVERVIEW.md` — 360° vision and pillars
 - `docs/MEMORY_ARCHITECTURE.md` — memory philosophy
 - `docs/ORCHESTRATOR.md` — control plane, HITL and autonomy model
 - `docs/IMPLEMENTATION.md` — current tech stack and status

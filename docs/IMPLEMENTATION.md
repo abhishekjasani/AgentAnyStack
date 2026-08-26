@@ -4,7 +4,7 @@
 
 **Status:** Design agreed through 2026-08-04. This `cursor_teams` tree is a **Cursor-first TypeScript prototype** + docs. **Greenfield rebuild** = Python orchestrator. **Start with:** [V0_SCOPE.md](./V0_SCOPE.md).
 
-**Related:** [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) · [STACK_ADAPTERS.md](./STACK_ADAPTERS.md) · [V0_SCOPE.md](./V0_SCOPE.md) · [ANALYTICS.md](./ANALYTICS.md) · [CONNECT.md](./CONNECT.md) · [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md) · [LOCAL_MODEL_STACK.md](./LOCAL_MODEL_STACK.md)
+**Related:** [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) · [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) · [STACK_ADAPTERS.md](./STACK_ADAPTERS.md) · [V0_SCOPE.md](./V0_SCOPE.md) · [ANALYTICS.md](./ANALYTICS.md) · [CONNECT.md](./CONNECT.md) · [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md) · [LOCAL_MODEL_STACK.md](./LOCAL_MODEL_STACK.md)
 
 ---
 
@@ -13,7 +13,7 @@
 | Order | Doc | What you learn |
 | --- | --- | --- |
 | 1 | [V0_SCOPE.md](./V0_SCOPE.md) | **What to build now** — core + shell stubs; UI vs mockup |
-| 2 | [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md) | Pillars (unchanged), hierarchy, office-as-git, multi-user |
+| 2 | [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) | Pillars (unchanged), hierarchy, office-as-git, multi-user |
 | 3 | [ORCHESTRATOR.md](./ORCHESTRATOR.md) | Gates, HITL, autonomy, MCP, office chat |
 | 4 | [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) | Gold(a,u), OKF in DB, packing |
 | 5 | [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) | agent.yaml + AGENT.md; Office Envelope |

@@ -2,7 +2,7 @@
 
 Research notes for releasing the product as open source with Community + Enterprise tiers (Appsmith-style), including commercial competitors and GitHub / OSS landscape.
 
-**Product name (working):** [AgentAnyStack](./PRODUCT_OVERVIEW.md) — *Any stack. One orchestrator.*  
+**Product name (working):** [AgentAnyStack](./PROJECT_OVERVIEW.md) — *Any stack. One orchestrator.*  
 **Build / stack decisions:** [IMPLEMENTATION.md](./IMPLEMENTATION.md) (Python orchestrator; Apache-2.0 CE intent)  
 **Last updated:** 2026-08-03  
 **Status:** Research only — not a product commitment.
@@ -21,7 +21,7 @@ Research notes for releasing the product as open source with Community + Enterpr
 | **Cursor** | Official SDK + API key + workers = intended path |
 | **Claude** | Prefer **API key / commercial terms**. Orchestrating Claude via Pro/Max OAuth as a third-party harness is ToS-risk — don’t market consumer CLI wrapping as “not automation” |
 
-Full product thesis: [PRODUCT_OVERVIEW.md](./PRODUCT_OVERVIEW.md).
+Full product thesis: [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md).
 
 ---
 
@@ -339,5 +339,5 @@ Axes to score later (1–5) for Agent Office vs Tembo vs OpenHands vs pixel-agen
 | 2026-08-11 | §4.4 Spotify Xirp — same altitude meta-harness; differentiate office + HITL + OKF; update §5 map |
 | 2026-08-03 | Link IMPLEMENTATION.md; Python orchestrator + Apache-2.0 CE still preferred |
 | 2026-08-02 | Target hierarchy: team → floor → org; floor connect lines; office nesting deferred |
-| 2026-07-29 | Rename framing to AgentAnyStack; §0 naming/ToS; link PRODUCT_OVERVIEW |
+| 2026-07-29 | Rename framing to AgentAnyStack; §0 naming/ToS; link PROJECT_OVERVIEW |
 | 2026-07-21 | Initial research doc: models, commercial, OSS, positioning |
