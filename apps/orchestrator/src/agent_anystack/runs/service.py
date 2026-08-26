@@ -88,7 +88,26 @@ class ChatRunService:
         self.recent_history_char_budget = recent_history_char_budget
         self.office_model = office_model
 
-    def _bedrock_adapter(self) -> BedrockAdapter:
+    def _bedrock_adapter(self, connection_id: str | None = None) -> BedrockAdapter:
+        if connection_id:
+            conn = self._connections.get(connection_id)
+            if conn and conn.meta:
+                meta = conn.meta
+                auth = meta.get("auth") or "api_key"
+                region = meta.get("region") or self._env_aws_region
+                api_key = meta.get("api_key") or self._env_aws_bearer_token_bedrock
+                akid = meta.get("aws_access_key_id") or self._env_aws_access_key_id
+                secret = meta.get("aws_secret_access_key") or self._env_aws_secret_access_key
+                session_token = meta.get("aws_session_token") or self._env_aws_session_token
+                return BedrockAdapter(
+                    access_key_id=akid,
+                    secret_access_key=secret,
+                    session_token=session_token,
+                    api_key=api_key,
+                    auth_mode=auth,
+                    region=region,
+                    timeout=self._openai_compatible_timeout,
+                )
         creds = resolve_creds(
             self._bedrock_store,
             env_access_key_id=self._env_aws_access_key_id,
@@ -107,11 +126,23 @@ class ChatRunService:
             timeout=self._openai_compatible_timeout,
         )
 
-    def _adapter_for(self, stack: str) -> OpenAICompatibleAdapter | BedrockAdapter:
+    def _adapter_for(
+        self, stack: str, connection_id: str | None = None
+    ) -> OpenAICompatibleAdapter | BedrockAdapter:
         """Build chat adapter for inference stacks (caller already resolved)."""
         if stack == "bedrock":
-            return self._bedrock_adapter()
+            return self._bedrock_adapter(connection_id)
         if stack == "openai-compatible":
+            if connection_id:
+                conn = self._connections.get(connection_id)
+                if conn and conn.meta:
+                    base_url = (conn.meta.get("base_url") or "").strip() or self._openai_compatible_base_url
+                    api_key = (conn.meta.get("api_key") or "").strip() or None
+                    return OpenAICompatibleAdapter(
+                        base_url=base_url,
+                        api_key=api_key,
+                        timeout=self._openai_compatible_timeout,
+                    )
             return self.adapter
         raise StackError(
             f"unsupported stack '{stack}'",
@@ -242,7 +273,7 @@ class ChatRunService:
                         continue
                     yield event
             else:
-                adapter = self._adapter_for(runtime.stack)
+                adapter = self._adapter_for(runtime.stack, connection_id=connection_id)
                 async for event in self._run_with_gold_tools(
                     adapter=adapter,
                     model=runtime.model,

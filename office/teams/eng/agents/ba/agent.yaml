@@ -1,9 +1,9 @@
 id: ba
 name: ba
 team: eng
-stack: opencode
-model: amazon-bedrock/mistral.ministral-3-3b-instruct
-connection_id: opencode
+stack: openai-compatible
+model: big-pickle
+connection_id: zen-test
 persona:
   domain: general
   channels: []
