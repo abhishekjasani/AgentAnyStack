@@ -212,14 +212,22 @@ class OpenAICompatibleAdapter:
             ) from exc
 
     async def list_models(self) -> list[str]:
-        """Query GET /models (or /v1/models) to discover available models."""
+        """Query GET /models to discover available models."""
         url = f"{self.base_url}/models"
         headers = self._headers()
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.get(url, headers=headers)
+                if resp.status_code in (401, 403):
+                    raise StackError(
+                        f"Authentication failed ({resp.status_code}) at {self.base_url}. Check your API key.",
+                        code="openai_compatible_auth",
+                    )
                 if resp.status_code >= 400:
-                    return []
+                    raise StackError(
+                        f"Could not list models from {self.base_url} (HTTP {resp.status_code}): {resp.text[:200]}",
+                        code="openai_compatible_http",
+                    )
                 data = resp.json()
                 items = data.get("data") or data.get("models") or []
                 if isinstance(items, list):
@@ -231,8 +239,16 @@ class OpenAICompatibleAdapter:
                             out.append(item)
                     return out
                 return []
-        except Exception:
-            return []
+        except httpx.ConnectError as exc:
+            raise StackError(
+                f"Cannot reach server at {self.base_url}.",
+                code="openai_compatible_unreachable",
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise StackError(
+                f"Server timed out at {self.base_url}.",
+                code="openai_compatible_timeout",
+            ) from exc
 
 
 def _parse_tool_calls(raw: Any) -> list[ToolCallRequest]:

@@ -583,12 +583,30 @@
 
     const modelLabel = document.createElement("label");
     modelLabel.textContent = "Model Name ";
+    const modelWrap = document.createElement("div");
+    modelWrap.style.display = "flex";
+    modelWrap.style.gap = "0.5rem";
+    modelWrap.style.alignItems = "center";
+
     const modelInput = document.createElement("input");
     modelInput.name = "model_name";
     modelInput.type = "text";
     modelInput.placeholder = "e.g. zen-1 or llama-3.3-70b-versatile";
     modelInput.value = c.meta?.model_name || "";
-    modelLabel.appendChild(modelInput);
+    modelInput.style.flex = "1";
+
+    const listBtn = document.createElement("button");
+    listBtn.type = "button";
+    listBtn.className = "btn ghost btn-xs";
+    listBtn.textContent = "List Models";
+
+    const datalist = document.createElement("datalist");
+    const listId = `models-datalist-${c.id}`;
+    datalist.id = listId;
+    modelInput.setAttribute("list", listId);
+
+    modelWrap.append(modelInput, listBtn);
+    modelLabel.append(modelWrap, datalist);
     form.appendChild(modelLabel);
 
     const formErr = document.createElement("p");
@@ -606,12 +624,54 @@
     const saveBtn = document.createElement("button");
     saveBtn.type = "submit";
     saveBtn.className = "btn primary btn-xs";
-    saveBtn.textContent = "Save Settings";
+    saveBtn.textContent = "Test & Save Settings";
 
     actions.appendChild(saveBtn);
     form.append(formErr, formOk, actions);
     details.appendChild(form);
     box.appendChild(details);
+
+    listBtn.addEventListener("click", async () => {
+      formErr.hidden = true;
+      formOk.hidden = true;
+      listBtn.disabled = true;
+      listBtn.textContent = "Fetching…";
+      try {
+        const body = {
+          connection_id: c.id,
+          product: c.product,
+          base_url: urlInput.value.trim() || undefined,
+          api_key: keyInput.value.trim() || undefined,
+        };
+        const res = await api("/stacks/connections/discover-models", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || `fetch models failed (${res.status})`);
+        const models = data.models || [];
+        datalist.innerHTML = "";
+        models.forEach((m) => {
+          const opt = document.createElement("option");
+          opt.value = m;
+          datalist.appendChild(opt);
+        });
+        if (models.length) {
+          formOk.textContent = `Found ${models.length} model(s). Select from dropdown.`;
+          formOk.hidden = false;
+        } else {
+          formErr.textContent = "No models found at provider endpoint.";
+          formErr.hidden = false;
+        }
+      } catch (err) {
+        formErr.textContent = String(err.message || err);
+        formErr.hidden = false;
+      } finally {
+        listBtn.disabled = false;
+        listBtn.textContent = "List Models";
+      }
+    });
 
     presetSelect.addEventListener("change", () => {
       const val = presetSelect.value;
@@ -2315,13 +2375,111 @@
     if (apikeyGroup) apikeyGroup.hidden = !isApiKey;
   });
 
+  $("#btn-discover-openai-models")?.addEventListener("click", async () => {
+    const err = $("#add-connection-error");
+    const ok = $("#add-connection-ok");
+    const btn = $("#btn-discover-openai-models");
+    const baseUrl = $("#conn-base-url-input")?.value?.trim();
+    const apiKey = $("input[name='api_key']")?.value?.trim();
+    const datalist = $("#conn-openai-models-datalist");
+
+    err.hidden = true;
+    ok.hidden = true;
+    if (btn) { btn.disabled = true; btn.textContent = "Fetching…"; }
+
+    try {
+      const res = await api("/stacks/connections/discover-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product: "openai-compatible", base_url: baseUrl, api_key: apiKey }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `fetch models failed (${res.status})`);
+      const models = data.models || [];
+      if (datalist) {
+        datalist.innerHTML = "";
+        models.forEach((m) => {
+          const opt = document.createElement("option");
+          opt.value = m;
+          datalist.appendChild(opt);
+        });
+      }
+      if (models.length) {
+        ok.textContent = `Found ${models.length} model(s). Double-click or type in Model Name to select.`;
+        ok.hidden = false;
+      } else {
+        err.textContent = "No models returned by provider endpoint.";
+        err.hidden = false;
+      }
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "List Models"; }
+    }
+  });
+
+  $("#btn-discover-bedrock-models")?.addEventListener("click", async () => {
+    const err = $("#add-connection-error");
+    const ok = $("#add-connection-ok");
+    const btn = $("#btn-discover-bedrock-models");
+    const datalist = $("#conn-bedrock-models-datalist");
+    const form = $("#add-connection-form");
+
+    err.hidden = true;
+    ok.hidden = true;
+    if (btn) { btn.disabled = true; btn.textContent = "Fetching…"; }
+
+    try {
+      const body = {
+        product: "bedrock",
+        auth_mode: form?.auth_mode?.value || "iam",
+        access_key_id: form?.access_key_id?.value?.trim() || undefined,
+        secret_access_key: form?.secret_access_key?.value?.trim() || undefined,
+        session_token: form?.session_token?.value?.trim() || undefined,
+        api_key: form?.bedrock_api_key?.value?.trim() || undefined,
+        region: form?.region?.value?.trim() || "us-east-1",
+      };
+      const res = await api("/stacks/connections/discover-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `fetch models failed (${res.status})`);
+      const models = data.models || [];
+      if (datalist) {
+        datalist.innerHTML = "";
+        models.forEach((m) => {
+          const opt = document.createElement("option");
+          opt.value = m;
+          datalist.appendChild(opt);
+        });
+      }
+      if (models.length) {
+        ok.textContent = `Found ${models.length} Bedrock model(s). Select from dropdown.`;
+        ok.hidden = false;
+      } else {
+        err.textContent = "No Bedrock models found.";
+        err.hidden = false;
+      }
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "List Models"; }
+    }
+  });
+
   $("#add-connection-form")?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const form = ev.target;
     const err = $("#add-connection-error");
     const ok = $("#add-connection-ok");
+    const submitBtn = $("#btn-save-connection");
     err.hidden = true;
     ok.hidden = true;
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Testing & Saving…"; }
 
     const prod = form.product?.value || "openai-compatible";
     const modelName = form.model_name?.value?.trim() || form.bedrock_model_name?.value?.trim();
@@ -2354,13 +2512,15 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || `save connection failed (${res.status})`);
-      ok.textContent = `Connection '${data.label || data.id}' saved successfully.`;
+      ok.textContent = `Connection '${data.label || data.id}' tested and saved successfully.`;
       ok.hidden = false;
       $("#add-connection-panel").open = false;
       await loadConnections();
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Test & Save Connection"; }
     }
   });
 

@@ -418,7 +418,11 @@
                 <input name="api_key" type="password" autocomplete="off" placeholder="gsk_..." />
               </label>
               <label>Model Name (optional)
-                <input name="model_name" id="conn-model-name-input" placeholder="e.g. zen-1 or llama-3.3-70b-versatile" />
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <input name="model_name" id="conn-model-name-input" list="conn-openai-models-datalist" placeholder="e.g. zen-1 or llama-3.3-70b-versatile" style="flex: 1;" />
+                  <button type="button" class="btn ghost btn-xs" id="btn-discover-openai-models">List Models</button>
+                </div>
+                <datalist id="conn-openai-models-datalist"></datalist>
               </label>
             </div>
 
@@ -450,14 +454,18 @@
                 <input name="region" value="us-east-1" placeholder="us-east-1" />
               </label>
               <label>Model Name (optional)
-                <input name="bedrock_model_name" placeholder="e.g. amazon.nova-lite-v1:0" />
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <input name="bedrock_model_name" id="conn-bedrock-model-name-input" list="conn-bedrock-models-datalist" placeholder="e.g. amazon.nova-lite-v1:0" style="flex: 1;" />
+                  <button type="button" class="btn ghost btn-xs" id="btn-discover-bedrock-models">List Models</button>
+                </div>
+                <datalist id="conn-bedrock-models-datalist"></datalist>
               </label>
             </div>
 
             <p id="add-connection-error" class="error" hidden></p>
             <p id="add-connection-ok" class="desk-meta" hidden></p>
             <div class="form-actions memory-actions" style="margin-top: 1rem;">
-              <button type="submit" class="btn primary">Save Connection</button>
+              <button type="submit" class="btn primary" id="btn-save-connection">Test &amp; Save Connection</button>
               <button type="button" class="btn ghost" id="btn-cancel-add-connection">Cancel</button>
             </div>
           </form>

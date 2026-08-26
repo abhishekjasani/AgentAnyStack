@@ -181,6 +181,38 @@ class BedrockAdapter:
             "auth": "api_key",
         }
 
+    async def list_models(self) -> list[str]:
+        """Discover Bedrock foundation models or return curated Bedrock model IDs."""
+        if not self.configured():
+            return []
+        if self.uses_api_key():
+            return [
+                "amazon.nova-lite-v1:0",
+                "amazon.nova-micro-v1:0",
+                "amazon.nova-pro-v1:0",
+                "anthropic.claude-3-5-sonnet-20241022-v2:0",
+                "anthropic.claude-3-haiku-20240307-v1:0",
+                "us.meta.llama3-3-70b-instruct-v1:0",
+            ]
+
+        def _run() -> list[str]:
+            client = self._client("bedrock")
+            res = client.list_foundation_models(byInferenceType="ON_DEMAND")
+            summaries = res.get("modelSummaries") or []
+            return [str(m["modelId"]) for m in summaries if m.get("modelId")]
+
+        try:
+            return await asyncio.to_thread(_run)
+        except Exception:
+            return [
+                "amazon.nova-lite-v1:0",
+                "amazon.nova-micro-v1:0",
+                "amazon.nova-pro-v1:0",
+                "anthropic.claude-3-5-sonnet-20241022-v2:0",
+                "anthropic.claude-3-haiku-20240307-v1:0",
+                "us.meta.llama3-3-70b-instruct-v1:0",
+            ]
+
     async def stream_chat(
         self,
         *,

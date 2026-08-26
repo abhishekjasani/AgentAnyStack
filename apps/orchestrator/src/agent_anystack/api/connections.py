@@ -159,9 +159,75 @@ class CreateConnectionBody(BaseModel):
     enabled: bool = True
 
 
+class DiscoverModelsBody(BaseModel):
+    product: str = "openai-compatible"
+    base_url: str | None = None
+    api_key: str | None = None
+    access_key_id: str | None = None
+    secret_access_key: str | None = None
+    session_token: str | None = None
+    auth_mode: str | None = None
+    region: str | None = None
+    connection_id: str | None = None
+
+
 class VerifyModelBody(BaseModel):
     model_id: str
     display_name: str | None = None
+
+
+@router.post("/stacks/connections/discover-models")
+async def discover_provider_models(
+    body: DiscoverModelsBody,
+    store: ConnectionStore = Depends(get_connection_store),
+    bedrock_store: BedrockProviderStore = Depends(get_bedrock_store),
+    settings: Settings = Depends(get_settings),
+    _user_id: str = Depends(get_user_id),
+) -> dict[str, Any]:
+    """Discover available model IDs from provider endpoint prior to saving connection."""
+    existing = store.get(body.connection_id) if body.connection_id else None
+
+    if body.product == "bedrock":
+        from agent_anystack.adapters.bedrock import BedrockAdapter
+        from agent_anystack.adapters.bedrock_store import resolve_creds
+
+        ak = body.access_key_id or (existing.meta.get("access_key_id") if existing else None)
+        sk = body.secret_access_key or (existing.meta.get("secret_access_key") if existing else None)
+        st = body.session_token or (existing.meta.get("session_token") if existing else None)
+        apk = body.api_key or (existing.meta.get("api_key") if existing else None)
+        reg = body.region or (existing.meta.get("region") if existing else "us-east-1")
+        am = body.auth_mode or ("api_key" if apk else "iam")
+
+        creds = resolve_creds(
+            bedrock_store,
+            env_access_key_id=settings.aws_access_key_id,
+            env_secret_access_key=settings.aws_secret_access_key,
+            env_session_token=settings.aws_session_token,
+            env_region=settings.aws_region,
+            env_api_key=settings.aws_bearer_token_bedrock,
+        )
+        adapter = BedrockAdapter(
+            access_key_id=ak or creds.access_key_id,
+            secret_access_key=sk or creds.secret_access_key,
+            session_token=st or creds.session_token,
+            api_key=apk or creds.api_key,
+            auth_mode=am,
+            region=reg,
+        )
+        models = await adapter.list_models()
+        return {"ok": True, "models": models}
+    else:
+        from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+
+        base_url = body.base_url or (existing.meta.get("base_url") if existing else None) or settings.openai_compatible_base_url or "http://127.0.0.1:11434/v1"
+        api_key = body.api_key or (existing.meta.get("api_key") if existing else None)
+
+        adapter = OpenAICompatibleAdapter(base_url=base_url, api_key=api_key)
+        try:
+            models = await adapter.list_models()
+            return {"ok": True, "models": models}
+        except Exception as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.post("/stacks/connections")
@@ -172,7 +238,7 @@ async def create_or_update_connection(
     settings: Settings = Depends(get_settings),
     _user_id: str = Depends(get_user_id),
 ) -> dict[str, Any]:
-    """Add or update a connection card."""
+    """Add or update a connection card. Perform connection test BEFORE saving credentials."""
     cid = body.id.strip().lower()
     if not cid:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="connection id is required")
@@ -192,22 +258,6 @@ async def create_or_update_connection(
     if body.model_name is not None and body.model_name.strip():
         meta["model_name"] = body.model_name.strip()
 
-    if body.product == "bedrock":
-        ak = body.access_key_id if body.access_key_id and body.access_key_id.strip() else None
-        sk = body.secret_access_key if body.secret_access_key and body.secret_access_key.strip() else None
-        st = body.session_token if body.session_token and body.session_token.strip() else None
-        apk = body.api_key if body.api_key and body.api_key.strip() else None
-        reg = body.region or "us-east-1"
-        am = body.auth_mode or ("api_key" if apk else "iam")
-        bedrock_store.put_creds(
-            access_key_id=ak,
-            secret_access_key=sk,
-            session_token=st,
-            api_key=apk,
-            auth_mode=am,
-            region=reg,
-        )
-
     conn = StackConnection(
         id=cid,
         kind=body.kind if body.kind in ("inference", "agent_runtime", "external") else "inference",  # type: ignore
@@ -223,73 +273,137 @@ async def create_or_update_connection(
         verified_models=existing.verified_models if existing else [],
     )
 
-    if conn.kind == "inference" and body.model_name and body.model_name.strip():
-        model_id = body.model_name.strip()
-        try:
-            if conn.product == "bedrock":
-                from agent_anystack.adapters.bedrock import BedrockAdapter
-                from agent_anystack.adapters.bedrock_store import resolve_creds, BedrockModelEntry
+    if conn.kind == "inference":
+        model_id = (body.model_name or "").strip() or (meta.get("model_name") or "").strip()
 
-                creds = resolve_creds(
-                    bedrock_store,
-                    env_access_key_id=settings.aws_access_key_id,
-                    env_secret_access_key=settings.aws_secret_access_key,
-                    env_session_token=settings.aws_session_token,
-                    env_region=settings.aws_region,
-                    env_api_key=settings.aws_bearer_token_bedrock,
+        if conn.product == "bedrock":
+            from agent_anystack.adapters.bedrock import BedrockAdapter
+            from agent_anystack.adapters.bedrock_store import resolve_creds, BedrockModelEntry
+
+            ak = body.access_key_id if body.access_key_id and body.access_key_id.strip() else None
+            sk = body.secret_access_key if body.secret_access_key and body.secret_access_key.strip() else None
+            st = body.session_token if body.session_token and body.session_token.strip() else None
+            apk = body.api_key if body.api_key and body.api_key.strip() else None
+            reg = body.region or "us-east-1"
+            am = body.auth_mode or ("api_key" if apk else "iam")
+
+            creds = resolve_creds(
+                bedrock_store,
+                env_access_key_id=settings.aws_access_key_id,
+                env_secret_access_key=settings.aws_secret_access_key,
+                env_session_token=settings.aws_session_token,
+                env_region=settings.aws_region,
+                env_api_key=settings.aws_bearer_token_bedrock,
+            )
+            adapter = BedrockAdapter(
+                access_key_id=ak or creds.access_key_id,
+                secret_access_key=sk or creds.secret_access_key,
+                session_token=st or creds.session_token,
+                api_key=apk or creds.api_key,
+                auth_mode=am,
+                region=reg,
+            )
+            if not adapter.configured():
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    detail="Bedrock connection failed: Credentials not configured.",
                 )
-                adapter = BedrockAdapter(
-                    access_key_id=creds.access_key_id,
-                    secret_access_key=creds.secret_access_key,
-                    session_token=creds.session_token,
-                    api_key=creds.api_key,
-                    auth_mode=creds.auth_mode,
-                    region=creds.region,
-                )
-                await adapter.complete_chat(
-                    model=model_id,
-                    messages=[{"role": "user", "content": "Reply OK"}],
-                    max_tokens=8,
-                )
-                region = creds.region
+
+            try:
+                await adapter.test_credentials()
+            except Exception as exc:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    detail=f"Bedrock credentials check failed: {exc}. Credentials were NOT saved.",
+                ) from exc
+
+            if model_id:
+                try:
+                    await adapter.complete_chat(
+                        model=model_id,
+                        messages=[{"role": "user", "content": "Reply OK"}],
+                        max_tokens=8,
+                    )
+                except Exception as exc:
+                    raise HTTPException(
+                        status.HTTP_400_BAD_REQUEST,
+                        detail=f"Bedrock model '{model_id}' call failed: {exc}. Credentials were NOT saved.",
+                    ) from exc
+
+            bedrock_store.put_creds(
+                access_key_id=ak,
+                secret_access_key=sk,
+                session_token=st,
+                api_key=apk,
+                auth_mode=am,
+                region=reg,
+            )
+            if model_id:
                 bedrock_store.upsert_model(
                     BedrockModelEntry(
                         id=model_id,
                         display_name=model_id,
                         verified_at=utc_now_iso(),
-                        region=region,
+                        region=reg,
                     )
                 )
-            else:
-                from agent_anystack.adapters.llm import OpenAICompatibleAdapter
-
-                base_url = meta.get("base_url") or settings.openai_compatible_base_url or "http://127.0.0.1:11434/v1"
-                api_key = meta.get("api_key")
-                adapter = OpenAICompatibleAdapter(base_url=base_url, api_key=api_key)
-                await adapter.complete_chat(
-                    model=model_id,
-                    messages=[{"role": "user", "content": "Reply OK"}],
-                    max_tokens=8,
+                entry = VerifiedInferenceModel(
+                    model_id=model_id,
+                    display_name=model_id,
+                    verified_at=utc_now_iso(),
+                    region=reg,
                 )
-                region = None
+                rest = [m for m in conn.verified_models if m.model_id != model_id]
+                rest.append(entry)
+                rest.sort(key=lambda m: m.model_id)
+                conn.verified_models = rest
 
-            entry = VerifiedInferenceModel(
-                model_id=model_id,
-                display_name=model_id,
-                verified_at=utc_now_iso(),
-                region=region,
-            )
-            rest = [m for m in conn.verified_models if m.model_id != model_id]
-            rest.append(entry)
-            rest.sort(key=lambda m: m.model_id)
-            conn.verified_models = rest
             conn.status = "ok"
             conn.tested_at = utc_now_iso()
             conn.last_error = None
-        except Exception as exc:
-            conn.status = "error"
-            conn.last_error = f"Model '{model_id}' verify failed: {exc}"
+
+        else:
+            from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+
+            base_url = meta.get("base_url") or settings.openai_compatible_base_url or "http://127.0.0.1:11434/v1"
+            api_key = meta.get("api_key")
+            adapter = OpenAICompatibleAdapter(base_url=base_url, api_key=api_key)
+
+            if model_id:
+                try:
+                    await adapter.complete_chat(
+                        model=model_id,
+                        messages=[{"role": "user", "content": "Reply OK"}],
+                        max_tokens=8,
+                    )
+                except Exception as exc:
+                    raise HTTPException(
+                        status.HTTP_400_BAD_REQUEST,
+                        detail=f"Model '{model_id}' call failed: {exc}. Connection was NOT saved.",
+                    ) from exc
+
+                entry = VerifiedInferenceModel(
+                    model_id=model_id,
+                    display_name=model_id,
+                    verified_at=utc_now_iso(),
+                    region=None,
+                )
+                rest = [m for m in conn.verified_models if m.model_id != model_id]
+                rest.append(entry)
+                rest.sort(key=lambda m: m.model_id)
+                conn.verified_models = rest
+            else:
+                try:
+                    await adapter.list_models()
+                except Exception as exc:
+                    raise HTTPException(
+                        status.HTTP_400_BAD_REQUEST,
+                        detail=f"Connection test failed at {base_url}: {exc}. Connection was NOT saved.",
+                    ) from exc
+
+            conn.status = "ok"
             conn.tested_at = utc_now_iso()
+            conn.last_error = None
 
     saved = store.upsert(conn)
     return saved.as_dict()
@@ -500,6 +614,10 @@ async def connection_runtimes(
         "sessions": [],
         "runs": runs,
     }
+
+
+class StopServeBody(BaseModel):
+    cwd: str
 
 
 @router.post("/stacks/connections/{connection_id}/serves/stop")
