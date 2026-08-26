@@ -327,6 +327,7 @@ class ChatRunService:
                 started_at=started,
                 ended_at=utc_now(),
                 error=error,
+                connection_id=connection_id,
             )
         )
 

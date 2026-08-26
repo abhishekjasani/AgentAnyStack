@@ -599,13 +599,16 @@ async def connection_runtimes(
             "run_id": e.run_id,
             "agent_id": e.agent_id,
             "user_id": e.user_id,
+            "connection_id": e.connection_id,
             "status": e.status,
             "model": e.model,
             "started_at": e.started_at,
             "ended_at": e.ended_at,
             "error": e.error,
         }
-        for e in journal.recent_for_stack(c.stack(), limit=20)
+        for e in journal.recent_for_connection(
+            c.id, aliases=c.aliases, stack=c.stack(), limit=20
+        )
     ]
     return {
         "connection_id": c.id,

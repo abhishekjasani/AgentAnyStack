@@ -32,6 +32,7 @@ class JournalEntry:
     approval_id: str | None = None
     decision: str | None = None
     decided_by: str | None = None
+    connection_id: str | None = None
 
 
 class RunJournal:
@@ -51,6 +52,32 @@ class RunJournal:
         if limit <= 0:
             return []
         return rows[-limit:]
+
+    def recent_for_connection(
+        self,
+        connection_id: str,
+        *,
+        aliases: tuple[str, ...] | list[str] = (),
+        stack: str | None = None,
+        limit: int = 20,
+    ) -> list[JournalEntry]:
+        """Newest-first runs for a connection (excludes approval-only rows)."""
+        cid = (connection_id or "").strip()
+        all_ids = {cid, *(str(a).strip() for a in aliases if str(a).strip())} - {""}
+        sid = (stack or "").strip()
+
+        def _matches(e: JournalEntry) -> bool:
+            if not e.agent_id or e.approval_id:
+                return False
+            if e.connection_id:
+                return e.connection_id in all_ids
+            from agent_anystack.adapters.connections import STACK_TO_PRODUCT
+
+            return bool(sid and e.stack == sid and cid == STACK_TO_PRODUCT.get(sid, sid))
+
+        rows = [e for e in self._read_all() if _matches(e)]
+        rows.reverse()
+        return rows[: max(0, limit)]
 
     def recent_for_stack(
         self,
@@ -96,6 +123,7 @@ class RunJournal:
                         approval_id=data.get("approval_id"),
                         decision=data.get("decision"),
                         decided_by=data.get("decided_by"),
+                        connection_id=data.get("connection_id"),
                     )
                 except (json.JSONDecodeError, TypeError, ValueError):
                     continue
