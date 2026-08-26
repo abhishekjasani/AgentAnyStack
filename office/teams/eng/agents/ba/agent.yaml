@@ -2,8 +2,8 @@ id: ba
 name: ba
 team: eng
 stack: openai-compatible
-model: big-pickle
-connection_id: zen-test
+model: openai/gpt-oss-120b
+connection_id: groq-test
 persona:
   domain: general
   channels: []
