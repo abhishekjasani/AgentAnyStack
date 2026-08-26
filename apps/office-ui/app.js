@@ -253,7 +253,7 @@
     );
     actions.append(testBtn, toggleBtn);
 
-    if (c.id !== "opencode" && c.id !== "ollama" && c.id !== "bedrock") {
+    if (c.id !== "opencode") {
       const delBtn = document.createElement("button");
       delBtn.type = "button";
       delBtn.className = "btn danger";
@@ -262,8 +262,12 @@
         if (!confirm(`Delete connection '${c.label || c.id}'?`)) return;
         try {
           const res = await api(`/stacks/connections/${encodeURIComponent(c.id)}`, { method: "DELETE" });
-          if (!res.ok) throw new Error(`delete failed ${res.status}`);
+          const errData = !res.ok ? await res.json().catch(() => ({})) : null;
+          if (!res.ok) throw new Error(errData?.detail || `delete failed ${res.status}`);
           await loadConnections();
+          if (typeof refreshOffice === "function") {
+            await refreshOffice().catch(() => {});
+          }
         } catch (e) {
           const errEl = $("#connections-error");
           errEl.textContent = String(e.message || e);
@@ -1231,7 +1235,7 @@
   async function loadCreateConnections() {
     await fillConnectionSelect(
       $("#create-connection"),
-      $("#create-connection")?.value || "ollama",
+      $("#create-connection")?.value || "",
       $("#create-connection-hint")
     );
     await onConnectionChange("create");

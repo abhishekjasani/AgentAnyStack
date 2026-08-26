@@ -192,21 +192,21 @@ class ConnectionStore:
         self.ensure_seeded()
 
     def ensure_seeded(self) -> None:
+        if not self.path.is_file():
+            self._write_raw([dict(d) for d in _DEFAULTS])
+            return
         rows = self._read_raw()
         by_id = {r["id"]: r for r in rows if r.get("id")}
         changed = False
         for d in _DEFAULTS:
-            if d["id"] not in by_id:
-                by_id[d["id"]] = dict(d)
-                changed = True
-            else:
+            if d["id"] in by_id:
                 aliases = list(d.get("aliases") or [])
                 cur = list(by_id[d["id"]].get("aliases") or [])
                 merged = list(dict.fromkeys([*cur, *aliases]))
                 if merged != cur:
                     by_id[d["id"]]["aliases"] = merged
                     changed = True
-        if changed or not self.path.is_file():
+        if changed:
             self._write_raw(list(by_id.values()))
 
     def list(self) -> list[StackConnection]:
@@ -297,10 +297,19 @@ class ConnectionStore:
         )
 
     def delete_connection(self, connection_id: str) -> bool:
+        cid = (connection_id or "").strip()
         rows = self._read_raw()
-        filtered = [r for r in rows if r.get("id") != connection_id]
+        filtered = [r for r in rows if r.get("id") != cid]
         if len(filtered) == len(rows):
             return False
+        # Also clean up registered models on other connections that referenced the deleted connection
+        for r in filtered:
+            if "registered_models" in r and isinstance(r["registered_models"], list):
+                r["registered_models"] = [
+                    m
+                    for m in r["registered_models"]
+                    if isinstance(m, dict) and m.get("inference_connection_id") != cid
+                ]
         self._write_raw(filtered)
         return True
 
