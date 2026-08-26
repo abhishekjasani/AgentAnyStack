@@ -108,7 +108,7 @@ _DEFAULTS: tuple[dict[str, Any], ...] = (
         "id": "ollama",
         "kind": "inference",
         "product": "ollama",
-        "label": "Ollama",
+        "label": "ollama",
         "aliases": ["ollama-local"],
         "enabled": True,
         "status": "unknown",
@@ -117,7 +117,7 @@ _DEFAULTS: tuple[dict[str, Any], ...] = (
         "id": "bedrock",
         "kind": "inference",
         "product": "bedrock",
-        "label": "AWS Bedrock",
+        "label": "bedrock",
         "aliases": ["bed-prod"],
         "enabled": True,
         "status": "unknown",
@@ -126,7 +126,7 @@ _DEFAULTS: tuple[dict[str, Any], ...] = (
         "id": "opencode",
         "kind": "agent_runtime",
         "product": "opencode",
-        "label": "OpenCode",
+        "label": "opencode",
         "aliases": ["oc-local"],
         "enabled": True,
         "status": "unknown",
@@ -140,7 +140,7 @@ class StackConnection:
     id: str
     kind: Kind
     product: str
-    label: str
+    label: str = ""
     enabled: bool = True
     status: Status = "unknown"
     last_error: str | None = None

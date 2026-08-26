@@ -212,7 +212,7 @@
     card.className = "connection-card";
     if (!c.enabled) card.classList.add("is-disabled");
     const title = document.createElement("h3");
-    title.textContent = c.label || c.id;
+    title.textContent = c.id;
     const meta = document.createElement("p");
     meta.className = "desk-meta";
     const used = (c.used_by || []).map((u) => u.id).join(", ") || "none";
@@ -259,7 +259,7 @@
       delBtn.className = "btn danger";
       delBtn.textContent = "Delete";
       delBtn.addEventListener("click", async () => {
-        if (!confirm(`Delete connection '${c.label || c.id}'?`)) return;
+        if (!confirm(`Delete connection '${c.id}'?`)) return;
         try {
           const res = await api(`/stacks/connections/${encodeURIComponent(c.id)}`, { method: "DELETE" });
           const errData = !res.ok ? await res.json().catch(() => ({})) : null;
@@ -692,7 +692,6 @@
 
       const body = {
         id: c.id,
-        label: c.label,
         kind: c.kind,
         product: c.product,
         preset: presetSelect.value,
@@ -1189,7 +1188,7 @@
       const o = document.createElement("option");
       o.value = c.id;
       o.dataset.stack = c.stack || "";
-      o.textContent = `${c.label} (${c.kind_label || c.kind})${
+      o.textContent = `${c.id} (${c.kind_label || c.kind})${
         c.enabled ? "" : " — disabled"
       }`;
       sel.appendChild(o);
@@ -2489,7 +2488,6 @@
     const modelName = form.model_name?.value?.trim() || form.bedrock_model_name?.value?.trim();
     const body = {
       id: form.id?.value?.trim(),
-      label: form.label?.value?.trim(),
       kind: "inference",
       product: prod,
       preset: form.preset?.value || "custom",
@@ -2516,7 +2514,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || `save connection failed (${res.status})`);
-      ok.textContent = `Connection '${data.label || data.id}' tested and saved successfully.`;
+      ok.textContent = `Connection '${data.id || data.label}' tested and saved successfully.`;
       ok.hidden = false;
       $("#add-connection-panel").open = false;
       await loadConnections();
@@ -2535,7 +2533,7 @@
       const res = await api("/stacks/connections/enable-ollama-local", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || `enable failed (${res.status})`);
-      alert(`Enabled connection '${data.label || data.id}' in Stacks.`);
+      alert(`Enabled connection '${data.id || data.label}' in Stacks.`);
       showView("stacks");
     } catch (e) {
       err.textContent = String(e.message || e);

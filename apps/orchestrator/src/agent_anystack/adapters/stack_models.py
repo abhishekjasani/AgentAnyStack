@@ -137,7 +137,7 @@ async def list_models_for_stack(
                 return StackModelsResult(
                     stack=sid,
                     selectable=True,
-                    hint=f"{len(v_models)} verified model(s) on {conn.label}",
+                    hint=f"{len(v_models)} verified model(s) on {conn.id}",
                     models=v_models,
                 )
 

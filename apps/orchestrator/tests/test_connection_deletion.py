@@ -126,7 +126,7 @@ def test_re_adding_connection_after_deletion(tmp_path: Path):
         id="ollama",
         kind="inference",
         product="ollama",
-        label="Ollama Local",
+        label="ollama",
         meta={"base_url": "http://127.0.0.1:11434/v1"},
         aliases=["ollama-local"],
     )
@@ -134,5 +134,31 @@ def test_re_adding_connection_after_deletion(tmp_path: Path):
 
     fetched = store.get("ollama")
     assert fetched is not None
-    assert fetched.label == "Ollama Local"
+    assert fetched.id == "ollama"
     assert fetched.meta.get("base_url") == "http://127.0.0.1:11434/v1"
+
+
+def test_create_connection_without_label_defaults_to_id(tmp_path: Path):
+    from agent_anystack.api.connections import CreateConnectionBody
+
+    body = CreateConnectionBody(
+        id="zen-test",
+        preset="zen",
+        base_url="https://api.zen.ai/v1",
+    )
+    assert body.id == "zen-test"
+    assert body.label is None
+
+    conn = StackConnection(
+        id=body.id,
+        kind="inference",
+        product=body.product,
+        label=body.label or body.id,
+    )
+    store = ConnectionStore(tmp_path)
+    store.upsert(conn)
+
+    saved = store.get("zen-test")
+    assert saved is not None
+    assert saved.id == "zen-test"
+    assert saved.label == "zen-test"

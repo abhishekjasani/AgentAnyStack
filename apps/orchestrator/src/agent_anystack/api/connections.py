@@ -144,7 +144,7 @@ async def patch_connection(
 
 class CreateConnectionBody(BaseModel):
     id: str
-    label: str
+    label: str | None = None
     kind: str = "inference"
     product: str = "openai-compatible"
     preset: str | None = None
@@ -443,7 +443,7 @@ async def enable_ollama_local_connection(
             id=conn_id,
             kind="inference",
             product="openai-compatible",
-            label="Ollama Local",
+            label=conn_id,
             enabled=True,
             status="unknown",
             meta={"base_url": base_url, "preset": "ollama"},
