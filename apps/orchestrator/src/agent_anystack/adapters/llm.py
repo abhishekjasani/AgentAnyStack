@@ -24,6 +24,16 @@ class StackAdapter(Protocol):
         """Yield assistant text deltas. Raises StackError on failure."""
         ...
 
+    async def stream_chat_events(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        max_tokens: int | None = None,
+    ) -> AsyncIterator[dict[str, str]]:
+        """Yield streamed events ({'type': 'thinking'|'token', 'text': str})."""
+        ...
+
 
 class StackError(Exception):
     """Adapter/connectivity/model errors (server up but model missing, etc.)."""
@@ -44,6 +54,123 @@ class ToolCallRequest:
 class ChatTurnResult:
     content: str = ""
     tool_calls: list[ToolCallRequest] = field(default_factory=list)
+    reasoning: str = ""
+
+
+_THINK_OPEN = "<think>"
+_THINK_CLOSE = "</think>"
+
+
+def extract_reasoning_and_content(
+    content: str | None,
+    raw_reasoning: str | None = None,
+) -> tuple[str, str]:
+    """Extract clean assistant content and reasoning trace.
+
+    Handles explicit reasoning fields and/or <think>...</think> XML blocks.
+    """
+    clean_text = (content or "").strip()
+    reasoning_parts: list[str] = []
+    if raw_reasoning and str(raw_reasoning).strip():
+        reasoning_parts.append(str(raw_reasoning).strip())
+
+    if _THINK_OPEN in clean_text:
+        clean_content_parts: list[str] = []
+        idx = 0
+        while idx < len(clean_text):
+            start = clean_text.find(_THINK_OPEN, idx)
+            if start == -1:
+                clean_content_parts.append(clean_text[idx:])
+                break
+            if start > idx:
+                clean_content_parts.append(clean_text[idx:start])
+            end = clean_text.find(_THINK_CLOSE, start + len(_THINK_OPEN))
+            if end == -1:
+                thought = clean_text[start + len(_THINK_OPEN) :].strip()
+                if thought:
+                    reasoning_parts.append(thought)
+                break
+            thought = clean_text[start + len(_THINK_OPEN) : end].strip()
+            if thought:
+                reasoning_parts.append(thought)
+            idx = end + len(_THINK_CLOSE)
+        clean_text = "".join(clean_content_parts).strip()
+
+    return clean_text, "\n".join(p for p in reasoning_parts if p).strip()
+
+
+class StreamingThinkParser:
+    """Parses streamed content deltas for <think>...</think> tags.
+
+    Emits typed chunks:
+      ('thinking', chunk)
+      ('token', chunk)
+    """
+
+    def __init__(self) -> None:
+        self.in_think: bool = False
+        self.buffer: str = ""
+
+    def feed(self, text: str) -> list[tuple[str, str]]:
+        if not text:
+            return []
+        self.buffer += text
+        events: list[tuple[str, str]] = []
+
+        while self.buffer:
+            if not self.in_think:
+                idx = self.buffer.find(_THINK_OPEN)
+                if idx != -1:
+                    if idx > 0:
+                        events.append(("token", self.buffer[:idx]))
+                    self.in_think = True
+                    self.buffer = self.buffer[idx + len(_THINK_OPEN) :]
+                    continue
+                matched_prefix = False
+                for l in range(min(len(_THINK_OPEN) - 1, len(self.buffer)), 0, -1):
+                    suffix = self.buffer[-l:]
+                    if _THINK_OPEN.startswith(suffix):
+                        if len(self.buffer) > l:
+                            events.append(("token", self.buffer[:-l]))
+                            self.buffer = suffix
+                        matched_prefix = True
+                        break
+                if matched_prefix:
+                    break
+                events.append(("token", self.buffer))
+                self.buffer = ""
+            else:
+                idx = self.buffer.find(_THINK_CLOSE)
+                if idx != -1:
+                    if idx > 0:
+                        events.append(("thinking", self.buffer[:idx]))
+                    self.in_think = False
+                    self.buffer = self.buffer[idx + len(_THINK_CLOSE) :]
+                    continue
+                matched_prefix = False
+                for l in range(min(len(_THINK_CLOSE) - 1, len(self.buffer)), 0, -1):
+                    suffix = self.buffer[-l:]
+                    if _THINK_CLOSE.startswith(suffix):
+                        if len(self.buffer) > l:
+                            events.append(("thinking", self.buffer[:-l]))
+                            self.buffer = suffix
+                        matched_prefix = True
+                        break
+                if matched_prefix:
+                    break
+                events.append(("thinking", self.buffer))
+                self.buffer = ""
+
+        return events
+
+    def flush(self) -> list[tuple[str, str]]:
+        events: list[tuple[str, str]] = []
+        if self.buffer:
+            kind = "thinking" if self.in_think else "token"
+            events.append((kind, self.buffer))
+            self.buffer = ""
+        return events
+
 
 
 def _apply_limits(
@@ -74,13 +201,14 @@ class OpenAICompatibleAdapter:
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
 
-    async def stream_chat(
+    async def stream_chat_events(
         self,
         *,
         model: str,
         messages: list[dict[str, Any]],
         max_tokens: int | None = None,
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[dict[str, str]]:
+        """Stream events ('thinking' or 'token') from OpenAI chat completions."""
         url = f"{self.base_url}/chat/completions"
         payload: dict[str, Any] = {
             "model": model,
@@ -89,6 +217,7 @@ class OpenAICompatibleAdapter:
         }
         _apply_limits(payload, max_tokens=max_tokens)
         headers = self._headers()
+        parser = StreamingThinkParser()
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 async with client.stream("POST", url, json=payload, headers=headers) as resp:
@@ -118,9 +247,26 @@ class OpenAICompatibleAdapter:
                         if not choices:
                             continue
                         delta = choices[0].get("delta") or {}
+
+                        # 1. Dedicated reasoning delta field
+                        r_delta = (
+                            delta.get("reasoning_content")
+                            or delta.get("reasoning")
+                            or delta.get("thought")
+                        )
+                        if r_delta:
+                            yield {"type": "thinking", "text": str(r_delta)}
+
+                        # 2. Content delta (parsed for inline <think> tags)
                         content = delta.get("content") or ""
                         if content:
-                            yield content
+                            for kind, text in parser.feed(content):
+                                if text:
+                                    yield {"type": kind, "text": text}
+
+                    for kind, text in parser.flush():
+                        if text:
+                            yield {"type": kind, "text": text}
         except httpx.ConnectError as exc:
             raise StackError(
                 f"Cannot reach OpenAI-compatible server at {self.base_url}. "
@@ -133,6 +279,21 @@ class OpenAICompatibleAdapter:
                 f"OpenAI-compatible server timed out at {self.base_url}.",
                 code="openai_compatible_timeout",
             ) from exc
+
+    async def stream_chat(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        max_tokens: int | None = None,
+    ) -> AsyncIterator[str]:
+        async for ev in self.stream_chat_events(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+        ):
+            if ev.get("type") == "token" and ev.get("text"):
+                yield ev["text"]
 
     async def complete_chat(
         self,
@@ -196,9 +357,20 @@ class OpenAICompatibleAdapter:
                 if not choices:
                     return ChatTurnResult()
                 message = choices[0].get("message") or {}
+                raw_reasoning = (
+                    message.get("reasoning_content")
+                    or message.get("reasoning")
+                    or message.get("thought")
+                )
+                raw_content = message.get("content") or ""
+                clean_content, reasoning = extract_reasoning_and_content(
+                    raw_content,
+                    str(raw_reasoning) if raw_reasoning is not None else None,
+                )
                 return ChatTurnResult(
-                    content=(message.get("content") or "") or "",
+                    content=clean_content,
                     tool_calls=_parse_tool_calls(message.get("tool_calls")),
+                    reasoning=reasoning,
                 )
         except httpx.ConnectError as exc:
             raise StackError(

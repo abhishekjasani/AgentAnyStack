@@ -13,7 +13,13 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from agent_anystack.adapters.llm import ChatTurnResult, StackError, ToolCallRequest
+from agent_anystack.adapters.llm import (
+    ChatTurnResult,
+    StackError,
+    StreamingThinkParser,
+    ToolCallRequest,
+    extract_reasoning_and_content,
+)
 
 _BEARER_LOCK = threading.Lock()
 
@@ -213,13 +219,13 @@ class BedrockAdapter:
                 "us.meta.llama3-3-70b-instruct-v1:0",
             ]
 
-    async def stream_chat(
+    async def stream_chat_events(
         self,
         *,
         model: str,
         messages: list[dict[str, Any]],
         max_tokens: int | None = None,
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[dict[str, str]]:
         system, converse_messages = _to_converse_messages(messages)
         kwargs = _converse_kwargs(
             model=model,
@@ -228,6 +234,7 @@ class BedrockAdapter:
             max_tokens=max_tokens,
         )
         queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
+        parser = StreamingThinkParser()
 
         def _run() -> None:
             try:
@@ -244,9 +251,19 @@ class BedrockAdapter:
                     for event in stream:
                         if "contentBlockDelta" in event:
                             delta = event["contentBlockDelta"].get("delta") or {}
+                            # 1. Reasoning content block delta
+                            r_text = (
+                                (delta.get("reasoningContent") or {}).get("text")
+                                or delta.get("reasoningText")
+                            )
+                            if r_text:
+                                queue.put_nowait(("event", {"type": "thinking", "text": str(r_text)}))
+                            # 2. Text delta parsed for <think>
                             text = delta.get("text") or ""
                             if text:
-                                queue.put_nowait(("delta", text))
+                                for kind, chunk in parser.feed(text):
+                                    if chunk:
+                                        queue.put_nowait(("event", {"type": kind, "text": chunk}))
                         elif "messageStop" in event:
                             break
                         elif "internalServerException" in event:
@@ -261,6 +278,9 @@ class BedrockAdapter:
                                 code="bedrock_validation",
                             )))
                             return
+                    for kind, chunk in parser.flush():
+                        if chunk:
+                            queue.put_nowait(("event", {"type": kind, "text": chunk}))
                     queue.put_nowait(("done", None))
             except StackError as exc:
                 queue.put_nowait(("error", exc))
@@ -274,14 +294,29 @@ class BedrockAdapter:
         fut = loop.run_in_executor(None, _run)
         while True:
             kind, payload = await queue.get()
-            if kind == "delta":
-                yield str(payload)
+            if kind == "event":
+                yield payload
             elif kind == "done":
                 await fut
                 return
             elif kind == "error":
                 await fut
                 raise payload
+
+    async def stream_chat(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        max_tokens: int | None = None,
+    ) -> AsyncIterator[str]:
+        async for ev in self.stream_chat_events(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+        ):
+            if ev.get("type") == "token" and ev.get("text"):
+                yield ev["text"]
 
     async def complete_chat(
         self,
@@ -462,12 +497,21 @@ def _parse_converse_output(resp: dict[str, Any]) -> ChatTurnResult:
     message = (resp.get("output") or {}).get("message") or {}
     blocks = message.get("content") or []
     texts: list[str] = []
+    reasoning_texts: list[str] = []
     tool_calls: list[ToolCallRequest] = []
     for block in blocks:
         if not isinstance(block, dict):
             continue
         if "text" in block and block["text"]:
             texts.append(str(block["text"]))
+        reasoning_content = block.get("reasoningContent")
+        if isinstance(reasoning_content, dict):
+            r_text = (
+                (reasoning_content.get("reasoningText") or {}).get("text")
+                or reasoning_content.get("text")
+            )
+            if r_text:
+                reasoning_texts.append(str(r_text))
         tool_use = block.get("toolUse")
         if isinstance(tool_use, dict) and tool_use.get("name"):
             inp = tool_use.get("input")
@@ -482,4 +526,12 @@ def _parse_converse_output(resp: dict[str, Any]) -> ChatTurnResult:
                     arguments=args_s,
                 )
             )
-    return ChatTurnResult(content="".join(texts), tool_calls=tool_calls)
+    clean_content, reasoning = extract_reasoning_and_content(
+        "".join(texts),
+        "\n".join(reasoning_texts) if reasoning_texts else None,
+    )
+    return ChatTurnResult(
+        content=clean_content,
+        tool_calls=tool_calls,
+        reasoning=reasoning,
+    )

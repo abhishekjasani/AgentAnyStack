@@ -8,6 +8,7 @@ from agent_anystack.adapters.llm import (
     StackError,
     ToolCallRequest,
 )
+from agent_anystack.adapters.thinking import append_thinking, read_thinking
 
 __all__ = [
     "BedrockAdapter",
@@ -16,4 +17,7 @@ __all__ = [
     "StackAdapter",
     "StackError",
     "ToolCallRequest",
+    "append_thinking",
+    "read_thinking",
 ]
+

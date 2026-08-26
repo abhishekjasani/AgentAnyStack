@@ -25,6 +25,7 @@ from agent_anystack.adapters.stack_models import (
     StackSelectionError,
     resolve_desk_runtime,
 )
+from agent_anystack.adapters.thinking import append_thinking
 from agent_anystack.channel_history import ChannelHistoryStore
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.envelope import build_office_envelope
@@ -436,14 +437,26 @@ class ChatRunService:
             except StackError as exc:
                 # Some hosts reject tools — fall back to plain stream once.
                 if _round == 0 and _looks_like_tools_unsupported(exc):
-                    async for token in adapter.stream_chat(
+                    async for ev in adapter.stream_chat_events(
                         model=model,
                         messages=messages,
                         max_tokens=max_tokens,
                     ):
-                        yield {"type": "token", "text": token}
+                        if ev.get("type") == "thinking":
+                            append_thinking(
+                                self.database_url,
+                                run_id,
+                                ev.get("text") or "",
+                            )
+                        yield ev
                     return
                 raise
+
+            if turn.reasoning:
+                append_thinking(self.database_url, run_id, turn.reasoning)
+                for chunk in _chunk_text(turn.reasoning, _TOKEN_CHUNK):
+                    yield {"type": "thinking", "text": chunk}
+
             if turn.tool_calls:
                 assistant_msg: dict[str, Any] = {
                     "role": "assistant",
