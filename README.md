@@ -159,15 +159,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute. We especially welc
 
 | Doc | Contents |
 | --- | --- |
-| [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) | Product definition & 360° vision |
-| [MEMORY_ARCHITECTURE.md](./MEMORY_ARCHITECTURE.md) | Memory model (canonical) |
-| [ORCHESTRATOR.md](./ORCHESTRATOR.md) | Control plane, HITL, autonomy |
-| [IMPLEMENTATION.md](./IMPLEMENTATION.md) | Engineering notes |
-| [AGENT_DEFINITION.md](./AGENT_DEFINITION.md) | Agent file format |
-| [STACK_ADAPTERS.md](./STACK_ADAPTERS.md) | Stack adapters |
-| [ANALYTICS.md](./ANALYTICS.md) | Analytics |
-| [CONNECT.md](./CONNECT.md) | External channels |
-| [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md) | Scenarios |
+| [docs/PROJECT_OVERVIEW.md](./docs/PROJECT_OVERVIEW.md) | Product definition & 360° vision |
+| [docs/MEMORY_ARCHITECTURE.md](./docs/MEMORY_ARCHITECTURE.md) | Memory model (canonical) |
+| [docs/ORCHESTRATOR.md](./docs/ORCHESTRATOR.md) | Control plane, HITL, autonomy |
+| [docs/IMPLEMENTATION.md](./docs/IMPLEMENTATION.md) | Engineering notes |
+| [docs/AGENT_DEFINITION.md](./docs/AGENT_DEFINITION.md) | Agent file format |
+| [docs/STACK_ADAPTERS.md](./docs/STACK_ADAPTERS.md) | Stack adapters |
+| [docs/ANALYTICS.md](./docs/ANALYTICS.md) | Analytics |
+| [docs/CONNECT.md](./docs/CONNECT.md) | External channels |
+| [docs/USE_CASES_MEMORY.md](./docs/USE_CASES_MEMORY.md) | Scenarios |
 | [docs/architecture/](./docs/architecture/) | Engineering implementation notes |
 
 **Note:** `docs/` is now public and contains the full vision. See `CONTRIBUTING.md` for guidance on canonical files vs architecture notes.
