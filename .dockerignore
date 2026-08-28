@@ -32,7 +32,7 @@ data/*
 
 # Docs / mockups not needed at runtime
 docs/mockups
-docs/OPEN_SOURCE_MARKET_RESEARCH.md
+docs/internal
 
 # UI build deps (when office-ui exists)
 node_modules

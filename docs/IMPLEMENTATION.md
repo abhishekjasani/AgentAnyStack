@@ -23,7 +23,6 @@
 | 7 | **This file** | Stack, async, config buckets, slices |
 | 8 | [USE_CASES_MEMORY.md](./USE_CASES_MEMORY.md) | Stories |
 | 9 | [LOCAL_MODEL_STACK.md](./LOCAL_MODEL_STACK.md) | Ollama |
-| — | [COMMANDS.md](./COMMANDS.md) · [WORKER.md](./WORKER.md) · [DOCKER.md](./DOCKER.md) | Legacy TS prototype |
 
 ---
 

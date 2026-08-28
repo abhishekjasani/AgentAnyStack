@@ -48,6 +48,7 @@ Thumbs.db
 # mockups/ is excluded (better for website / visual assets)
 
 docs/mockups/
+docs/internal/
 
 #opencode
 opencode.json

@@ -429,8 +429,6 @@ Local setup architecture and engine trade-offs: [LOCAL_MODEL_STACK.md](./LOCAL_M
 
 Claim name early: empty GitHub `agent-anystack`, npm name, domain (`agentanystack.com` / `.dev` / `.ai`).
 
-See [OPEN_SOURCE_MARKET_RESEARCH.md](./OPEN_SOURCE_MARKET_RESEARCH.md) for market and naming research.
-
 ---
 
 ## Positioning vs lookalikes
@@ -442,7 +440,7 @@ See [OPEN_SOURCE_MARKET_RESEARCH.md](./OPEN_SOURCE_MARKET_RESEARCH.md) for marke
 | Message buses | AgentNexus (Claude MCP inbox) | Messaging only — not team/floor/org memory + floor links |
 | Agent frameworks | ClearAgent, CrewAI, LangGraph | Libraries — not operator UX + business scopes + autonomy knob |
 | SWE fleets | Devin, Factory, Tembo | Compete on coding agent quality; we compete on **office + control + memory + git-portable env** |
-| Meta-harness ADE | **Spotify Xirp** | Same altitude (vendor-neutral coding sessions); they optimize eng parallel worktrees + Portal — we are **office + multi-domain + HITL + OKF**. Detail: [OPEN_SOURCE_MARKET_RESEARCH.md §4.4](./OPEN_SOURCE_MARKET_RESEARCH.md) |
+| Meta-harness ADE | **Spotify Xirp** | Same altitude (vendor-neutral coding sessions); they optimize eng parallel worktrees + Portal — we are **office + multi-domain + HITL + OKF**. |
 | Locked SaaS agent hubs | Vendor-hosted memory + agents only | **Office-as-git** — clone elsewhere; BYO stacks; secrets stay yours |
 | Sales/support agent SaaS | Agentforce, Relevance-style GTM tools | Vertical tools; we are the **office + memory + controllability** across domains |
 
