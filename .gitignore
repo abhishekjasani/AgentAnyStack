@@ -3,6 +3,9 @@
 .env.local
 *.pem
 
+#shortcuts
+*.lnk
+
 # python — repo-root venv (Python 3.12)
 venv/
 .venv/
