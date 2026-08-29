@@ -1213,7 +1213,12 @@
     }
   }
 
-  async function fillConnectionSelect(sel, preferred, hintEl, { includeDisabled = false } = {}) {
+  async function fillConnectionSelect(
+    sel,
+    preferred,
+    hintEl,
+    { includeDisabled = false, kind = null } = {}
+  ) {
     if (!sel) return;
     if (!connectionsCache.length) {
       try {
@@ -1228,7 +1233,9 @@
     placeholder.value = "";
     placeholder.textContent = "Select connection…";
     sel.appendChild(placeholder);
-    const rows = connectionsCache.filter((c) => includeDisabled || c.enabled);
+    const rows = connectionsCache.filter(
+      (c) => (includeDisabled || c.enabled) && (!kind || c.kind === kind)
+    );
     if (!rows.length) {
       const o = document.createElement("option");
       o.value = "";
@@ -1560,11 +1567,6 @@
     }
   }
 
-  async function fillModelSelect(sel, preferred, hintEl) {
-    // Office soft jobs always use openai-compatible / Ollama.
-    await fillStackModelSelect(sel, "openai-compatible", preferred, hintEl);
-  }
-
   async function loadOfficeConfigForm() {
     const form = $("#office-config-form");
     const err = $("#office-config-error");
@@ -1594,10 +1596,22 @@
       form.office_qa_temperature.value = orc.office_qa_temperature ?? 0.2;
       $("#office-config-org").textContent =
         `max ${org.max_autonomy ?? "—"} · default ${org.autonomy?.default ?? "—"}`;
-      await fillModelSelect(
+      const preferredConn = orc.connection_id || "ollama-local";
+      await fillConnectionSelect(
+        $("#office-config-connection"),
+        preferredConn,
+        $("#office-config-connection-hint"),
+        { includeDisabled: true, kind: "inference" }
+      );
+      const chosenConn =
+        $("#office-config-connection")?.value || preferredConn;
+      const stack = stackForConnection(chosenConn);
+      await fillStackModelSelect(
         $("#office-config-model"),
-        orc.model,
-        $("#office-config-model-hint")
+        stack,
+        orc.model || "",
+        $("#office-config-model-hint"),
+        chosenConn
       );
     } catch (e) {
       err.textContent = String(e.message || e);
@@ -2608,6 +2622,10 @@
   if (agentConn) {
     agentConn.addEventListener("change", () => onConnectionChange("agent-config"));
   }
+  const officeConn = $("#office-config-connection");
+  if (officeConn) {
+    officeConn.addEventListener("change", () => onConnectionChange("office-config"));
+  }
   $("#btn-connections-refresh")?.addEventListener("click", () => loadConnections());
 
   $("#bedrock-creds-form [name=auth_mode]")?.addEventListener("change", (ev) => {
@@ -2810,6 +2828,7 @@
     ok.hidden = true;
     const body = {
       name: String(form.name.value || "").trim(),
+      connection_id: String(form.connection_id.value || "").trim(),
       model: String(form.model.value || "").trim(),
       office_qa_llm: !!form.office_qa_llm.checked,
       okf_extract_enabled: !!form.okf_extract_enabled.checked,
