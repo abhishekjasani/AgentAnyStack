@@ -75,6 +75,7 @@ async def run_okf_extract(
     okf: OkfStore,
     adapter: Any,
     max_tokens: int | None = None,
+    temperature: float = 0.0,
     use_llm: bool = True,
     use_remember_lines: bool = True,
 ) -> int:
@@ -109,7 +110,7 @@ async def run_okf_extract(
                         ),
                     },
                 ],
-                temperature=0.0,
+                temperature=temperature,
                 max_tokens=max_tokens,
             )
             candidates.extend(_parse_facts_json(raw))

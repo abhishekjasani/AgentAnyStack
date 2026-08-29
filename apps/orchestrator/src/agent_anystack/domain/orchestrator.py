@@ -36,9 +36,12 @@ class OrchestratorConfig(BaseModel):
     default_max_input_tokens: int = Field(default=-1, ge=-1, le=200_000)
     # Soft default max_tokens; -1 = omit max_tokens on the wire.
     default_max_output_tokens: int = Field(default=1024, ge=-1, le=100_000)
+    # Orchestrator-owned sampling policy for soft jobs (ORCHESTRATOR.md §5).
+    # Near-zero temperature for structured fact extraction; slightly higher for conversational Q&A.
+    extract_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    office_qa_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
 
     # --- Planned (not wired yet; reserved / ignored if present) ---
-    # TODO: extract_temperature: float — soft-job sampling (ORCHESTRATOR.md §5)
     # TODO: office_qa_phrase_style: short|formal
     # TODO: default_project_id: str — pack filter when projects exist
     # TODO: extract_schema_version: str
@@ -65,3 +68,5 @@ class OrchestratorConfigUpdate(BaseModel):
     approver_mode: str | None = None
     default_max_input_tokens: int | None = Field(default=None, ge=-1, le=200_000)
     default_max_output_tokens: int | None = Field(default=None, ge=-1, le=100_000)
+    extract_temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    office_qa_temperature: float | None = Field(default=None, ge=0.0, le=2.0)

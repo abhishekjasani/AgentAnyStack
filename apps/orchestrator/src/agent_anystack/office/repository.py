@@ -65,7 +65,8 @@ class OfficeRepository:
 # Token envelope: default_max_input_tokens / default_max_output_tokens
 # (agents tighten max_input/output only, -1 inherit; Ollama KV via OLLAMA_CONTEXT_LENGTH)
 #
-# TODO: extract_temperature / soft-job sampling policy (ORCHESTRATOR.md §5)
+# Sampling: extract_temperature (low variance) / office_qa_temperature (conversational)
+#
 # TODO: office_qa_phrase_style (short | formal)
 # TODO: default_project_id for memory pack when projects ship
 # TODO: extract_schema_version

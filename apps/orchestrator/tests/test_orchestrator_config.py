@@ -23,6 +23,8 @@ def test_orchestrator_config_defaults():
     cfg = OrchestratorConfig()
     assert cfg.model == "llama3.2"
     assert cfg.connection_id == "ollama-local"
+    assert cfg.extract_temperature == 0.0
+    assert cfg.office_qa_temperature == 0.2
 
 
 def test_orchestrator_config_backwards_compatible_yaml(tmp_path: Path):
@@ -366,3 +368,122 @@ async def test_background_okf_extract_resilience(tmp_path: Path):
     facts = store.list_team_facts("eng")
     assert len(facts) == 1
     assert facts[0].body == "API base URL is https://api.test.com"
+
+
+class RecordingAdapter:
+    def __init__(self, response_text: str = ""):
+        self.response_text = response_text
+        self.calls: list[dict] = []
+
+    async def complete_chat(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.response_text
+
+
+@pytest.mark.asyncio
+async def test_sampling_policy_extract_and_office_qa(tmp_path: Path):
+    from agent_anystack.memory.extract import ExtractJob, run_okf_extract
+    from agent_anystack.memory.fact import FactType, OkfFact
+    from agent_anystack.memory.store import OkfStore
+    from agent_anystack.office_qa import OfficeQaService
+    from agent_anystack.runs.journal import RunJournal
+
+    # 1. OKF Extract respects orchestrator extract_temperature
+    extract_adapter = RecordingAdapter(
+        '[{"body": "Fact 1", "type": "constraint", "scope": "team:eng", "confidence": 0.9}]'
+    )
+    store = OkfStore(tmp_path / "test_sampling.db")
+    job = ExtractJob(
+        run_id="run-sample-1",
+        agent_id="test-agent",
+        user_id="user-1",
+        team="eng",
+        model="llama3.2",
+        user_message="User message",
+        assistant_text="Assistant reply",
+    )
+    await run_okf_extract(
+        job,
+        okf=store,
+        adapter=extract_adapter,
+        temperature=0.05,
+    )
+    assert len(extract_adapter.calls) == 1
+    assert extract_adapter.calls[0]["temperature"] == 0.05
+
+    # 2. Office Q&A soft phrasing respects office_qa_temperature
+    f1 = OkfFact(
+        id="fact-201",
+        type=FactType.constraint,
+        scope="team:eng",
+        body="Secret port is 9090.",
+        created_by_user="u1",
+        source_run="r1",
+    )
+    store.upsert(f1)
+    journal = RunJournal(tmp_path / "sample_journal.jsonl")
+    qa_adapter = RecordingAdapter("The secret port is 9090 [fact-201].")
+    qa_service = OfficeQaService(
+        journal,
+        store,
+        adapter=qa_adapter,
+        phrase_model="test-model",
+        use_llm_phrase=True,
+        temperature=0.35,
+    )
+    result = await qa_service.ask(message="What is the secret port?", team="eng")
+    assert result.kind.value == "knowledge"
+    assert len(qa_adapter.calls) == 1
+    assert qa_adapter.calls[0]["temperature"] == 0.35
+
+
+@pytest.mark.asyncio
+async def test_office_config_api_temperature_update(tmp_path: Path):
+    from fastapi import FastAPI
+    from httpx import ASGITransport, AsyncClient
+    from agent_anystack.api.office import router as office_router
+    from agent_anystack.api.agents import get_office_repo
+    from agent_anystack.config import get_settings
+
+    office_dir = tmp_path / "office"
+    office_dir.mkdir(parents=True, exist_ok=True)
+    (office_dir / "org.yaml").write_text("id: my-org\nname: Test Org\n", encoding="utf-8")
+    repo = OfficeRepository(office_dir)
+    repo.load_orchestrator()
+
+    app = FastAPI()
+    app.include_router(office_router)
+    app.dependency_overrides[get_office_repo] = lambda: repo
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        office_repo_path=str(office_dir),
+        database_url=f"sqlite:///{tmp_path}/test.db",
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        # GET config
+        res = await client.get("/office/config")
+        assert res.status_code == 200
+        orc = res.json()["orchestrator"]
+        assert orc["extract_temperature"] == 0.0
+        assert orc["office_qa_temperature"] == 0.2
+
+        # PUT config updating temperatures
+        put_res = await client.put(
+            "/office/config",
+            json={
+                "extract_temperature": 0.1,
+                "office_qa_temperature": 0.4,
+            },
+        )
+        assert put_res.status_code == 200
+        updated_orc = put_res.json()["orchestrator"]
+        assert updated_orc["extract_temperature"] == 0.1
+        assert updated_orc["office_qa_temperature"] == 0.4
+
+        # Verify persisted in yaml
+        reloaded = repo.load_orchestrator()
+        assert reloaded.extract_temperature == 0.1
+        assert reloaded.office_qa_temperature == 0.4
+

@@ -1537,6 +1537,8 @@
       form.approver_mode.value = orc.approver_mode || "permissive";
       form.default_max_input_tokens.value = orc.default_max_input_tokens ?? -1;
       form.default_max_output_tokens.value = orc.default_max_output_tokens ?? 1024;
+      form.extract_temperature.value = orc.extract_temperature ?? 0.0;
+      form.office_qa_temperature.value = orc.office_qa_temperature ?? 0.2;
       $("#office-config-org").textContent =
         `max ${org.max_autonomy ?? "—"} · default ${org.autonomy?.default ?? "—"}`;
       await fillModelSelect(
@@ -2768,6 +2770,8 @@
       approver_mode: String(form.approver_mode.value || "permissive"),
       default_max_input_tokens: Number(form.default_max_input_tokens.value),
       default_max_output_tokens: Number(form.default_max_output_tokens.value),
+      extract_temperature: Number(form.extract_temperature.value),
+      office_qa_temperature: Number(form.office_qa_temperature.value),
     };
     try {
       const res = await api("/office/config", {

@@ -173,6 +173,7 @@ class OfficeQaService:
         use_llm_phrase: bool = False,
         max_tokens: int | None = None,
         pack_char_budget: int | None = None,
+        temperature: float = 0.2,
     ) -> None:
         self.journal = journal
         self.okf = okf
@@ -180,6 +181,7 @@ class OfficeQaService:
         self.phrase_model = phrase_model
         self.use_llm_phrase = use_llm_phrase
         self.max_tokens = max_tokens
+        self.temperature = temperature
         # Soft path: hand entire room (capped) to OFFICE_MODEL.
         max_chars = pack_char_budget if pack_char_budget and pack_char_budget > 0 else None
         self._pass_through = PassThroughRetriever(
@@ -190,7 +192,10 @@ class OfficeQaService:
         self._soft: OkfSoftAnswer | None = None
         if use_llm_phrase and adapter and phrase_model:
             self._soft = OkfSoftAnswer(
-                adapter, model=phrase_model, max_tokens=max_tokens
+                adapter,
+                model=phrase_model,
+                max_tokens=max_tokens,
+                temperature=temperature,
             )
 
     async def ask(self, *, message: str, team: str) -> OfficeAskResult:

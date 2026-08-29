@@ -89,6 +89,7 @@ def get_office_qa(
         use_llm_phrase=orc.office_qa_llm and adapter is not None,
         max_tokens=max_tokens,
         pack_char_budget=max(2000, orc.pack_token_budget * 4),
+        temperature=orc.office_qa_temperature,
     )
 
 

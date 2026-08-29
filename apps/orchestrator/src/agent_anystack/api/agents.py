@@ -60,6 +60,8 @@ def get_office_repo(settings: Settings = Depends(get_settings)) -> OfficeReposit
             recent_history_days=settings.recent_history_days,
             recent_history_char_budget=settings.recent_history_char_budget,
             approver_mode=settings.approver_mode,
+            extract_temperature=settings.extract_temperature,
+            office_qa_temperature=settings.office_qa_temperature,
         )
     )
     return repo

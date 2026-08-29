@@ -96,6 +96,7 @@ async def _background_okf_extract(job: ExtractJob, settings: Settings) -> None:
             okf=store,
             adapter=adapter,
             max_tokens=limits.max_output_tokens,
+            temperature=orc.extract_temperature,
             use_llm=orc.okf_extract_llm,
             use_remember_lines=orc.okf_extract_remember_lines,
         )

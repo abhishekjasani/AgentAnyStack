@@ -33,10 +33,12 @@ class OkfSoftAnswer:
         *,
         model: str,
         max_tokens: int | None = None,
+        temperature: float = 0.2,
     ) -> None:
         self.adapter = adapter
         self.model = model
         self.max_tokens = max_tokens
+        self.temperature = temperature
 
     async def answer(
         self,
@@ -57,7 +59,7 @@ class OkfSoftAnswer:
                         "content": f"Question: {question}\n\nFacts:\n{catalog}",
                     },
                 ],
-                temperature=0.0,
+                temperature=self.temperature,
                 max_tokens=self.max_tokens,
             )
         except Exception:  # noqa: BLE001 — caller falls back to deterministic list
