@@ -456,3 +456,70 @@ def resolve_desk_stack(
                 raise ConnectionDisabled(default.id)
             return default.stack(), default.id
     return sid, None
+
+
+def resolve_inference_adapter(
+    *,
+    connection_id: str | None,
+    store: ConnectionStore,
+    settings: Any,
+) -> Any:
+    """Resolve an LLM adapter (OpenAI-compatible or Bedrock) for soft-jobs or inference desks."""
+    from agent_anystack.adapters.bedrock import BedrockAdapter
+    from agent_anystack.adapters.bedrock_store import BedrockProviderStore, resolve_creds
+    from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+
+    cid = (connection_id or "").strip() or None
+    conn = store.get(cid) if cid else None
+
+    if conn and (conn.product == "bedrock" or conn.stack() == "bedrock"):
+        meta = conn.meta or {}
+        auth = meta.get("auth") or "api_key"
+        region = meta.get("region") or getattr(settings, "aws_region", "us-east-1")
+        api_key = meta.get("api_key") or getattr(settings, "aws_bearer_token_bedrock", "")
+        akid = meta.get("aws_access_key_id") or getattr(settings, "aws_access_key_id", "")
+        secret = meta.get("aws_secret_access_key") or getattr(settings, "aws_secret_access_key", "")
+        session_token = meta.get("aws_session_token") or getattr(settings, "aws_session_token", "")
+        if not (api_key or (akid and secret)):
+            db_url = getattr(settings, "database_url", "sqlite:///./data/office.db")
+            creds = resolve_creds(
+                BedrockProviderStore(bedrock_data_dir(db_url)),
+                env_access_key_id=akid or getattr(settings, "aws_access_key_id", ""),
+                env_secret_access_key=secret or getattr(settings, "aws_secret_access_key", ""),
+                env_session_token=session_token or getattr(settings, "aws_session_token", ""),
+                env_region=region or getattr(settings, "aws_region", "us-east-1"),
+                env_api_key=api_key or getattr(settings, "aws_bearer_token_bedrock", ""),
+            )
+            akid = creds.access_key_id
+            secret = creds.secret_access_key
+            session_token = creds.session_token
+            api_key = creds.api_key
+            auth = creds.auth_mode
+            region = creds.region
+
+        return BedrockAdapter(
+            access_key_id=akid,
+            secret_access_key=secret,
+            session_token=session_token,
+            api_key=api_key,
+            auth_mode=auth,
+            region=region,
+            timeout=getattr(settings, "openai_compatible_timeout", 300.0),
+        )
+
+    if conn:
+        meta = conn.meta or {}
+        base_url = (meta.get("base_url") or "").strip() or getattr(
+            settings, "openai_compatible_base_url", "http://127.0.0.1:11434/v1"
+        )
+        api_key = (meta.get("api_key") or "").strip() or None
+        return OpenAICompatibleAdapter(
+            base_url=base_url,
+            api_key=api_key,
+            timeout=getattr(settings, "openai_compatible_timeout", 300.0),
+        )
+
+    return OpenAICompatibleAdapter(
+        base_url=getattr(settings, "openai_compatible_base_url", "http://127.0.0.1:11434/v1"),
+        timeout=getattr(settings, "openai_compatible_timeout", 300.0),
+    )

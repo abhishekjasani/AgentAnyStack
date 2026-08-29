@@ -71,6 +71,10 @@ class Settings(BaseSettings):
         default="llama3.2",
         validation_alias=AliasChoices("OFFICE_MODEL", "OFFICE_QA_MODEL"),
     )
+    office_connection_id: str = Field(
+        default="ollama-local",
+        validation_alias=AliasChoices("OFFICE_CONNECTION_ID", "OFFICE_STACK_CONNECTION_ID"),
+    )
     approver_mode: str = "permissive"
     # TODO: when yaml always present, drop soft-job seeds from env and keep only runtime.
 

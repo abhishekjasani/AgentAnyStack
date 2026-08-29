@@ -50,6 +50,7 @@ def get_office_repo(settings: Settings = Depends(get_settings)) -> OfficeReposit
     repo.load_orchestrator(
         seed=OrchestratorConfig(
             model=settings.office_model,
+            connection_id=settings.office_connection_id,
             office_qa_llm=settings.office_qa_llm,
             okf_extract_enabled=settings.okf_extract_enabled,
             okf_extract_llm=settings.okf_extract_llm,

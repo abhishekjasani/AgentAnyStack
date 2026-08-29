@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.memory.fact import OkfFact
@@ -165,7 +166,7 @@ class OfficeQaService:
         journal: RunJournal,
         okf: OkfStore,
         *,
-        adapter: OpenAICompatibleAdapter | None = None,
+        adapter: Any | None = None,
         phrase_model: str | None = None,
         use_llm_phrase: bool = False,
         max_tokens: int | None = None,
