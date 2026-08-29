@@ -1,13 +1,13 @@
 """Agent chat — stream via orchestrator → OpenAI-compatible server."""
 
 import json
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.adapters.opencode import read_thinking
 from agent_anystack.api.agents import get_office_repo
 from agent_anystack.api.deps import get_user_id
@@ -25,6 +25,8 @@ from agent_anystack.memory import (
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import RunJournal
 from agent_anystack.runs.service import ChatRunService, journal_path_from_database_url
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["chat"])
 
@@ -78,24 +80,39 @@ async def _background_okf_extract(job: ExtractJob, settings: Settings) -> None:
     from agent_anystack.api.agents import get_office_repo
     from agent_anystack.limits import resolve_run_limits
 
-    store = OkfStore(sqlite_path_from_database_url(settings.database_url))
-    repo = get_office_repo(settings)
-    orc = repo.load_orchestrator()
-    conn_store = connection_store_from_database_url(settings.database_url)
-    adapter = resolve_inference_adapter(
-        connection_id=orc.connection_id,
-        store=conn_store,
-        settings=settings,
-    )
-    limits = resolve_run_limits(model=job.model, orc=orc, agent=None)
-    await run_okf_extract(
-        job,
-        okf=store,
-        adapter=adapter,
-        max_tokens=limits.max_output_tokens,
-        use_llm=orc.okf_extract_llm,
-        use_remember_lines=orc.okf_extract_remember_lines,
-    )
+    try:
+        store = OkfStore(sqlite_path_from_database_url(settings.database_url))
+        repo = get_office_repo(settings)
+        orc = repo.load_orchestrator()
+        conn_store = connection_store_from_database_url(settings.database_url)
+        adapter = resolve_inference_adapter(
+            connection_id=orc.connection_id,
+            store=conn_store,
+            settings=settings,
+        )
+        limits = resolve_run_limits(model=job.model, orc=orc, agent=None)
+        await run_okf_extract(
+            job,
+            okf=store,
+            adapter=adapter,
+            max_tokens=limits.max_output_tokens,
+            temperature=orc.extract_temperature,
+            use_llm=orc.okf_extract_llm,
+            use_remember_lines=orc.okf_extract_remember_lines,
+        )
+    except Exception as exc:
+        logger.warning("Background OKF extraction failed: %s", exc)
+        try:
+            store = OkfStore(sqlite_path_from_database_url(settings.database_url))
+            await run_okf_extract(
+                job,
+                okf=store,
+                adapter=None,
+                use_llm=False,
+                use_remember_lines=True,
+            )
+        except Exception as fallback_exc:
+            logger.warning("Fallback deterministic OKF extraction failed: %s", fallback_exc)
 
 
 @router.post("/agents/{agent_id}/chat")

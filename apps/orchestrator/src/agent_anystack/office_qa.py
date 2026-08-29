@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.memory.fact import OkfFact
 from agent_anystack.memory.okf_retrieve import (
     PassThroughRetriever,
@@ -17,6 +17,8 @@ from agent_anystack.memory.okf_retrieve import (
 from agent_anystack.memory.okf_soft import OkfSoftAnswer
 from agent_anystack.memory.store import OkfStore
 from agent_anystack.runs.journal import JournalEntry, RunJournal
+
+logger = logging.getLogger(__name__)
 
 _STATUS_HINTS = re.compile(
     r"\b(status|running|who\s+ran|recent\s+runs?|activity|journal|what'?s\s+going)\b",
@@ -171,6 +173,7 @@ class OfficeQaService:
         use_llm_phrase: bool = False,
         max_tokens: int | None = None,
         pack_char_budget: int | None = None,
+        temperature: float = 0.2,
     ) -> None:
         self.journal = journal
         self.okf = okf
@@ -178,6 +181,7 @@ class OfficeQaService:
         self.phrase_model = phrase_model
         self.use_llm_phrase = use_llm_phrase
         self.max_tokens = max_tokens
+        self.temperature = temperature
         # Soft path: hand entire room (capped) to OFFICE_MODEL.
         max_chars = pack_char_budget if pack_char_budget and pack_char_budget > 0 else None
         self._pass_through = PassThroughRetriever(
@@ -188,7 +192,10 @@ class OfficeQaService:
         self._soft: OkfSoftAnswer | None = None
         if use_llm_phrase and adapter and phrase_model:
             self._soft = OkfSoftAnswer(
-                adapter, model=phrase_model, max_tokens=max_tokens
+                adapter,
+                model=phrase_model,
+                max_tokens=max_tokens,
+                temperature=temperature,
             )
 
     async def ask(self, *, message: str, team: str) -> OfficeAskResult:
@@ -218,7 +225,11 @@ class OfficeQaService:
             facts = self._pass_through.retrieve(message, team=team)
             if not facts:
                 return format_knowledge([], team=team)
-            soft = await self._soft.answer(message, facts)
+            try:
+                soft = await self._soft.answer(message, facts)
+            except Exception as exc:
+                logger.warning("Office Q&A soft LLM phrasing failed: %s", exc)
+                soft = None
             if soft:
                 return OfficeAskResult(
                     kind=OfficeAskKind.knowledge,
@@ -226,7 +237,7 @@ class OfficeQaService:
                     citations=[Citation(fact_id=i) for i in soft.cited_ids],
                     team=team,
                 )
-            # Model failed citation check — fall back to deterministic list of same slice.
+            # Model failed citation check or LLM call failed — fall back to deterministic list of same slice.
             return format_knowledge(facts[:8], team=team)
 
         facts = self._overlap.retrieve(message, team=team)

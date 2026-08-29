@@ -144,7 +144,7 @@ def test_create_connection_without_label_defaults_to_id(tmp_path: Path):
     body = CreateConnectionBody(
         id="zen-test",
         preset="zen",
-        base_url="https://api.zen.ai/v1",
+        base_url="https://opencode.ai/zen/v1",
     )
     assert body.id == "zen-test"
     assert body.label is None

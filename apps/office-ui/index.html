@@ -109,6 +109,12 @@
           <label>Default max output tokens (-1 = omit)
             <input name="default_max_output_tokens" type="number" min="-1" max="100000" required />
           </label>
+          <label>Extract temperature (0.0 = low variance)
+            <input name="extract_temperature" type="number" step="0.05" min="0" max="2" required />
+          </label>
+          <label>Office Q&amp;A temperature
+            <input name="office_qa_temperature" type="number" step="0.05" min="0" max="2" required />
+          </label>
           <p class="desk-meta">
             Org ceiling (read-only from <code>org.yaml</code>):
             <span id="office-config-org"></span>
@@ -405,7 +411,12 @@
                   <option value="custom">Custom</option>
                   <option value="ollama">Ollama (http://127.0.0.1:11434/v1)</option>
                   <option value="groq">Groq (https://api.groq.com/openai/v1)</option>
-                  <option value="zen">Zen (https://api.zen.ai/v1)</option>
+                  <option value="openrouter">OpenRouter (https://openrouter.ai/api/v1)</option>
+                  <option value="mistral">Mistral (https://api.mistral.ai/v1)</option>
+                  <option value="together">Together AI (https://api.together.xyz/v1)</option>
+                  <option value="deepseek">DeepSeek (https://api.deepseek.com/v1)</option>
+                  <option value="openai">OpenAI (https://api.openai.com/v1)</option>
+                  <option value="zen">Zen (https://opencode.ai/zen/v1)</option>
                 </select>
               </label>
               <label>Base URL

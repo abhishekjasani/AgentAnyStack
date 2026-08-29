@@ -21,9 +21,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [0.3.23] - 2026-08-29
 
 ### Added
-- Multi-provider Inference connection selection (`connection_id`) for Orchestrator soft-jobs (OKF extraction and Office front-desk Q&A).
-- Dynamic inference adapter resolution supporting local Ollama, AWS Bedrock, and custom OpenAI-compatible endpoints.
-- Dedicated test suite in `apps/orchestrator/tests/test_orchestrator_config.py`.
+- Multi-provider inference support for Orchestrator soft jobs (`connection_id` on Office config).
+- Orchestrator-owned sampling policy with `extract_temperature` (default `0.0`) and `office_qa_temperature` (default `0.2`).
+- Safe error recovery & deterministic fallbacks for OKF extraction and Office Front Desk Q&A.
+- Comprehensive test suite for orchestrator config, adapter routing, and sampling policy in `test_orchestrator_config.py`.
+
+### Changed
+- Decoupled `run_okf_extract()`, `OkfSoftAnswer`, and `OfficeQaService` from concrete adapter implementations to support multi-provider duck-typed adapters.
 
 ## [0.3.22] - 2026-08-26
 

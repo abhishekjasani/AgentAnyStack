@@ -76,6 +76,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("OFFICE_CONNECTION_ID", "OFFICE_STACK_CONNECTION_ID"),
     )
     approver_mode: str = "permissive"
+    extract_temperature: float = 0.0
+    office_qa_temperature: float = 0.2
     # TODO: when yaml always present, drop soft-job seeds from env and keep only runtime.
 
     # Community: sole admin. Enterprise: expand list / RBAC; edition switch later.

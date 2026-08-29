@@ -10,8 +10,10 @@ from pydantic import BaseModel
 
 from agent_anystack.adapters.bedrock_store import BedrockProviderStore, bedrock_data_dir
 from agent_anystack.adapters.connections import (
+    INFERENCE_PRESETS,
     ConnectionNotFound,
     ConnectionStore,
+    InferencePreset,
     StackConnection,
     VerifiedInferenceModel,
     connection_store_from_database_url,
@@ -58,6 +60,10 @@ class EnableBody(BaseModel):
     enabled: bool
 
 
+class InferencePresetsResponse(BaseModel):
+    presets: list[InferencePreset]
+
+
 def _used_by(
     repo: OfficeRepository, connection_id: str, stack: str
 ) -> list[dict[str, str]]:
@@ -102,6 +108,16 @@ async def list_connections(
             for k in kind_order
         ],
     }
+
+
+@router.get("/stacks/connections/presets", response_model=InferencePresetsResponse)
+async def list_inference_presets(
+    _user_id: str = Depends(get_user_id),
+) -> InferencePresetsResponse:
+    """Pre-configured OpenAI-compatible inference presets (Groq, OpenRouter, Mistral, etc.)."""
+    return InferencePresetsResponse(
+        presets=list(INFERENCE_PRESETS.values()),
+    )
 
 
 @router.get("/stacks/connections/{connection_id}")
@@ -219,7 +235,9 @@ async def discover_provider_models(
     else:
         from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 
-        base_url = body.base_url or (existing.meta.get("base_url") if existing else None) or settings.openai_compatible_base_url or "http://127.0.0.1:11434/v1"
+        existing_preset = (existing.meta.get("preset") or "").lower() if existing else ""
+        preset_url = INFERENCE_PRESETS.get(existing_preset, {}).get("base_url") if existing_preset else None
+        base_url = body.base_url or (existing.meta.get("base_url") if existing else None) or preset_url or settings.openai_compatible_base_url or "http://127.0.0.1:11434/v1"
         api_key = body.api_key or (existing.meta.get("api_key") if existing else None)
 
         adapter = OpenAICompatibleAdapter(base_url=base_url, api_key=api_key)
@@ -248,6 +266,9 @@ async def create_or_update_connection(
 
     if body.preset:
         meta["preset"] = body.preset
+        preset_info = INFERENCE_PRESETS.get(body.preset.lower())
+        if preset_info and not body.base_url and not meta.get("base_url") and preset_info.get("base_url"):
+            meta["base_url"] = preset_info["base_url"]
     if body.base_url is not None:
         meta["base_url"] = body.base_url.strip()
     if body.region is not None:

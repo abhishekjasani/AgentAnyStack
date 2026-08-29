@@ -8,8 +8,6 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from agent_anystack.adapters import StackError
-from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.memory.fact import FactType, OkfFact
 from agent_anystack.memory.store import OkfStore
 
@@ -77,6 +75,7 @@ async def run_okf_extract(
     okf: OkfStore,
     adapter: Any,
     max_tokens: int | None = None,
+    temperature: float = 0.0,
     use_llm: bool = True,
     use_remember_lines: bool = True,
 ) -> int:
@@ -97,6 +96,8 @@ async def run_okf_extract(
 
     if use_llm:
         try:
+            if adapter is None:
+                raise ValueError("No adapter provided for LLM extract")
             raw = await adapter.complete_chat(
                 model=job.model,
                 messages=[
@@ -109,15 +110,18 @@ async def run_okf_extract(
                         ),
                     },
                 ],
-                temperature=0.0,
+                temperature=temperature,
                 max_tokens=max_tokens,
             )
             candidates.extend(_parse_facts_json(raw))
-        except StackError as exc:
+        except Exception as exc:
             logger.warning("okf extract LLM failed run=%s: %s", job.run_id, exc)
-            if not candidates:
-                return 0
-    elif not candidates:
+
+    # Fallback to deterministic remember lines if LLM threw an error or produced 0 parseable facts
+    if not candidates:
+        candidates.extend(_remember_line_facts(job.user_message))
+
+    if not candidates:
         return 0
 
     written = 0

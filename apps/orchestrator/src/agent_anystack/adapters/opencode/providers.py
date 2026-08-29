@@ -9,6 +9,7 @@ from typing import Any
 
 from agent_anystack.adapters.bedrock_store import BedrockProviderStore, bedrock_data_dir
 from agent_anystack.adapters.connections import (
+    INFERENCE_PRESETS,
     ConnectionStore,
     RegisteredOpencodeModel,
     StackConnection,
@@ -130,14 +131,14 @@ def _model_limits(
     if out is None:
         out = conn_meta.get("output_limit") or conn_meta.get("max_output") or conn_meta.get("max_tokens")
 
-    # 3. Preset specific defaults (e.g. Groq strictly enforces max output tokens <= 4096/8192)
+    # 3. Preset specific defaults (e.g. Groq, Mistral, OpenRouter, DeepSeek, Together)
     preset = (conn_meta.get("preset") or "").lower() if conn_meta else ""
-    if out is None and preset == "groq":
-        out = 4096
-    if ctx is None and preset == "groq":
-        ctx = 32768
-    elif out is None and preset in ("together", "deepseek"):
-        out = 4096
+    preset_info = INFERENCE_PRESETS.get(preset)
+    if preset_info:
+        if out is None and preset_info.get("default_output_limit") is not None:
+            out = preset_info["default_output_limit"]
+        if ctx is None and preset_info.get("default_context_limit") is not None:
+            ctx = preset_info["default_context_limit"]
 
     # 4. Settings default limits
     if ctx is None:
@@ -262,7 +263,12 @@ def build_opencode_config(
         elif product == "openai-compatible" or inf_conn_id:
             pkey = prov_id or inf_conn_id or "openai-compatible"
             pname = (conn.label if conn else "") or pkey
-            p_base_url = (conn.meta.get("base_url") if conn else "") or ollama_base_url
+            p_preset = (conn.meta.get("preset") or "").lower() if conn else ""
+            p_base_url = (
+                (conn.meta.get("base_url") if conn else "")
+                or (INFERENCE_PRESETS.get(p_preset, {}).get("base_url") if p_preset else "")
+                or ollama_base_url
+            )
             p_api_key = conn.meta.get("api_key") if conn else None
 
             if pkey not in custom_providers:
