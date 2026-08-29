@@ -7,6 +7,7 @@ selected (v0 may pass the whole capped room). Never invent; empty slice → no c
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.memory.fact import OkfFact
@@ -29,7 +30,7 @@ class OkfSoftAnswer:
 
     def __init__(
         self,
-        adapter: OpenAICompatibleAdapter,
+        adapter: Any,
         *,
         model: str,
         max_tokens: int | None = None,

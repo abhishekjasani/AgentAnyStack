@@ -52,6 +52,10 @@ def get_office_qa(
     settings: Settings = Depends(get_settings),
     repo: OfficeRepository = Depends(get_office_repo),
 ) -> OfficeQaService:
+    from agent_anystack.adapters.connections import (
+        connection_store_from_database_url,
+        resolve_inference_adapter,
+    )
     from agent_anystack.limits import resolve_run_limits
 
     orc = repo.load_orchestrator()
@@ -63,9 +67,11 @@ def get_office_qa(
     model = None
     max_tokens = None
     if orc.office_qa_llm:
-        adapter = OpenAICompatibleAdapter(
-            settings.openai_compatible_base_url,
-            timeout=settings.openai_compatible_timeout,
+        conn_store = connection_store_from_database_url(settings.database_url)
+        adapter = resolve_inference_adapter(
+            connection_id=orc.connection_id,
+            store=conn_store,
+            settings=settings,
         )
         model = orc.model
         limits = resolve_run_limits(model=orc.model, orc=orc, agent=None)

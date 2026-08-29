@@ -6,6 +6,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
+from typing import Any
 
 from agent_anystack.adapters import StackError
 from agent_anystack.adapters.llm import OpenAICompatibleAdapter
@@ -74,7 +75,7 @@ async def run_okf_extract(
     job: ExtractJob,
     *,
     okf: OkfStore,
-    adapter: OpenAICompatibleAdapter,
+    adapter: Any,
     max_tokens: int | None = None,
     use_llm: bool = True,
     use_remember_lines: bool = True,

@@ -57,7 +57,7 @@ class OfficeRepository:
 # Team shows a pinned "Office" card; Configure edits this file.
 # Desk agents: office/teams/<team>/agents/<id>/agent.yaml
 #
-# Soft jobs using `model`:
+# Soft jobs using `model` and `connection_id`:
 #   - OKF post-run extract (when okf_extract_enabled)
 #       okf_extract_llm / okf_extract_remember_lines
 #   - Office Q&A phrasing (when office_qa_llm)

@@ -347,7 +347,7 @@ class ChatRunService:
                 agent_id=agent.id,
                 user_id=user_id,
                 team=agent.team,
-                model=self.office_model,
+                model=orc.model,
                 user_message=message,
                 assistant_text="".join(assistant_parts),
                 project_id=agent.workspace.project_id if agent.workspace else None,
