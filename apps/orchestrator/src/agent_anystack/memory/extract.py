@@ -116,11 +116,12 @@ async def run_okf_extract(
             candidates.extend(_parse_facts_json(raw))
         except Exception as exc:
             logger.warning("okf extract LLM failed run=%s: %s", job.run_id, exc)
-            if not candidates:
-                candidates.extend(_remember_line_facts(job.user_message))
-            if not candidates:
-                return 0
-    elif not candidates:
+
+    # Fallback to deterministic remember lines if LLM threw an error or produced 0 parseable facts
+    if not candidates:
+        candidates.extend(_remember_line_facts(job.user_message))
+
+    if not candidates:
         return 0
 
     written = 0

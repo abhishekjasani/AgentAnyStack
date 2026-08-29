@@ -487,3 +487,302 @@ async def test_office_config_api_temperature_update(tmp_path: Path):
         assert reloaded.extract_temperature == 0.1
         assert reloaded.office_qa_temperature == 0.4
 
+
+def test_orchestrator_config_serialization_and_deserialization():
+    # 1. Default serialization
+    cfg = OrchestratorConfig()
+    dumped = cfg.model_dump()
+    assert dumped["connection_id"] == "ollama-local"
+    assert dumped["model"] == "llama3.2"
+    assert dumped["extract_temperature"] == 0.0
+    assert dumped["office_qa_temperature"] == 0.2
+
+    # 2. JSON roundtrip with custom connection_id
+    custom_cfg = OrchestratorConfig(
+        id="custom-office",
+        name="Custom Office",
+        model="claude-3-5-sonnet",
+        connection_id="openrouter-cloud",
+        extract_temperature=0.05,
+        office_qa_temperature=0.3,
+    )
+    json_str = custom_cfg.model_dump_json()
+    reloaded = OrchestratorConfig.model_validate_json(json_str)
+    assert reloaded.connection_id == "openrouter-cloud"
+    assert reloaded.model == "claude-3-5-sonnet"
+    assert reloaded.extract_temperature == 0.05
+    assert reloaded.office_qa_temperature == 0.3
+
+    # 3. Update model serialization
+    update = OrchestratorConfigUpdate(
+        connection_id="bedrock-prod",
+        model="amazon.titan-text-v1",
+    )
+    update_dump = update.model_dump(exclude_unset=True)
+    assert update_dump == {
+        "connection_id": "bedrock-prod",
+        "model": "amazon.titan-text-v1",
+    }
+
+
+def test_resolve_inference_adapter_bedrock_iam(tmp_path: Path):
+    store = ConnectionStore(tmp_path)
+    bed = store.get("bedrock")
+    assert bed is not None
+    bed.meta = {
+        "auth": "iam",
+        "region": "eu-central-1",
+        "aws_access_key_id": "AKIA_TEST_KEY",
+        "aws_secret_access_key": "SECRET_TEST_KEY",
+    }
+    store.upsert(bed)
+
+    settings = Settings()
+    adapter = resolve_inference_adapter(
+        connection_id="bedrock",
+        store=store,
+        settings=settings,
+    )
+    assert isinstance(adapter, BedrockAdapter)
+    assert adapter.region == "eu-central-1"
+    assert adapter.auth_mode == "iam"
+    assert adapter.access_key_id == "AKIA_TEST_KEY"
+    assert adapter.secret_access_key == "SECRET_TEST_KEY"
+
+
+@pytest.mark.asyncio
+async def test_run_okf_extract_with_bedrock_and_openai_adapters(tmp_path: Path):
+    from agent_anystack.memory.extract import ExtractJob, run_okf_extract
+    from agent_anystack.memory.store import OkfStore
+
+    store = OkfStore(tmp_path / "okf_adapters.db")
+
+    # 1. Bedrock adapter response
+    bedrock_payload = '{"facts":[{"type":"decision","body":"AWS S3 bucket named assets-prod is used."}]}'
+    bedrock_adapter = SuccessfulAdapter(bedrock_payload)
+    job_bedrock = ExtractJob(
+        run_id="run-bed-1",
+        agent_id="infra-agent",
+        user_id="alice",
+        team="devops",
+        model="us.amazon.nova-lite-v1:0",
+        user_message="Which S3 bucket do we use for assets?",
+        assistant_text="We use assets-prod.",
+    )
+    count_bed = await run_okf_extract(
+        job_bedrock,
+        okf=store,
+        adapter=bedrock_adapter,
+        use_llm=True,
+        use_remember_lines=False,
+    )
+    assert count_bed == 1
+    facts = store.list_team_facts("devops")
+    assert len(facts) == 1
+    assert facts[0].body == "AWS S3 bucket named assets-prod is used."
+    assert facts[0].type.value == "decision"
+
+    # 2. OpenAI-compatible adapter response (with markdown fence)
+    openai_payload = '```json\n{"facts":[{"type":"constraint","body":"Max upload size is 50MB."}]}\n```'
+    openai_adapter = SuccessfulAdapter(openai_payload)
+    job_openai = ExtractJob(
+        run_id="run-oai-1",
+        agent_id="api-agent",
+        user_id="bob",
+        team="devops",
+        model="gpt-4o",
+        user_message="What is the max upload size?",
+        assistant_text="It is 50MB.",
+    )
+    count_openai = await run_okf_extract(
+        job_openai,
+        okf=store,
+        adapter=openai_adapter,
+        use_llm=True,
+        use_remember_lines=False,
+    )
+    assert count_openai == 1
+    all_facts = store.list_team_facts("devops")
+    assert len(all_facts) == 2
+    assert any(f.body == "Max upload size is 50MB." and f.type.value == "constraint" for f in all_facts)
+
+
+@pytest.mark.asyncio
+async def test_office_qa_service_with_bedrock_and_openai_adapters(tmp_path: Path):
+    from agent_anystack.memory.fact import FactType, OkfFact
+    from agent_anystack.memory.store import OkfStore
+    from agent_anystack.office_qa import OfficeQaService
+    from agent_anystack.runs.journal import RunJournal
+
+    okf = OkfStore(tmp_path / "okf_qa.db")
+    journal = RunJournal(tmp_path / "journal_qa.jsonl")
+    f1 = OkfFact(
+        id="fact-arch-1",
+        type=FactType.decision,
+        scope="team:platform",
+        body="Kubernetes clusters use Cilium CNI.",
+        created_by_user="u1",
+        source_run="r1",
+    )
+    okf.upsert(f1)
+
+    # Bedrock adapter soft phrasing
+    bedrock_phrased = "Our Kubernetes clusters use Cilium CNI for networking [fact-arch-1]."
+    qa_bedrock = OfficeQaService(
+        journal,
+        okf,
+        adapter=SuccessfulAdapter(bedrock_phrased),
+        phrase_model="us.amazon.nova-pro-v1:0",
+        use_llm_phrase=True,
+    )
+    res_bed = await qa_bedrock.ask(message="What CNI do we use in Kubernetes?", team="platform")
+    assert res_bed.kind.value == "knowledge"
+    assert res_bed.answer == bedrock_phrased
+    assert len(res_bed.citations) == 1
+    assert res_bed.citations[0].fact_id == "fact-arch-1"
+
+    # OpenAI compatible adapter soft phrasing
+    openai_phrased = "Cilium CNI is configured across Kubernetes clusters [fact-arch-1]."
+    qa_openai = OfficeQaService(
+        journal,
+        okf,
+        adapter=SuccessfulAdapter(openai_phrased),
+        phrase_model="llama3.2",
+        use_llm_phrase=True,
+    )
+    res_openai = await qa_openai.ask(message="What CNI do we use in Kubernetes?", team="platform")
+    assert res_openai.kind.value == "knowledge"
+    assert res_openai.answer == openai_phrased
+    assert len(res_openai.citations) == 1
+    assert res_openai.citations[0].fact_id == "fact-arch-1"
+
+
+@pytest.mark.asyncio
+async def test_okf_extract_fallback_on_malformed_json(tmp_path: Path):
+    from agent_anystack.memory.extract import ExtractJob, run_okf_extract
+    from agent_anystack.memory.store import OkfStore
+
+    store = OkfStore(tmp_path / "okf_malformed.db")
+    malformed_adapter = SuccessfulAdapter("Here are the facts: {not valid json... at all")
+    job = ExtractJob(
+        run_id="run-malformed-1",
+        agent_id="test-agent",
+        user_id="user-1",
+        team="backend",
+        model="test-model",
+        user_message="Here is some info.\nremember: Database cache TTL is 300 seconds.",
+        assistant_text="Understood.",
+    )
+
+    # Malformed JSON should not raise, should fall back to remember: line
+    written = await run_okf_extract(
+        job,
+        okf=store,
+        adapter=malformed_adapter,
+        use_llm=True,
+        use_remember_lines=False,  # Initially false, but fallback should pick up remember line on error
+    )
+    assert written == 1
+    facts = store.list_team_facts("backend")
+    assert len(facts) == 1
+    assert facts[0].body == "Database cache TTL is 300 seconds."
+
+
+@pytest.mark.asyncio
+async def test_okf_extract_fallback_on_exception_without_remember_lines(tmp_path: Path):
+    from agent_anystack.memory.extract import ExtractJob, run_okf_extract
+    from agent_anystack.memory.store import OkfStore
+
+    store = OkfStore(tmp_path / "okf_no_rem.db")
+    job = ExtractJob(
+        run_id="run-fail-1",
+        agent_id="test-agent",
+        user_id="user-1",
+        team="backend",
+        model="test-model",
+        user_message="Regular conversation without remember directives.",
+        assistant_text="I can help with that.",
+    )
+
+    # Should handle failure gracefully and return 0
+    written = await run_okf_extract(
+        job,
+        okf=store,
+        adapter=FailingAdapter(),
+        use_llm=True,
+        use_remember_lines=False,
+    )
+    assert written == 0
+    assert len(store.list_team_facts("backend")) == 0
+
+
+@pytest.mark.asyncio
+async def test_okf_extract_fallback_on_none_adapter(tmp_path: Path):
+    from agent_anystack.memory.extract import ExtractJob, run_okf_extract
+    from agent_anystack.memory.store import OkfStore
+
+    store = OkfStore(tmp_path / "okf_none_adapter.db")
+    job = ExtractJob(
+        run_id="run-none-1",
+        agent_id="test-agent",
+        user_id="user-1",
+        team="security",
+        model="test-model",
+        user_message="Setup guide.\nremember: Auth uses OAuth2 with PKCE.",
+        assistant_text="Security rules noted.",
+    )
+
+    # Passing adapter=None when use_llm=True should trigger safe fallback
+    written = await run_okf_extract(
+        job,
+        okf=store,
+        adapter=None,
+        use_llm=True,
+        use_remember_lines=False,
+    )
+    assert written == 1
+    facts = store.list_team_facts("security")
+    assert len(facts) == 1
+    assert facts[0].body == "Auth uses OAuth2 with PKCE."
+
+
+@pytest.mark.asyncio
+async def test_office_qa_fallback_on_unverified_citations(tmp_path: Path):
+    from agent_anystack.memory.fact import FactType, OkfFact
+    from agent_anystack.memory.store import OkfStore
+    from agent_anystack.office_qa import OfficeQaService
+    from agent_anystack.runs.journal import RunJournal
+
+    okf = OkfStore(tmp_path / "okf_qa_unverified.db")
+    journal = RunJournal(tmp_path / "journal_qa_unverified.jsonl")
+    f1 = OkfFact(
+        id="fact-real-1",
+        type=FactType.constraint,
+        scope="team:finance",
+        body="Expenses over $500 require VP signoff.",
+        created_by_user="u1",
+        source_run="r1",
+    )
+    okf.upsert(f1)
+
+    # LLM returns text citing an imaginary fact [fact-fake-999] not in retrieved facts
+    hallucinated_adapter = SuccessfulAdapter(
+        "Expenses over $500 require CFO signoff [fact-fake-999]."
+    )
+    qa_service = OfficeQaService(
+        journal,
+        okf,
+        adapter=hallucinated_adapter,
+        phrase_model="test-model",
+        use_llm_phrase=True,
+    )
+
+    result = await qa_service.ask(message="What is the expense signoff threshold?", team="finance")
+    assert result.kind.value == "knowledge"
+    # When citation check fails, it falls back to raw bullet formatting of verified facts
+    assert "From team OKF (team:finance):" in result.answer
+    assert "[fact-real-1] Expenses over $500 require VP signoff." in result.answer
+    assert len(result.citations) == 1
+    assert result.citations[0].fact_id == "fact-real-1"
+
+
