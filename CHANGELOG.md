@@ -18,6 +18,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Softer, more welcoming language around core vision documents
 - Clear standard fork + PR workflow in contribution guide
 
+## [0.3.23] - 2026-08-29
+
+### Added
+- Multi-provider Inference connection selection (`connection_id`) for Orchestrator soft-jobs (OKF extraction and Office front-desk Q&A).
+- Dynamic inference adapter resolution supporting local Ollama, AWS Bedrock, and custom OpenAI-compatible endpoints.
+- Dedicated test suite in `apps/orchestrator/tests/test_orchestrator_config.py`.
+
 ## [0.3.22] - 2026-08-26
 
 ### Improved
