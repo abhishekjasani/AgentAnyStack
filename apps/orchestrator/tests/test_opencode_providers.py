@@ -30,9 +30,13 @@ def test_inference_presets_definitions():
     assert "custom" in INFERENCE_PRESETS
 
     assert INFERENCE_PRESETS["zen"]["base_url"] == "https://opencode.ai/zen/v1"
+    assert INFERENCE_PRESETS["zen"].base_url == "https://opencode.ai/zen/v1"
     assert INFERENCE_PRESETS["openrouter"]["base_url"] == "https://openrouter.ai/api/v1"
+    assert INFERENCE_PRESETS["openrouter"].base_url == "https://openrouter.ai/api/v1"
     assert INFERENCE_PRESETS["mistral"]["base_url"] == "https://api.mistral.ai/v1"
+    assert INFERENCE_PRESETS["mistral"].default_context_limit == 32768
     assert INFERENCE_PRESETS["groq"]["base_url"] == "https://api.groq.com/openai/v1"
+    assert INFERENCE_PRESETS["groq"].default_output_limit == 4096
 
 
 def test_candidate_pairs():
@@ -300,14 +304,18 @@ async def test_presets_api_endpoint(tmp_path: Path):
             assert resp.status_code == 200
             data = resp.json()
             assert "presets" in data
-            preset_ids = [p["id"] for p in data["presets"]]
-            assert "groq" in preset_ids
-            assert "openrouter" in preset_ids
-            assert "mistral" in preset_ids
-            assert "zen" in preset_ids
-            assert "together" in preset_ids
-            assert "deepseek" in preset_ids
-            assert "openai" in preset_ids
+            presets_by_id = {p["id"]: p for p in data["presets"]}
+            assert "groq" in presets_by_id
+            assert presets_by_id["groq"]["base_url"] == "https://api.groq.com/openai/v1"
+            assert presets_by_id["groq"]["default_context_limit"] == 32768
+            assert presets_by_id["groq"]["default_output_limit"] == 4096
+            assert presets_by_id["groq"]["requires_api_key"] is True
+
+            assert "zen" in presets_by_id
+            assert presets_by_id["zen"]["base_url"] == "https://opencode.ai/zen/v1"
+
+            assert "ollama" in presets_by_id
+            assert presets_by_id["ollama"]["requires_api_key"] is False
     finally:
         app.dependency_overrides.pop(get_settings, None)
 

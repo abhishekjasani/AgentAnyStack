@@ -13,6 +13,7 @@ from agent_anystack.adapters.connections import (
     INFERENCE_PRESETS,
     ConnectionNotFound,
     ConnectionStore,
+    InferencePreset,
     StackConnection,
     VerifiedInferenceModel,
     connection_store_from_database_url,
@@ -57,6 +58,10 @@ def get_bedrock_store(settings: Settings = Depends(get_settings)) -> BedrockProv
 
 class EnableBody(BaseModel):
     enabled: bool
+
+
+class InferencePresetsResponse(BaseModel):
+    presets: list[InferencePreset]
 
 
 def _used_by(
@@ -105,14 +110,14 @@ async def list_connections(
     }
 
 
-@router.get("/stacks/connections/presets")
+@router.get("/stacks/connections/presets", response_model=InferencePresetsResponse)
 async def list_inference_presets(
     _user_id: str = Depends(get_user_id),
-) -> dict[str, Any]:
+) -> InferencePresetsResponse:
     """Pre-configured OpenAI-compatible inference presets (Groq, OpenRouter, Mistral, etc.)."""
-    return {
-        "presets": list(INFERENCE_PRESETS.values()),
-    }
+    return InferencePresetsResponse(
+        presets=list(INFERENCE_PRESETS.values()),
+    )
 
 
 @router.get("/stacks/connections/{connection_id}")
