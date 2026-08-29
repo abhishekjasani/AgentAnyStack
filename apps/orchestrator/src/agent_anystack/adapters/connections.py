@@ -27,6 +27,81 @@ PRODUCT_TO_STACK: dict[str, str] = {
 
 STACK_TO_PRODUCT: dict[str, str] = {v: k for k, v in PRODUCT_TO_STACK.items()}
 
+INFERENCE_PRESETS: dict[str, dict[str, Any]] = {
+    "ollama": {
+        "id": "ollama",
+        "name": "Ollama",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "requires_api_key": False,
+        "default_context_limit": None,
+        "default_output_limit": None,
+    },
+    "groq": {
+        "id": "groq",
+        "name": "Groq",
+        "base_url": "https://api.groq.com/openai/v1",
+        "requires_api_key": True,
+        "default_context_limit": 32768,
+        "default_output_limit": 4096,
+    },
+    "openrouter": {
+        "id": "openrouter",
+        "name": "OpenRouter",
+        "base_url": "https://openrouter.ai/api/v1",
+        "requires_api_key": True,
+        "default_context_limit": None,
+        "default_output_limit": 4096,
+    },
+    "mistral": {
+        "id": "mistral",
+        "name": "Mistral",
+        "base_url": "https://api.mistral.ai/v1",
+        "requires_api_key": True,
+        "default_context_limit": 32768,
+        "default_output_limit": 4096,
+    },
+    "together": {
+        "id": "together",
+        "name": "Together AI",
+        "base_url": "https://api.together.xyz/v1",
+        "requires_api_key": True,
+        "default_context_limit": None,
+        "default_output_limit": 4096,
+    },
+    "deepseek": {
+        "id": "deepseek",
+        "name": "DeepSeek",
+        "base_url": "https://api.deepseek.com/v1",
+        "requires_api_key": True,
+        "default_context_limit": None,
+        "default_output_limit": 4096,
+    },
+    "openai": {
+        "id": "openai",
+        "name": "OpenAI",
+        "base_url": "https://api.openai.com/v1",
+        "requires_api_key": True,
+        "default_context_limit": None,
+        "default_output_limit": 4096,
+    },
+    "zen": {
+        "id": "zen",
+        "name": "Zen",
+        "base_url": "https://opencode.ai/zen/v1",
+        "requires_api_key": True,
+        "default_context_limit": None,
+        "default_output_limit": None,
+    },
+    "custom": {
+        "id": "custom",
+        "name": "Custom",
+        "base_url": "",
+        "requires_api_key": False,
+        "default_context_limit": None,
+        "default_output_limit": None,
+    },
+}
+
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -509,7 +584,9 @@ def resolve_inference_adapter(
 
     if conn:
         meta = conn.meta or {}
-        base_url = (meta.get("base_url") or "").strip() or getattr(
+        preset = (meta.get("preset") or "").lower()
+        preset_base_url = INFERENCE_PRESETS.get(preset, {}).get("base_url") if preset else None
+        base_url = (meta.get("base_url") or "").strip() or preset_base_url or getattr(
             settings, "openai_compatible_base_url", "http://127.0.0.1:11434/v1"
         )
         api_key = (meta.get("api_key") or "").strip() or None

@@ -2,6 +2,18 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
+  const INFERENCE_PRESET_DEFAULTS = [
+    { id: "custom", label: "Custom", url: "" },
+    { id: "ollama", label: "Ollama", url: "http://127.0.0.1:11434/v1" },
+    { id: "groq", label: "Groq", url: "https://api.groq.com/openai/v1" },
+    { id: "openrouter", label: "OpenRouter", url: "https://openrouter.ai/api/v1" },
+    { id: "mistral", label: "Mistral", url: "https://api.mistral.ai/v1" },
+    { id: "together", label: "Together AI", url: "https://api.together.xyz/v1" },
+    { id: "deepseek", label: "DeepSeek", url: "https://api.deepseek.com/v1" },
+    { id: "openai", label: "OpenAI", url: "https://api.openai.com/v1" },
+    { id: "zen", label: "Zen", url: "https://opencode.ai/zen/v1" },
+  ];
+
   function apiHeaders(extra = {}) {
     return { "X-User-Id": "admin", ...extra };
   }
@@ -555,11 +567,11 @@
     const presetSelect = document.createElement("select");
     presetSelect.name = "preset";
 
-    ["custom", "ollama", "groq", "zen"].forEach((p) => {
+    INFERENCE_PRESET_DEFAULTS.forEach((p) => {
       const opt = document.createElement("option");
-      opt.value = p;
-      opt.textContent = p === "custom" ? "Custom" : p === "ollama" ? "Ollama" : p === "groq" ? "Groq" : "Zen";
-      if (c.meta?.preset === p) opt.selected = true;
+      opt.value = p.id;
+      opt.textContent = p.label;
+      if (c.meta?.preset === p.id) opt.selected = true;
       presetSelect.appendChild(opt);
     });
     presetLabel.appendChild(presetSelect);
@@ -679,9 +691,8 @@
 
     presetSelect.addEventListener("change", () => {
       const val = presetSelect.value;
-      if (val === "ollama") urlInput.value = "http://127.0.0.1:11434/v1";
-      if (val === "groq") urlInput.value = "https://api.groq.com/openai/v1";
-      if (val === "zen") urlInput.value = "https://api.zen.ai/v1";
+      const matched = INFERENCE_PRESET_DEFAULTS.find((p) => p.id === val);
+      if (matched && matched.url) urlInput.value = matched.url;
     });
 
     form.addEventListener("submit", async (ev) => {
@@ -2367,9 +2378,8 @@
     const val = ev.target.value;
     const urlInput = $("#conn-base-url-input");
     if (!urlInput) return;
-    if (val === "ollama") urlInput.value = "http://127.0.0.1:11434/v1";
-    if (val === "groq") urlInput.value = "https://api.groq.com/openai/v1";
-    if (val === "zen") urlInput.value = "https://api.zen.ai/v1";
+    const matched = INFERENCE_PRESET_DEFAULTS.find((p) => p.id === val);
+    if (matched && matched.url) urlInput.value = matched.url;
   });
 
   $("#conn-bedrock-auth-mode")?.addEventListener("change", (ev) => {
