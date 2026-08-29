@@ -1,3 +1,3 @@
 """AgentAnyStack orchestrator package."""
 
-__version__ = "0.3.23"
+__version__ = "0.3.26"
