@@ -63,6 +63,12 @@
         </header>
         <form id="office-config-form" class="form">
           <label>Name <input name="name" required maxlength="128" /></label>
+          <label>Connection
+            <select name="connection_id" id="office-config-connection" required aria-label="Office inference connection">
+              <option value="">Loading connections…</option>
+            </select>
+          </label>
+          <p id="office-config-connection-hint" class="desk-meta"></p>
           <label>Model
             <select name="model" id="office-config-model" required aria-label="Office soft-job model">
               <option value="">Loading models…</option>
