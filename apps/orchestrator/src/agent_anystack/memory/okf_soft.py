@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.memory.fact import OkfFact
 
 _SYSTEM = (

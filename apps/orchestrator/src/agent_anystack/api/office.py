@@ -1,11 +1,10 @@
 """Office front-desk Q&A + orchestrator.yaml config (pinned Office card)."""
 
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-
-from agent_anystack.adapters.llm import OpenAICompatibleAdapter
 from agent_anystack.api.agents import get_office_repo
 from agent_anystack.api.deps import get_user_id
 from agent_anystack.config import Settings, get_settings
@@ -19,6 +18,8 @@ from agent_anystack.office import OfficeRepository
 from agent_anystack.office_qa import OfficeAskKind, OfficeQaService
 from agent_anystack.runs.journal import RunJournal
 from agent_anystack.runs.service import journal_path_from_database_url
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["office"])
 
@@ -67,21 +68,25 @@ def get_office_qa(
     model = None
     max_tokens = None
     if orc.office_qa_llm:
-        conn_store = connection_store_from_database_url(settings.database_url)
-        adapter = resolve_inference_adapter(
-            connection_id=orc.connection_id,
-            store=conn_store,
-            settings=settings,
-        )
-        model = orc.model
-        limits = resolve_run_limits(model=orc.model, orc=orc, agent=None)
-        max_tokens = limits.max_output_tokens
+        try:
+            conn_store = connection_store_from_database_url(settings.database_url)
+            adapter = resolve_inference_adapter(
+                connection_id=orc.connection_id,
+                store=conn_store,
+                settings=settings,
+            )
+            model = orc.model
+            limits = resolve_run_limits(model=orc.model, orc=orc, agent=None)
+            max_tokens = limits.max_output_tokens
+        except Exception as exc:
+            logger.warning("Failed to resolve inference adapter for office_qa: %s", exc)
+            adapter = None
     return OfficeQaService(
         journal,
         okf,
         adapter=adapter,
         phrase_model=model,
-        use_llm_phrase=orc.office_qa_llm,
+        use_llm_phrase=orc.office_qa_llm and adapter is not None,
         max_tokens=max_tokens,
         pack_char_budget=max(2000, orc.pack_token_budget * 4),
     )
