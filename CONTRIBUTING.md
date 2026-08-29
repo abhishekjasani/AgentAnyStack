@@ -1,6 +1,6 @@
 # Contributing to AgentAnyStack
 
-Thank you for wanting to help! This project is in early stages (v0.3.21+). We welcome contributions of all sizes.
+Thank you for wanting to help! This project is in early stages (v0.3.23+). We welcome contributions of all sizes.
 
 ## Quick Start
 
