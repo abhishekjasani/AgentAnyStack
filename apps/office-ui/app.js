@@ -2,17 +2,22 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-  const INFERENCE_PRESET_DEFAULTS = [
-    { id: "custom", label: "Custom", url: "" },
-    { id: "ollama", label: "Ollama", url: "http://127.0.0.1:11434/v1" },
-    { id: "groq", label: "Groq", url: "https://api.groq.com/openai/v1" },
-    { id: "openrouter", label: "OpenRouter", url: "https://openrouter.ai/api/v1" },
-    { id: "mistral", label: "Mistral", url: "https://api.mistral.ai/v1" },
-    { id: "together", label: "Together AI", url: "https://api.together.xyz/v1" },
-    { id: "deepseek", label: "DeepSeek", url: "https://api.deepseek.com/v1" },
-    { id: "openai", label: "OpenAI", url: "https://api.openai.com/v1" },
-    { id: "zen", label: "Zen", url: "https://opencode.ai/zen/v1" },
-  ];
+  let inferencePresets = [];
+
+  function getPresetsList() {
+    if (inferencePresets.length > 0) return inferencePresets;
+    return [
+      { id: "custom", label: "Custom", url: "" },
+      { id: "ollama", label: "Ollama", url: "http://127.0.0.1:11434/v1" },
+      { id: "groq", label: "Groq", url: "https://api.groq.com/openai/v1" },
+      { id: "openrouter", label: "OpenRouter", url: "https://openrouter.ai/api/v1" },
+      { id: "mistral", label: "Mistral", url: "https://api.mistral.ai/v1" },
+      { id: "together", label: "Together AI", url: "https://api.together.xyz/v1" },
+      { id: "deepseek", label: "DeepSeek", url: "https://api.deepseek.com/v1" },
+      { id: "openai", label: "OpenAI", url: "https://api.openai.com/v1" },
+      { id: "zen", label: "Zen", url: "https://opencode.ai/zen/v1" },
+    ];
+  }
 
   function apiHeaders(extra = {}) {
     return { "X-User-Id": "admin", ...extra };
@@ -21,6 +26,41 @@
   async function api(path, options = {}) {
     const headers = apiHeaders(options.headers || {});
     return fetch(path, { ...options, headers });
+  }
+
+  async function loadInferencePresets() {
+    try {
+      const res = await api("/stacks/connections/presets");
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.presets) && data.presets.length > 0) {
+          inferencePresets = data.presets.map((p) => ({
+            id: p.id,
+            label: p.name || p.id,
+            url: p.base_url || "",
+            requires_api_key: p.requires_api_key,
+            default_context_limit: p.default_context_limit,
+            default_output_limit: p.default_output_limit,
+          }));
+          populatePresetSelectOptions();
+        }
+      }
+    } catch (_) {}
+  }
+
+  function populatePresetSelectOptions() {
+    const sel = $("#conn-preset-select");
+    if (!sel) return;
+    const currentVal = sel.value;
+    const presets = getPresetsList();
+    sel.innerHTML = "";
+    presets.forEach((p) => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.url ? `${p.label} (${p.url})` : p.label;
+      if (p.id === currentVal) opt.selected = true;
+      sel.appendChild(opt);
+    });
   }
 
   function showView(name) {
@@ -186,6 +226,7 @@
     err.hidden = true;
     root.innerHTML = "";
     try {
+      await loadInferencePresets();
       const data = await fetchConnections();
       for (const group of data.by_kind || []) {
         const section = document.createElement("section");
@@ -567,7 +608,8 @@
     const presetSelect = document.createElement("select");
     presetSelect.name = "preset";
 
-    INFERENCE_PRESET_DEFAULTS.forEach((p) => {
+    const presetsList = getPresetsList();
+    presetsList.forEach((p) => {
       const opt = document.createElement("option");
       opt.value = p.id;
       opt.textContent = p.label;
@@ -691,7 +733,7 @@
 
     presetSelect.addEventListener("change", () => {
       const val = presetSelect.value;
-      const matched = INFERENCE_PRESET_DEFAULTS.find((p) => p.id === val);
+      const matched = getPresetsList().find((p) => p.id === val);
       if (matched && matched.url) urlInput.value = matched.url;
     });
 
@@ -2378,7 +2420,7 @@
     const val = ev.target.value;
     const urlInput = $("#conn-base-url-input");
     if (!urlInput) return;
-    const matched = INFERENCE_PRESET_DEFAULTS.find((p) => p.id === val);
+    const matched = getPresetsList().find((p) => p.id === val);
     if (matched && matched.url) urlInput.value = matched.url;
   });
 
