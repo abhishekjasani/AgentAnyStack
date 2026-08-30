@@ -3,6 +3,10 @@
 **Tagline:** Any stack. One orchestrator.  
 **License:** Apache-2.0 · **Release:** v0 early · SemVer `0.3.26`
 
+<p align="center">
+  <img src="docs/architecture-overview.png" alt="AgentAnyStack Architecture Overview" width="100%">
+</p>
+
 ## What it is
 
 **AgentAnyStack** is a **control plane for AI agents** — an agent office.
