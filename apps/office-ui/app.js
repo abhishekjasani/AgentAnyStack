@@ -64,20 +64,30 @@
   }
 
   function showView(name) {
+    if (!document.getElementById(`view-${name}`)) name = "floor";
+    if (name !== "floor") {
+      $(".floor-panel").classList.remove("world-expanded");
+      $("#world-expand").setAttribute("aria-pressed", "false");
+    }
+    if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
+    $("#current-location").textContent = viewNames[name] || name;
+    if (name === "floor" || name === "analytics") refreshOffice();
     $$(".view").forEach((el) => {
       const on = el.id === `view-${name}`;
       el.hidden = !on;
     });
     $$(".nav-item").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.view === name);
+      if (btn.dataset.view === name) btn.setAttribute("aria-current", "page");
+      else btn.removeAttribute("aria-current");
     });
     if (name === "team") loadTeam();
+    if (name === "people") refreshOffice().then(renderPeople);
     if (name === "office-config") loadOfficeConfigForm();
     if (name === "agent-config") loadAgentConfigForm();
     if (name === "chat") loadChannel({ keepRoute: true });
     if (name === "memory") {
       loadMemory();
-      loadOkf();
     }
     if (name === "approvals") loadApprovals();
     if (name === "stacks") {
@@ -1504,6 +1514,7 @@
       form.max_input_tokens.value = a.max_input_tokens ?? -1;
       form.max_output_tokens.value = a.max_output_tokens ?? -1;
       form.persona_markdown.value = a.persona_markdown || "";
+      form.tools_mode.value = a.tools?.mode || "none";
       $("#agent-config-org").textContent =
         `Org ceiling: max ${org.max_autonomy ?? "—"} · default ${org.autonomy?.default ?? "—"}`;
       await fillStackModelSelect(
@@ -1883,7 +1894,9 @@
       if (!agents.length) {
         sel.innerHTML = '<option value="">No desks yet</option>';
         $("#gold-content").value = "";
-        $("#gold-meta").textContent = "Create a desk on Team first.";
+        $("#gold-meta").textContent = "Create an agent to start its notebook.";
+        goldNotes = []; renderGoldNotes();
+        await loadOkf();
         return;
       }
       for (const a of agents) {
@@ -1896,9 +1909,7 @@
         sel.value = prev;
       }
       const chosen = agents.find((a) => a.id === sel.value) || agents[0];
-      if (chosen && $("#okf-team")) {
-        $("#okf-team").value = chosen.team || "eng";
-      }
+
       if (chosen && $("#office-team")) {
         $("#office-team").value = chosen.team || "eng";
       }
@@ -1918,6 +1929,7 @@
     ok.hidden = true;
     if (!agentId) {
       $("#gold-content").value = "";
+      goldNotes = []; renderGoldNotes();
       return;
     }
     try {
@@ -1927,10 +1939,13 @@
         throw new Error(data.detail || `GET gold ${res.status}`);
       }
       const data = await res.json();
+      if ($("#gold-agent").value !== agentId) return;
       $("#gold-content").value = data.content || "";
+      goldNotes = (data.entries || []).filter(note => note.id !== "g_system");
+      renderGoldNotes();
       $("#gold-meta").textContent =
         data.content && data.content.trim()
-          ? "Agent-owned notepad · view only (scoped by session)"
+          ? `Notebook for ${data.user_id} · ${goldNotes.length} notes`
           : "Empty — agent can fill via append_gold";
     } catch (e) {
       err.textContent = String(e.message || e);
@@ -2796,6 +2811,7 @@
       max_output_tokens: Number(form.max_output_tokens.value),
       workspace: { project_id: projectId, path: "." },
       persona_markdown: String(form.persona_markdown.value || ""),
+      tools_mode: form.tools_mode.value,
     };
     try {
       const res = await api(`/agents/${encodeURIComponent(id)}`, {
@@ -3053,26 +3069,16 @@
         throw new Error(data.detail || `GET okf ${res.status}`);
       }
       const facts = await res.json();
-      list.innerHTML = "";
-      if (!facts.length) {
-        list.innerHTML = "<li class=\"desk-meta\">No team facts yet.</li>";
-        return;
+      if (($('#okf-team').value || 'eng').trim() !== team) return;
+      memoryFacts = facts;
+      memoryLoadedTeam = team;
+      memoryVisible = 24;
+      for (const [selector, values, label] of [["#memory-type", [...new Set(facts.map(f => f.type))].sort(), "All types"], ["#memory-project", [...new Set(facts.flatMap(f => f.projects || []))].sort(), "All projects"]]) {
+        const select = $(selector), previous = select.value;
+        select.replaceChildren(new Option(label, ""), ...values.map(value => new Option(value, value)));
+        if (values.includes(previous)) select.value = previous;
       }
-      for (const f of facts) {
-        const li = document.createElement("li");
-        const id = document.createElement("span");
-        id.className = "okf-id";
-        id.textContent = `${f.id} · ${f.type} · by ${f.created_by_user}`;
-        const body = document.createElement("div");
-        body.textContent = f.body;
-        const arch = document.createElement("button");
-        arch.type = "button";
-        arch.className = "btn ghost";
-        arch.textContent = "Archive";
-        arch.addEventListener("click", () => archiveOkf(f.id));
-        li.append(id, body, arch);
-        list.appendChild(li);
-      }
+      renderKnowledge();
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
@@ -3091,7 +3097,7 @@
       const res = await api("/okf/facts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ team, body }),
+        body: JSON.stringify({ team, body, type: $("#okf-type").value, projects: splitList($("#okf-projects").value), tags: splitList($("#okf-tags").value), sensitivity: $("#okf-sensitivity").value, pinned: $("#okf-pinned").checked }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -3161,6 +3167,7 @@
     }
     const body = {
       id: String(fd.get("id") || "").trim(),
+      tools_mode: String(fd.get("tools_mode") || "none"),
       name: String(fd.get("name") || "").trim(),
       team: String(fd.get("team") || "").trim(),
       stack,
@@ -3301,5 +3308,263 @@
     }
   });
 
-  showView("team");
+  async function updateGold(clear) {
+    const agentId = $("#gold-agent").value;
+    if (!agentId) return;
+    if (!window.confirm(`${clear ? "Clear" : "Replace"} working notes for ${agentId}?`)) return;
+    const button = $(clear ? "#gold-clear" : "#gold-replace");
+    button.disabled = true;
+    $("#gold-error").hidden = true;
+    try {
+      const response = await api(`/agents/${encodeURIComponent(agentId)}/gold`, clear ? { method: "DELETE" } : {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: $("#gold-replacement").value }),
+      });
+      if (!response.ok) { const data = await response.json(); throw new Error(data.detail || "Could not update notes"); }
+      $("#gold-replacement").value = "";
+      await loadGoldForSelected();
+      $("#gold-ok").textContent = clear ? "Working notes cleared." : "Working notes replaced.";
+      $("#gold-ok").hidden = false;
+    } catch (e) { $("#gold-error").textContent = e.message; $("#gold-error").hidden = false; }
+    finally { button.disabled = false; }
+  }
+  $("#gold-clear").addEventListener("click", () => updateGold(true));
+  $("#gold-replace").addEventListener("click", () => updateGold(false));
+
+  let memoryFacts = [], goldNotes = [], memoryLoadedTeam = '', memoryVisible = 24;
+  let peopleVisible = 36;
+  const splitList = value => [...new Set(value.split(',').map(s => s.trim()).filter(Boolean))];
+  function memorySummary() {
+    $('#memory-summary').innerHTML = statCards([
+      ['Shared facts loaded', memoryFacts.length, '▤'],
+      ['Pinned knowledge', memoryFacts.filter(f => f.pinned).length, '◆'],
+      ['Projects referenced', new Set(memoryFacts.flatMap(f => f.projects || [])).size, '▦'],
+      ['Notes in this notebook', goldNotes.length, '▥'],
+    ]);
+  }
+  function renderGoldNotes() {
+    $('#gold-entries').innerHTML = goldNotes.length ? goldNotes.map(n => `<article class="notebook-entry"><p>${escapeHtml(n.text)}</p><small>${escapeHtml(dateLabel(n.created_at))}</small>${n.run_id ? `<details><summary>Source run</summary><code>${escapeHtml(n.run_id)}</code></details>` : ''}</article>`).join('') : '<p class="desk-meta">No saved notes yet. Your agent can save notes while working.</p>';
+    memorySummary();
+  }
+  function renderKnowledge() {
+    const query = $('#memory-search').value.trim().toLowerCase();
+    const type = $('#memory-type').value, project = $('#memory-project').value;
+    const filtered = memoryFacts.filter(f => (!type || f.type === type) && (!project || (f.projects || []).includes(project)) && (!query || [f.body, f.id, f.created_by_user, f.source_run, ...(f.tags || [])].filter(Boolean).join(' ').toLowerCase().includes(query)))
+      .sort((a,b) => Number(b.pinned) - Number(a.pinned) || String(b.created).localeCompare(String(a.created)));
+    $('#memory-results').textContent = `${Math.min(memoryVisible, filtered.length)} of ${filtered.length} matching facts · loaded team: ${memoryLoadedTeam || 'none'}`;
+    $('#okf-list').innerHTML = filtered.length ? filtered.slice(0,memoryVisible).map(f => `<li class="knowledge-card"><header><span class="fact-kind">${escapeHtml(f.type)}</span>${f.pinned ? '<span class="fact-pin">◆ Pinned</span>' : ''}<span class="fact-sensitivity">${escapeHtml(f.sensitivity)}</span></header><p class="fact-body">${escapeHtml(f.body)}</p><div class="fact-tags"><span>${escapeHtml(f.scope)}</span>${(f.projects || []).map(p => `<span>▦ ${escapeHtml(p)}</span>`).join('')}${(f.tags || []).map(t => `<span>#${escapeHtml(t)}</span>`).join('')}</div><footer><small>By ${escapeHtml(f.created_by_user)} · ${escapeHtml(dateLabel(f.created))}</small><button class="btn ghost" data-archive-fact="${escapeHtml(f.id)}">Archive</button></footer><details><summary>Provenance &amp; ID</summary><dl><dt>Fact</dt><dd>${escapeHtml(f.id)}</dd><dt>Source run</dt><dd>${escapeHtml(f.source_run || 'Manually added')}</dd><dt>Domain</dt><dd>${escapeHtml(f.domain)}</dd></dl></details></li>`).join('') : '<li class="knowledge-empty"><h3>No matching knowledge</h3><p>Try another search or team, or add the first shared fact.</p></li>';
+    $('#memory-more').hidden = filtered.length <= memoryVisible;
+    memorySummary();
+  }
+  for (const id of ['#memory-search','#memory-type','#memory-project']) $(id).addEventListener('input', () => { memoryVisible = 24; renderKnowledge(); });
+  $('#memory-clear').addEventListener('click', () => { $('#memory-search').value = ''; $('#memory-type').value = ''; $('#memory-project').value = ''; memoryVisible = 24; renderKnowledge(); });
+  $('#memory-more').addEventListener('click', () => { memoryVisible += 24; renderKnowledge(); });
+  $('#okf-list').addEventListener('click', event => { const button = event.target.closest('[data-archive-fact]'); if (button) archiveOkf(button.dataset.archiveFact); });
+  $('#okf-team').addEventListener('change', loadOkf);
+
+  function renderPeople() {
+    const query = $('#people-search').value.toLowerCase().trim(), kind = $('#people-kind').value;
+    const entries = [...officeSnapshot.people.map(p => ({...p, kind:'human'})), ...officeSnapshot.agents.map(a => ({...a,kind:'agent'}))];
+    const filtered = entries.filter(p => (!kind || p.kind === kind) && (!query || [p.name,p.id,p.team,p.title,p.model].filter(Boolean).join(' ').toLowerCase().includes(query)));
+    $('#people-count').textContent = `${Math.min(filtered.length, peopleVisible)} of ${filtered.length} matching members · ${officeSnapshot.people.length} humans · ${officeSnapshot.agents.length} agents`;
+    const html = filtered.slice(0,peopleVisible).map(p => `<article class="person-card"><header><span class="person-avatar ${p.kind}">${escapeHtml(initials(p.name))}</span><div><h3>${escapeHtml(p.name)}${p.is_current ? ' <small>(you)</small>' : ''}</h3><span class="person-kind">${p.kind === 'human' ? 'HUMAN' : 'AI AGENT'}</span></div></header><p>${escapeHtml(p.title || p.model)}</p><p class="desk-meta">${escapeHtml(p.team)}${p.project_id ? ` · ${escapeHtml(p.project_id)}` : ''}</p><footer>${p.kind === 'agent' ? `${statusPill(deskState(p.id).status)}<button class="btn" data-desk="${escapeHtml(p.id)}">Visit desk ↗</button>` : `<span class="desk-meta">${p.is_current ? 'Current user identity' : 'Directory entry · presence unknown'}</span>${p.registered ? `<button class="btn ghost" data-remove-person="${escapeHtml(p.id)}">Remove entry</button>` : ''}`}</footer></article>`).join('') || '<p class="empty">No matching people or agents.</p>';
+    if ($('#people-directory').innerHTML !== html) $('#people-directory').innerHTML = html;
+    $('#people-more').hidden = filtered.length <= peopleVisible;
+  }
+  for (const id of ['#people-search','#people-kind']) $(id).addEventListener('input', () => { peopleVisible = 36; renderPeople(); });
+  $('#people-more').addEventListener('click', () => { peopleVisible += 36; renderPeople(); });
+  $('#person-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget, button = $('button[type="submit"]',form);
+    button.disabled = true; $('#people-error').hidden = true;
+    try {
+      const result = await api('/office/people', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(form)))});
+      if (!result.ok) { const data = await result.json(); throw new Error(typeof data.detail === 'string' ? data.detail : 'Check the person ID, name, team, and title.'); }
+      form.reset(); await refreshOffice(); renderPeople();
+    } catch (error) { $('#people-error').textContent=error.message; $('#people-error').hidden=false; }
+    finally { button.disabled=false; }
+  });
+  $('#people-directory').addEventListener('click', async event => {
+    const button=event.target.closest('[data-remove-person]');
+    if (!button || !confirm(`Remove ${button.dataset.removePerson} from the human directory? This does not remove a login or agent.`)) return;
+    button.disabled=true;
+    try {
+      const result=await api(`/office/people/${encodeURIComponent(button.dataset.removePerson)}`,{method:'DELETE'});
+      if (!result.ok) throw new Error('Could not remove the directory entry.');
+      await refreshOffice(); renderPeople();
+    } catch(error) { $('#people-error').textContent=error.message; $('#people-error').hidden=false; button.disabled=false; }
+  });
+
+  let officeSnapshot = { agents: [], people: [], active: [], recent: [], approvals: [] };
+  let officeLoading = false;
+  let inspectingDesk = null;
+  let floorSignature = "";
+  let floorArrangement = "team";
+  const viewNames = { people: "People & agents", floor: "Office floor", team: "Agents", chat: "Conversations", memory: "Knowledge", approvals: "Approvals", analytics: "Run history", stacks: "Connections", "local-models": "Local models", connect: "Integrations", "office-config": "Office settings", create: "Seat an agent", "agent-config": "Configure agent" };
+
+  const initials = (name) => String(name || "Agent").split(/[\s_-]+/).map(x => x[0]).slice(0, 2).join("").toUpperCase();
+  function statusLabel(status) {
+    return ({ ok: "Completed", error: "Failed", waiting: "Needs approval", idle: "Available", working: "Working", thinking: "Thinking", responding: "Responding", "using tool": "Using a tool", finishing: "Finishing" })[status] || status;
+  }
+  function statusPill(status) {
+    return `<span class="status-pill ${escapeHtml(status.replaceAll(" ", "-"))}">${escapeHtml(statusLabel(status))}</span>`;
+  }
+  function dateLabel(value) {
+    if (!value) return "—";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+  function deskState(agentId) {
+    const active = officeSnapshot.active.filter(r => r.agent_id === agentId);
+    const approvals = officeSnapshot.approvals.filter(r => r.agent_id === agentId);
+    const recent = officeSnapshot.recent.find(r => r.agent_id === agentId);
+    return { active, approvals, recent, status: active[0]?.status || (approvals.length ? "waiting" : "idle") };
+  }
+  function statCards(items) {
+    return items.map(([label, value, icon]) => `<div class="stat-card"><div><small>${escapeHtml(label)}</small><strong>${value}</strong></div><span class="stat-symbol" aria-hidden="true">${icon}</span></div>`).join("");
+  }
+  function deskDrawing(index) {
+    const colors = ["#a597c7", "#92b7a6", "#c7a589", "#95a9ce", "#c098ad"];
+    const shirt = colors[index % colors.length];
+    return `<svg viewBox="0 0 150 125" aria-hidden="true"><ellipse cx="76" cy="107" rx="57" ry="10" fill="#4d45600b"/>
+      <path d="M23 44L125 44L132 55L16 55Z" fill="#e9ceb0"/><path d="M16 55H132V65H16Z" fill="#c3a98e"/><path d="M23 65H28V97H23ZM120 65H125V97H120Z" fill="#b1a392"/>
+      <rect x="54" y="16" width="44" height="32" rx="3" fill="#686675"/><rect class="monitor-light" x="58" y="20" width="36" height="23" rx="1"/><path d="M74 48V52M66 52H86" stroke="#807983" stroke-width="3"/>
+      <path d="M62 26H80M62 31H88M62 36H74" stroke="#fff" stroke-opacity=".6" stroke-width="2"/>
+      <rect x="56" y="56" width="39" height="7" rx="2" fill="#e6dfdd"/><path d="M60 59H91" stroke="#b6afb9" stroke-dasharray="2 2"/>
+      <rect x="109" y="46" width="8" height="9" rx="2" fill="#fff9ed"/><path d="M117 48Q124 50 117 53" stroke="#fff9ed" fill="none" stroke-width="2"/>
+      <path d="M31 48V37" stroke="#88a68c" stroke-width="2"/><ellipse cx="27" cy="37" rx="4" ry="8" transform="rotate(-35 27 37)" fill="#8eaf97"/><ellipse cx="35" cy="35" rx="4" ry="8" transform="rotate(25 35 35)" fill="#a7bf9b"/><path d="M25 45H37L35 55H27Z" fill="#ece7df"/>
+      <rect x="62" y="85" width="27" height="25" rx="9" fill="#9b94ac"/><path d="M75 106V116M64 116H86" stroke="#89828e" stroke-width="3"/>
+      <path d="M61 89Q57 66 75 66Q94 66 90 89Z" fill="${shirt}"/><path class="typing-hand" d="M61 77L54 65M88 77L96 65" stroke="${shirt}" stroke-width="7" stroke-linecap="round"/>
+      <ellipse cx="75" cy="64" rx="12" ry="13" fill="#e9c6a8"/><path d="M63 65Q57 45 75 48Q92 46 87 66L83 56Q72 61 64 56Z" fill="#605762"/>
+      <rect x="59" y="86" width="33" height="16" rx="6" fill="#b4abc5"/><path d="M64 91H87" stroke="#cac2d6" stroke-width="2"/>
+    </svg>`;
+  }
+  function renderOffice() {
+    const { agents, active, recent, approvals, people } = officeSnapshot;
+    $("#office-stats").innerHTML = statCards([["Humans + agents", people.length + agents.length, "♙"], ["Working right now", new Set(active.map(r => r.agent_id)).size, "↗"], ["Need your attention", approvals.length, "◷"], ["Teams together", new Set([...agents, ...people].map(a => a.team)).size, "▦"]]);
+    $("#nav-approval-count").textContent = approvals.length || "";
+    const teamSelect = $("#floor-team");
+    const teams = [...new Set([...agents, ...people].map(a => a.team))].sort();
+    const previousTeam = teamSelect.value;
+    const teamKey = JSON.stringify(teams);
+    if (teamSelect.dataset.teams !== teamKey) {
+      teamSelect.innerHTML = '<option value="">All teams</option>' + teams.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+      if (teams.includes(previousTeam)) teamSelect.value = previousTeam;
+      teamSelect.dataset.teams = teamKey;
+    }
+    const filtered = agents.filter(a => !teamSelect.value || a.team === teamSelect.value);
+    const groups = [...new Set(filtered.map(a => floorArrangement === "project" ? a.project_id || "Unassigned" : a.team))].sort();
+    // Preserve focus and animations when polling does not change the floor.
+    const signature = JSON.stringify([agents, active.map(r => [r.run_id, r.status, r.tool]), approvals, teamSelect.value, floorArrangement]);
+    if (signature !== floorSignature) {
+      floorSignature = signature;
+      const focusedDesk = document.activeElement?.dataset.desk;
+      const focusedRoom = document.activeElement?.dataset.roomView;
+      $("#floor-map").innerHTML = `<div class="office-windows" aria-hidden="true"><i></i><i></i><i></i><span>ANY STACK. ONE OFFICE.</span></div><div class="spatial-floor"><div class="studio-wing">` + groups.map((group, groupIndex) => {
+        const members = filtered.filter(a => (floorArrangement === "project" ? a.project_id || "Unassigned" : a.team) === group);
+        const working = members.filter(a => deskState(a.id).active.length).length;
+        return `<section class="room" aria-label="${escapeHtml(group)} ${floorArrangement} room"><div class="room-header"><span><b>${String(groupIndex + 1).padStart(2, "0")}</b> ${escapeHtml(group)} ${floorArrangement === "project" ? "project" : "studio"}</span><span>${working ? `${working} working` : `${members.length} seated`}</span></div><div class="room-desks">${members.map(a => {
+          const state = deskState(a.id);
+          const label = state.active[0]?.tool || (state.active.length ? statusLabel(state.status) + "…" : state.approvals.length ? "Your review, please" : "Ready for a task");
+          return `<button class="agent-station ${state.active.length ? "is-working" : ""} ${state.approvals.length ? "has-approval" : ""}" data-desk="${escapeHtml(a.id)}" aria-label="${escapeHtml(a.name)} — ${escapeHtml(statusLabel(state.status))}"><span class="desk-bubble">${escapeHtml(label)}</span>${deskDrawing(agents.indexOf(a))}<span class="station-name">${escapeHtml(a.name)}</span><span class="station-role">${escapeHtml(a.project_id || a.team)}</span><span class="station-status">${statusPill(state.status)}</span></button>`;
+        }).join("")}</div>${members.length > 1 ? `<div class="shared-table"><span aria-hidden="true">▤</span><div><strong>${floorArrangement === "project" && group !== "Unassigned" ? "Shared project table" : "Team table"}</strong><small>${floorArrangement === "project" && group !== "Unassigned" ? "Assigned to the same project" : "A shared space for the team"}</small></div><button data-room-view="memory" aria-label="Open shared knowledge for ${escapeHtml(group)}">Knowledge ↗</button></div>` : ""}</section>`;
+      }).join("") + (!filtered.length ? `<div class="empty"><p class="empty-title">Make yourself at home.</p><p class="empty-body">Your office is ready. Seat your first agent and give it something to work on.</p><button class="btn primary" data-create-desk>+ Seat your first agent</button></div>` : "") + `</div><div class="amenity-wing">
+        <button class="office-room library-room" data-room-view="memory"><span class="room-number">02 / KNOWLEDGE</span><span class="bookshelf" aria-hidden="true"><i></i><i></i><i></i></span><strong>The library <span>↗</span></strong><small>Everything your team remembers</small></button>
+        <button class="office-room review-room ${approvals.length ? "needs-review" : ""}" data-room-view="approvals"><span class="room-number">03 / APPROVALS</span><span class="meeting-furniture" aria-hidden="true"><i></i><i></i><i></i><i></i><b>${approvals.length || "✓"}</b></span><strong>Review room <span>↗</span></strong><small>${approvals.length ? `${approvals.length} request${approvals.length === 1 ? "" : "s"} waiting for you` : "All clear. Nothing waiting."}</small></button>
+        <button class="office-room server-room" data-room-view="stacks"><span class="room-number">04 / CONNECTIONS</span><span class="server-furniture" aria-hidden="true"><i></i><i></i><i></i></span><strong>Server room <span>↗</span></strong><small>The engines behind your agents</small></button>
+      </div></div><div class="office-corridor"><span aria-hidden="true">✳</span><span>MAIN WALKWAY</span><span aria-hidden="true">✳</span></div><div class="reception"><span class="reception-symbol" aria-hidden="true">a•</span><div><strong>Reception</strong><small>Questions, context, and a place to start.</small></div><button class="btn" data-office-chat>Talk to Office ↗</button></div>`;
+      const restore = focusedDesk ? $$("[data-desk]").find(el => el.dataset.desk === focusedDesk) : focusedRoom ? $$("#floor-map [data-room-view]").find(el => el.dataset.roomView === focusedRoom) : null;
+      restore?.focus({ preventScroll: true });
+    }
+    window.officeSceneSnapshot = { ...officeSnapshot, arrangement: floorArrangement, team: teamSelect.value };
+    document.dispatchEvent(new CustomEvent("office-snapshot", { detail: window.officeSceneSnapshot }));
+    const name = id => agents.find(a => a.id === id)?.name || id;
+    const pulse = [
+      ...active.map(r => ({ name: name(r.agent_id), text: `${statusLabel(r.status)}${r.tool ? ` · ${r.tool}` : ""}`, time: r.started_at })),
+      ...approvals.slice(0, 3).map(a => ({ name: name(a.agent_id), text: a.summary, time: a.created_at, approval: true })),
+      ...recent.slice(0, 6).map(r => ({ name: name(r.agent_id), text: `${statusLabel(r.status)} · ${r.model}`, time: r.ended_at }))
+    ];
+    $("#office-activity").innerHTML = pulse.length ? pulse.slice(0, 9).map(r => `<div class="activity-item"><span class="activity-avatar">${escapeHtml(initials(r.name))}</span><div><strong>${escapeHtml(r.name)}</strong><p>${r.approval ? "Approval requested · " : ""}${escapeHtml(r.text)}</p><time>${escapeHtml(dateLabel(r.time))}</time>${r.approval ? '<button class="btn ghost" data-review-approvals>Review</button>' : ''}</div></div>`).join("") : '<div class="activity-empty">A quiet moment at the office.<br>Start a conversation with an agent to see its work here.</div>';
+    if (inspectingDesk && $("#desk-dialog").open) renderDeskDetail();
+  }
+  function renderDeskDetail() {
+    const a = officeSnapshot.agents.find(a => a.id === inspectingDesk);
+    if (!a) { $("#desk-dialog").close(); return; }
+    const state = deskState(a.id);
+    $("#desk-detail").innerHTML = `<h1>${escapeHtml(a.name)}</h1>${statusPill(state.status)}<dl class="detail-grid"><div><dt>Team</dt><dd>${escapeHtml(a.team)}</dd></div><div><dt>Project</dt><dd>${escapeHtml(a.project_id || "No project")}</dd></div><div><dt>Model</dt><dd>${escapeHtml(a.model)}</dd></div><div><dt>Connection</dt><dd>${escapeHtml(a.connection_id || a.stack)}</dd></div></dl>${state.active.map(r => `<p class="desk-meta">${escapeHtml(r.run_id)} · ${escapeHtml(statusLabel(r.status))}${r.tool ? ` · ${escapeHtml(r.tool)}` : ""}<br>Started ${escapeHtml(dateLabel(r.started_at))}</p>`).join("")}${state.approvals.length ? `<p>${state.approvals.length} pending approval(s)</p><button class="btn" data-review-approvals>Review approvals</button>` : ""}${state.recent ? `<p class="desk-meta">Last run: ${escapeHtml(statusLabel(state.recent.status))} · ${escapeHtml(dateLabel(state.recent.ended_at))}</p>` : '<p class="desk-meta">No completed runs yet. Start a conversation to give this agent its first task.</p>'}`;
+  }
+  function renderRuns() {
+    const runs = [...officeSnapshot.active, ...officeSnapshot.recent];
+    $("#run-summary").innerHTML = statCards([["Active runs", officeSnapshot.active.length, "↗"], ["Recent completed", officeSnapshot.recent.filter(r => r.status === "ok").length, "✓"], ["Recent failed", officeSnapshot.recent.filter(r => r.status === "error").length, "!"], ["Recorded runs shown", officeSnapshot.recent.length, "▤"]]);
+    $("#run-rows").innerHTML = runs.length ? runs.map((r, i) => `<tr><td>${escapeHtml(officeSnapshot.agents.find(a => a.id === r.agent_id)?.name || r.agent_id)}<small>${escapeHtml(r.run_id)}</small></td><td>${escapeHtml(r.team)}<small>${escapeHtml(r.project_id || "—")}</small></td><td>${escapeHtml(r.model)}<small>${escapeHtml(r.connection_id || r.stack)}</small></td><td>${statusPill(r.status)}</td><td>${escapeHtml(dateLabel(r.started_at))}</td><td><button class="btn ghost" data-run-index="${i}">Inspect</button></td></tr>`).join("") : '<tr><td colspan="6">No runs yet. Start a conversation with an agent to begin.</td></tr>';
+  }
+  async function refreshOffice() {
+    if (officeLoading) return;
+    officeLoading = true;
+    try {
+      const responses = await Promise.all([api("/agents", {signal: AbortSignal.timeout(10000)}), api("/office/activity", {signal: AbortSignal.timeout(10000)}), api("/approvals?status=pending_human&limit=200", {signal: AbortSignal.timeout(10000)}), api("/office/people", {signal: AbortSignal.timeout(10000)})]);
+      for (const res of responses) if (!res.ok) throw new Error(`Office update failed (${res.status})`);
+      const [agents, activity, approvals, people] = await Promise.all(responses.map(r => r.json()));
+      officeSnapshot = { agents, ...activity, approvals, people };
+      $("#connection-status").textContent = "Office connected";
+      $("#connection-status").classList.remove("is-offline");
+      $("#floor-error").hidden = true;
+      $("#runs-error").hidden = true;
+      renderOffice();
+      if (!$("#view-people").hidden) renderPeople();
+      if (!$("#view-analytics").hidden) renderRuns();
+    } catch (e) {
+      $("#connection-status").textContent = "Updates disconnected";
+      $("#connection-status").classList.add("is-offline");
+      for (const sel of ["#floor-error", "#runs-error"]) {
+        $(sel).textContent = `${e.message}. Displayed data may be out of date. Retrying automatically…`;
+        $(sel).hidden = false;
+      }
+    } finally { officeLoading = false; }
+  }
+  $("#floor-create").addEventListener("click", () => showView("create"));
+  $("#floor-history").addEventListener("click", () => showView("analytics"));
+  $("#floor-office-chat").addEventListener("click", openOfficeChannel);
+  $("#floor-team").addEventListener("change", renderOffice);
+  $("#desk-close").addEventListener("click", () => $("#desk-dialog").close());
+  $("#run-close").addEventListener("click", () => $("#run-dialog").close());
+  $("#runs-refresh").addEventListener("click", refreshOffice);
+  $("#desk-chat").addEventListener("click", () => {
+    const a = officeSnapshot.agents.find(a => a.id === inspectingDesk);
+    $("#desk-dialog").close(); if (a) openChannelChat(a);
+  });
+  $("#desk-configure").addEventListener("click", () => { $("#desk-dialog").close(); openAgentConfig(inspectingDesk); });
+  document.addEventListener("click", async ev => {
+    const room = ev.target.closest("[data-room-view]");
+    if (room) showView(room.dataset.roomView);
+    const arrangement = ev.target.closest("[data-arrange]");
+    if (arrangement) {
+      floorArrangement = arrangement.dataset.arrange;
+      $$("[data-arrange]").forEach(button => button.setAttribute("aria-pressed", String(button === arrangement)));
+      renderOffice();
+    }
+    const desk = ev.target.closest("[data-desk]");
+    if (desk) { inspectingDesk = desk.dataset.desk; renderDeskDetail(); $("#desk-dialog").showModal(); }
+    if (ev.target.closest("[data-create-desk]")) showView("create");
+    if (ev.target.closest("[data-office-chat]")) openOfficeChannel();
+    if (ev.target.closest("[data-review-approvals]")) { $("#desk-dialog").close(); showView("approvals"); }
+    const runButton = ev.target.closest("[data-run-index]");
+    if (runButton) {
+      const run = [...officeSnapshot.active, ...officeSnapshot.recent][Number(runButton.dataset.runIndex)];
+      $("#run-dialog").showModal();
+      $("#run-detail").textContent = JSON.stringify(run, null, 2) + "\n\nLoading thinking…";
+      try {
+        const res = await api(`/runs/${encodeURIComponent(run.run_id)}/thinking`);
+        if (!res.ok) throw new Error(`Thinking unavailable (${res.status})`);
+        const result = await res.json();
+        $("#run-detail").textContent = JSON.stringify(run, null, 2) + "\n\nThinking\n" + (result.text || "No thinking recorded for this run.");
+      } catch (e) { $("#run-detail").textContent = JSON.stringify(run, null, 2) + "\n\n" + e.message; }
+    }
+  });
+  window.addEventListener("hashchange", () => { const name = location.hash.slice(1); if (viewNames[name]) showView(name); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshOffice(); });
+  setInterval(() => { if (!document.hidden) refreshOffice(); }, 3000);
+
+  showView(viewNames[location.hash.slice(1)] ? location.hash.slice(1) : "floor");
+  refreshOffice();
 })();

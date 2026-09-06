@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +35,7 @@ from agent_anystack.hitl.autonomy import compute_effective
 from agent_anystack.limits import resolve_run_limits, truncate_messages_to_input
 from agent_anystack.memory import ExtractJob, OkfStore, pack_memory_sections
 from agent_anystack.office import OfficeRepository
+from agent_anystack.runs.activity import ActivityStore
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
 from agent_anystack.tools.gold import GOLD_TOOL_SCHEMAS, execute_gold_tool
 
@@ -154,7 +157,48 @@ class ChatRunService:
             code="unsupported_stack",
         )
 
-    async def stream_agent_chat(
+    async def stream_agent_chat(self, *, agent_id: str, user_id: str,
+                                message: str, channel: str = "office_ui") -> AsyncIterator[dict]:
+        store = ActivityStore(self.journal.path.with_name("activity.sqlite3"))
+        presence = None
+        heartbeat = None
+
+        async def keep_alive():
+            while True:
+                await asyncio.sleep(10)
+                store.put(presence)
+
+        stream = self._stream_agent_chat(agent_id=agent_id, user_id=user_id,
+                                         message=message, channel=channel)
+        try:
+            async for event in stream:
+                kind = event.get("type")
+                if kind == "meta":
+                    agent = self.repo.get_agent(agent_id)
+                    presence = {**event, "status": "working", "started_at": utc_now(),
+                                "team": agent.team,
+                                "project_id": agent.workspace.project_id if agent.workspace else None}
+                    presence.pop("type", None)
+                    store.put(presence)
+                    heartbeat = asyncio.create_task(keep_alive())
+                elif presence and kind in {"thinking", "tool", "token", "error", "done"}:
+                    stage = {"thinking": "thinking", "tool": "using tool", "token": "responding",
+                             "error": "error", "done": "finishing"}[kind]
+                    tool = event.get("name") if kind == "tool" else None
+                    if presence["status"] != stage or presence.get("tool") != tool:
+                        presence.update(status=stage, tool=tool)
+                        store.put(presence)
+                yield event
+        finally:
+            if heartbeat:
+                heartbeat.cancel()
+                with suppress(asyncio.CancelledError):
+                    await heartbeat
+            if presence:
+                store.remove(presence["run_id"])
+            await stream.aclose()
+
+    async def _stream_agent_chat(
         self,
         *,
         agent_id: str,

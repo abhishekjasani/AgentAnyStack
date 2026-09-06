@@ -21,6 +21,7 @@ from agent_anystack.api.me import router as me_router
 from agent_anystack.api.models import router as models_router
 from agent_anystack.api.office import router as office_router
 from agent_anystack.api.okf import router as okf_router
+from agent_anystack.api.people import router as people_router
 from agent_anystack.api.projects import router as projects_router
 from agent_anystack.api.stacks import router as stacks_router
 from agent_anystack.config import get_settings
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(health_router)
     app.include_router(me_router)
+    app.include_router(people_router)
     app.include_router(agents_router)
     app.include_router(projects_router)
     app.include_router(gold_router)
