@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Fixed
+- Agent inspection now opens from People & agents as well as the office floor; shared dialogs no longer sit inside hidden views.
+- Removed the logo icon from workspace navigation and fallback reception.
+
 ### Added
 - Bounded virtual floors with member search and pagination, tested against rosters up to 1,000 agents.
 - Persistent human directory and mixed human/agent seating, separate from live presence and authentication.
