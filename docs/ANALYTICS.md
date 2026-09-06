@@ -1,6 +1,6 @@
 # Analytics & trust surface
 
-Comprehensive analytical tab — **direction**, not a v0 build commitment.
+Run history is available today. The broader analytics modules below describe the roadmap.
 
 **Related:** [V0_SCOPE.md](./V0_SCOPE.md) · [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) · [ORCHESTRATOR.md](./ORCHESTRATOR.md) · [CONNECT.md](./CONNECT.md)
 
@@ -41,12 +41,13 @@ Buyers and operators need proof: who ran what, with what knowledge, which APIs/M
 
 ---
 
-## v0 rule
+## Available now
 
-- **UI:** Analytics nav **stub** only (“coming” / empty table headers OK).
-- **Must:** structured **journal events** on every run (`run_id`, `agent_id`, `user_id`, `channel`) so the tab can light up later without re-instrumenting.
+The **Run history** screen shows active runs plus up to 100 recent journal entries for the current user. It includes agent, team/project, model/connection, status, and start time. Inspect a run to view its metadata and recorded thinking when available. Approval decision audit rows are excluded.
 
-No fancy BI in v0.
+The **Office floor** also shows live agent presence, pending approvals, and recent outcomes. Both surfaces use `GET /office/activity`; see [Office UI architecture](architecture/09_UI.md) for polling and presence lifecycle details.
+
+Cost/token accounting, API/MCP usage aggregates, knowledge graphs, and cross-team communication visualizations remain planned. A shared project table on the floor represents assignments, not measured agent-to-agent traffic.
 
 ---
 
@@ -55,3 +56,4 @@ No fancy BI in v0.
 | Date | Note |
 | --- | --- |
 | 2026-08-04 | Initial roadmap; v0 = journal + stub UI |
+| 2026-09-05 | Office presence, run history, and run inspection available |

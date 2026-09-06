@@ -53,6 +53,12 @@ class RunJournal:
             return []
         return rows[-limit:]
 
+    def recent_for_user(self, user_id: str, limit: int = 100) -> list[JournalEntry]:
+        """Newest-first user runs, excluding approval decision audit records."""
+        rows = [entry for entry in self._read_all()
+                if entry.user_id == user_id and entry.agent_id and not entry.approval_id]
+        return list(reversed(rows[-limit:])) if limit > 0 else []
+
     def recent_for_connection(
         self,
         connection_id: str,
