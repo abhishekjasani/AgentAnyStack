@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 
 ### Added
+- Bounded virtual floors with member search and pagination, tested against rosters up to 1,000 agents.
+- Persistent human directory and mixed human/agent seating, separate from live presence and authentication.
+- Structured notebook entries and shared knowledge cards with search, type/project filters, tags, pinning, sensitivity, provenance, and incremental display.
+- Design research notes documenting Carbon and W3C guidance.
+- Minecraft-inspired 3D voxel office with block-built agent characters, desks, library, review room, server racks, reception, and project hub.
+- Camera rotation, zoom/reset, expanded view, keyboard-accessible labels, and HTML/SVG fallback for unavailable WebGL.
+- Locally vendored Three.js 0.180.0 modules with license and reproduction instructions.
+- Live agent status, team/project seating, and room navigation.
+- User-scoped live presence and recent-run API with heartbeat expiry and stream cleanup.
+- Run history and inspection, office activity feed, and pending-approval indicators.
+- Office UI user guide and updated frontend/activity architecture documentation.
 - `CONTRIBUTING.md` with beginner-friendly contribution guide
 - Clean public `CHANGELOG.md`
 - Simple `Makefile` for common commands (`make dev`, `make test`, `make lint`, `make format`)
@@ -15,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Standardized naming to `PROJECT_OVERVIEW.md`
 
 ### Changed
+- Unified dark workspace styling across the office, forms, chat, tables, and inspectors, with responsive layout and reduced-motion support.
+- Updated README setup commands, feature availability, documentation links, and contributor checks.
 - Softer, more welcoming language around core vision documents
 - Clear standard fork + PR workflow in contribution guide
 

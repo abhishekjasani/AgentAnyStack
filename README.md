@@ -46,13 +46,14 @@ Full product surface. Markers: **Available** · **In progress** · **Planned**
 | Capability | Status |
 | --- | --- |
 | Agent desks and role-based chat | Available |
+| Human directory alongside agent seats | Available (directory only; no invitations or live human presence) |
 | Multi-user concurrent desks; per-user gold | Available |
 | Git-native agent definitions (`agent.yaml` + `AGENT.md`) | Available |
 | Office system envelope on every run | Available |
 | Org → floor → team → agent hierarchy | In progress (team live; floors next) |
 | Floor connect lines (gated cross-team memory share) | Planned |
 | Domain × channel × risk personas | Available / expanding |
-| Live activity and desk presence | In progress |
+| Live activity and desk presence | Available: live statuses, team/project seating, and office pulse |
 
 ### Memory & knowledge
 
@@ -75,7 +76,8 @@ Full product surface. Markers: **Available** · **In progress** · **Planned**
 | Effective autonomy (ceiling; user may tighten only) | In progress |
 | Hard floors (external send, money, PII, prod, legal) | Planned |
 | Run journal (`run_id`, `agent_id`, `user_id`, `channel`) | Available |
-| Analytics: run explorer, API/MCP usage, HITL stats | Planned |
+| Run history and run inspection | Available |
+| API/MCP usage and HITL statistics | Planned |
 | Cost / tokens by agent and project | Planned |
 
 ### Any stack & tools
@@ -135,22 +137,37 @@ flowchart LR
 
 ## Quick start
 
-Requires Python 3.12+ and Ollama (or another OpenAI-compatible endpoint).
+Requires Python 3.12+. To run agent tasks, configure an inference connection such as Ollama, an OpenAI-compatible provider, or AWS Bedrock. You can explore the office before connecting a model.
+
+Run these commands from the repository root so the app finds `office/`, the UI, and `.env`:
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/abhishekjasani/AgentAnyStack.git
 cd AgentAnyStack
 cp .env.example .env
-
-cd apps/orchestrator
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -e .
-uvicorn agent_anystack.main:app --reload --port 8787
+python3 -m venv .venv
+source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install -e './apps/orchestrator[dev]'
+python -m uvicorn agent_anystack.main:app --reload --port 8787
 ```
 
-API: `http://127.0.0.1:8787/docs`  
-Set `OFFICE_REPO_PATH`, `DATABASE_URL`, and `OLLAMA_BASE_URL` in `.env`.
+Open the [office](http://127.0.0.1:8787/) or [API documentation](http://127.0.0.1:8787/docs).
+Set `OFFICE_REPO_PATH`, `DATABASE_URL`, and `OLLAMA_BASE_URL` in `.env` if you need different locations or an Ollama endpoint.
+
+## Walk through your voxel office
+
+1. Open **Connections** to configure a model provider, or **Local models** to manage Ollama.
+2. Select **Seat an agent**, then choose its role, project, connection, and model.
+3. Click its desk and start a conversation to give it a task.
+4. Return to the Minecraft-inspired **Office floor** to follow live activity. Drag to rotate, zoom into desks, or expand the 3D world. Switch between **Teams** and **Projects** to change the seating arrangement.
+5. Add human directory entries in **People & agents**, and use search and floor paging as your roster grows.
+6. Visit the **library** for memory, the **review room** for approvals, or **Run history** for recorded outcomes.
+
+Working agents animate while the backend reports an active run. Shared project seating shows assignments; it does not create agent-to-agent delegation or prove that agents are exchanging messages. The sidebar keeps all features accessible, including integrations and office settings.
+
+The library provides structured notebooks and searchable shared facts, with project/type filters, tags, provenance, and pinning.
+
+See the [Office UI guide](docs/OFFICE_UI.md) for room navigation, activity states, and troubleshooting.
 
 ---
 
@@ -171,7 +188,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute. We especially welc
 | [docs/STACK_ADAPTERS.md](./docs/STACK_ADAPTERS.md) | Stack adapters |
 | [docs/ANALYTICS.md](./docs/ANALYTICS.md) | Analytics |
 | [docs/CONNECT.md](./docs/CONNECT.md) | External channels |
-| [docs/USE_CASES_MEMORY.md](./docs/USE_CASES_MEMORY.md) | Scenarios |
+| [docs/DESIGN.md](./docs/DESIGN.md) | Design research and implementation decisions |
+| [docs/OFFICE_UI.md](./docs/OFFICE_UI.md) | Office tour and troubleshooting |
 | [docs/architecture/](./docs/architecture/) | Engineering implementation notes |
 
 **Note:** `docs/` is now public and contains the full vision. See `CONTRIBUTING.md` for guidance on canonical files vs architecture notes.

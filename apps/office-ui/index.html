@@ -3,40 +3,42 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AgentAnyStack</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/styles.css" />
+  <title>AgentAnyStack · The Office</title>
+  <link rel="stylesheet" href="/assets/styles.css?v=20260906" />
+  <link rel="stylesheet" href="/assets/voxel.css?v=20260906" />
 </head>
 <body>
   <div class="shell">
     <aside class="nav" aria-label="Office navigation">
-      <div class="brand">
-        <span class="brand-name">AgentAnyStack</span>
-      </div>
+      <a class="brand" href="#floor"><span class="brand-mark">a<span>•</span></span><span>AnyStack<small>YOUR AGENT WORKSPACE</small></span></a>
+      <div class="workspace-label"><span class="workspace-icon">A</span> My workspace <span class="workspace-dot"></span></div>
+      <span class="nav-caption">WORKSPACE</span>
       <nav class="nav-list">
-        <button type="button" class="nav-item is-active" data-view="team">Team</button>
-        <button type="button" class="nav-item" data-view="chat">Chat</button>
-        <button type="button" class="nav-item" data-view="memory">Memory</button>
-        <button type="button" class="nav-item" data-view="approvals">Approvals</button>
-        <button type="button" class="nav-item" data-view="stacks">Stacks</button>
-        <button type="button" class="nav-item" data-view="local-models">Local Models</button>
-        <button type="button" class="nav-item" data-view="floor">Floor</button>
-        <button type="button" class="nav-item" data-view="analytics">Analytics</button>
-        <button type="button" class="nav-item" data-view="connect">Connect</button>
-        <button type="button" class="nav-item" data-view="settings">Settings</button>
+        <button type="button" class="nav-item" data-view="floor"><span>▦</span> Office floor</button>
+        <button type="button" class="nav-item" data-view="people"><span>♟</span> People &amp; agents</button>
+        <button type="button" class="nav-item" data-view="team"><span>♙</span> Agents</button>
+        <button type="button" class="nav-item" data-view="chat"><span>◷</span> Conversations</button>
+        <button type="button" class="nav-item" data-view="approvals"><span>✓</span> Approvals <b id="nav-approval-count"></b></button>
+        <button type="button" class="nav-item" data-view="memory"><span>▤</span> Knowledge</button>
+        <button type="button" class="nav-item" data-view="analytics"><span>↗</span> Run history</button>
       </nav>
+      <span class="nav-caption">INFRASTRUCTURE</span>
+      <nav class="nav-list">
+        <button type="button" class="nav-item" data-view="stacks"><span>▱</span> Connections</button>
+        <button type="button" class="nav-item" data-view="local-models"><span>◈</span> Local models</button>
+        <button type="button" class="nav-item" data-view="connect"><span>⌘</span> Integrations</button>
+        <button type="button" class="nav-item" data-view="office-config"><span>⚙</span> Office settings</button>
+      </nav>
+      <div class="nav-bottom"><span class="user-avatar">AD</span><div>Admin<small>Community workspace</small></div><a href="/docs" target="_blank" rel="noopener" aria-label="API documentation">↗</a></div>
     </aside>
-
     <main class="main">
+      <header class="topbar"><span>Workspace <span class="breadcrumb-divider">/</span> <strong id="current-location">Office floor</strong></span><span id="connection-status" class="connection-status">Connecting…</span></header>
       <section id="view-team" class="view is-visible" aria-labelledby="team-title">
         <header class="view-head">
           <div>
             <h1 id="team-title">Team</h1>
             <p class="lede">
-              Office front desk is always here; create desks for roles. Soft jobs live in
-              <code>office/orchestrator.yaml</code>.
+              Meet your team. Give every agent a role, a model, and a place to work.
             </p>
           </div>
           <button type="button" class="btn primary" id="btn-open-create">Create agent</button>
@@ -55,8 +57,7 @@
           <div>
             <h1 id="office-config-title">Configure Office</h1>
             <p class="lede">
-              Soft orchestrator jobs — writes <code>office/orchestrator.yaml</code>.
-              Not a desk persona (no gold / AGENT.md).
+              Choose the Office model, memory settings, and default limits for your team.
             </p>
           </div>
           <button type="button" class="btn ghost" id="btn-back-office-team">Back to Team</button>
@@ -142,7 +143,7 @@
           <div>
             <h1 id="chat-title">Chat</h1>
             <p class="lede">
-              One orchestrator channel per user — pick Office or a desk; history stays in this thread.
+              Check in with Office or send a task directly to an agent. Your conversation stays together.
             </p>
           </div>
         </header>
@@ -164,8 +165,7 @@
           <div>
             <h1 id="create-title">Create agent</h1>
             <p class="lede">
-              Writes <code>agent.yaml</code> + <code>AGENT.md</code> under <code>office/teams/…</code>.
-              A <strong>project working directory</strong> is required (create one if needed).
+              Give your new teammate a name, a mission, and a project to work on.
             </p>
           </div>
           <button type="button" class="btn ghost" id="btn-back-team">Back to Team</button>
@@ -217,6 +217,9 @@
           <label>Max output tokens (-1 = inherit stack)
             <input name="max_output_tokens" type="number" min="-1" max="100000" value="-1" />
           </label>
+          <label>Tool mode
+            <select name="tools_mode"><option value="none">None</option><option value="mediated">Mediated</option><option value="worker">Worker</option></select>
+          </label>
           <label>Persona (AGENT.md)
             <textarea name="persona_markdown" rows="8" placeholder="# Name&#10;&#10;## Mission&#10;…"></textarea>
           </label>
@@ -232,7 +235,7 @@
           <div>
             <h1 id="agent-config-title">Configure desk</h1>
             <p class="lede">
-              Edits <code>agent.yaml</code> (+ <code>AGENT.md</code>). Id and team stay fixed.
+              Set this agent’s role, model, project, and operating limits.
             </p>
           </div>
           <button type="button" class="btn ghost" id="btn-back-agent-team">Back to Team</button>
@@ -273,6 +276,9 @@
           <label>Max output tokens (-1 = inherit stack)
             <input name="max_output_tokens" type="number" min="-1" max="100000" required />
           </label>
+          <label>Tool mode
+            <select name="tools_mode"><option value="none">None</option><option value="mediated">Mediated</option><option value="worker">Worker</option></select>
+          </label>
           <label>Persona (AGENT.md)
             <textarea name="persona_markdown" rows="8"></textarea>
           </label>
@@ -284,56 +290,29 @@
         </form>
       </section>
 
+      <section id="view-people" class="view" hidden>
+        <header class="view-head"><div><p class="eyebrow">THE PEOPLE BEHIND THE WORK</p><h1>People &amp; agents</h1><p class="lede">Human teammates and AI agents, together in one directory.</p></div><button class="btn primary" data-create-desk>+ Seat an agent</button></header>
+        <div class="people-toolbar"><label><span class="sr-only">Search directory</span><input id="people-search" type="search" placeholder="Search names, teams, or roles…" /></label><label><span class="sr-only">Directory type</span><select id="people-kind"><option value="">Everyone</option><option value="human">Humans</option><option value="agent">Agents</option></select></label></div>
+        <details class="form people-add"><summary>+ Add a human teammate</summary><p class="desk-meta">Adds a directory entry and an office seat. This does not send an invitation, create a login, grant permissions, or indicate online presence.</p><form id="person-form"><label>Person ID<input name="id" required pattern="[a-z][a-z0-9_-]*" maxlength="64" placeholder="alex" /></label><label>Name<input name="name" required maxlength="100" placeholder="Alex Chen" /></label><label>Team<input name="team" required pattern="[a-z][a-z0-9_-]*" maxlength="64" value="eng" /></label><label>Role / job title<input name="title" required maxlength="100" placeholder="Designer" /></label><button class="btn primary" type="submit">Add teammate</button></form></details>
+        <p id="people-error" class="error" hidden></p><p id="people-count" class="desk-meta" aria-live="polite"></p><div id="people-directory" class="people-directory"></div><button class="btn ghost" id="people-more" hidden>Show more</button>
+      </section>
       <section id="view-memory" class="view" hidden>
-        <header class="view-head">
-          <div>
-            <h1>Memory</h1>
-            <p class="lede">
-              Gold = the desk’s personal working notes (agent read/update via tools; view-only here).
-              Team OKF = shared SQLite facts packed into chat
-              (<code>C ≈ gold ∪ mem(team)</code>). Export writes a portable snapshot under
-              <code>office/memory/</code> (leave-path).
-            </p>
-          </div>
-        </header>
-
-        <h2 class="memory-h2">Gold (agent-owned)</h2>
-        <div class="form memory-form">
-          <label>
-            Desk
-            <select id="gold-agent" aria-label="Desk for gold notepad"></select>
-          </label>
-          <p id="gold-meta" class="desk-meta"></p>
-          <label>
-            Gold (read-only)
-            <textarea id="gold-content" rows="10" readonly placeholder="Agent notes via append_gold / delete_gold / clear_gold…"></textarea>
-          </label>
-          <p id="gold-error" class="error" hidden></p>
-          <p id="gold-ok" class="desk-meta" hidden></p>
-          <div class="form-actions memory-actions">
-            <button type="button" class="btn ghost" id="gold-refresh">Refresh</button>
-          </div>
-        </div>
-
-        <h2 class="memory-h2">Team OKF (shared)</h2>
-        <div class="form memory-form">
-          <label>
-            Team
-            <input id="okf-team" type="text" value="eng" pattern="[a-z][a-z0-9_-]*" />
-          </label>
-          <label>
-            New fact
-            <textarea id="okf-body" rows="3" placeholder="One atomic shared fact for the team…"></textarea>
-          </label>
-          <p id="okf-error" class="error" hidden></p>
-          <p id="okf-ok" class="desk-meta" hidden></p>
-          <div class="form-actions memory-actions">
-            <button type="button" class="btn primary" id="okf-add">Add fact</button>
-            <button type="button" class="btn ghost" id="okf-refresh">Refresh</button>
-            <button type="button" class="btn ghost" id="okf-export" title="Write SQLite OKF to office/memory/">Export OKF</button>
-          </div>
-          <ul id="okf-list" class="okf-list"></ul>
-        </div>
+        <header class="view-head"><div><p class="eyebrow">THE OFFICE LIBRARY</p><h1>Memory &amp; knowledge</h1><p class="lede">See what your agents remember, where it came from, and who it helps.</p></div><div class="form-actions"><button class="btn ghost" data-room-view="office-config">Memory settings</button><button type="button" class="btn" id="okf-export" title="Write shared knowledge to office/memory/">Export knowledge ↗</button></div></header>
+        <div id="memory-summary" class="office-stats" aria-live="polite"></div>
+        <div class="memory-workspace"><aside class="memory-notebook">
+          <header><span class="eyebrow">PERSONAL MEMORY</span><h2>Agent notebook</h2><p class="desk-meta">Private to this agent and your user identity. Shared facts live in the team library.</p></header>
+          <label>Agent<select id="gold-agent" aria-label="Desk for gold notepad"></select></label>
+          <p id="gold-meta" class="desk-meta"></p><div id="gold-entries" class="note-entries"></div>
+          <details><summary>Full notebook &amp; system primer</summary><textarea id="gold-content" rows="10" readonly aria-label="Full agent notebook"></textarea></details>
+          <p id="gold-error" class="error" hidden></p><p id="gold-ok" class="desk-meta" hidden></p>
+          <button type="button" class="btn ghost" id="gold-refresh">Refresh notebook</button>
+          <details class="memory-manage"><summary>Manage personal notes</summary><p class="desk-meta">Replacement and clearing preserve the system primer. These actions require confirmation.</p><label for="gold-replacement">Replacement notes</label><textarea id="gold-replacement" rows="4" placeholder="Write replacement notes…"></textarea><div class="form-actions"><button class="btn" id="gold-replace">Replace notes</button><button class="btn danger" id="gold-clear">Clear notes</button></div></details>
+        </aside><div class="memory-library">
+          <div class="library-heading"><div><span class="eyebrow">SHARED MEMORY</span><h2>Team knowledge</h2></div><label>Team<input id="okf-team" type="text" value="eng" pattern="[a-z][a-z0-9_-]*" /></label><button type="button" class="btn ghost" id="okf-refresh">Load team</button></div>
+          <div class="memory-filters"><label><span class="sr-only">Search shared knowledge</span><input id="memory-search" type="search" placeholder="Search facts, tags, authors, or source runs…" /></label><label><span class="sr-only">Filter fact type</span><select id="memory-type"><option value="">All types</option></select></label><label><span class="sr-only">Filter memory project</span><select id="memory-project"><option value="">All projects</option></select></label></div>
+          <details class="knowledge-compose"><summary>+ Add shared knowledge</summary><label>What should the team remember?<textarea id="okf-body" rows="3" maxlength="8000" placeholder="One clear fact, decision, or procedure…"></textarea></label><div class="memory-fields"><label>Type<select id="okf-type"><option>fact</option><option>decision</option><option>constraint</option><option>procedure</option><option>glossary</option><option>contact_policy</option><option>offer</option><option>outcome</option><option>risk</option></select></label><label>Project IDs (comma-separated)<input id="okf-projects" placeholder="Leave blank for team-wide knowledge" /></label><label>Tags (comma-separated)<input id="okf-tags" placeholder="onboarding, architecture" /></label><label>Sensitivity<select id="okf-sensitivity"><option>internal</option><option>public</option><option>customer</option><option>legal</option></select></label></div><label class="check-row"><input type="checkbox" id="okf-pinned" /> Pin this knowledge</label><button type="button" class="btn primary" id="okf-add">Save shared knowledge</button></details>
+          <p id="okf-error" class="error" hidden></p><p id="okf-ok" class="desk-meta" hidden></p><div class="memory-resultbar"><p id="memory-results" class="desk-meta" aria-live="polite"></p><button class="btn ghost" id="memory-clear">Clear filters</button></div><ul id="okf-list" class="okf-list knowledge-cards"></ul><button class="btn ghost" id="memory-more" hidden>Show more knowledge</button>
+        </div></div>
       </section>
       <section id="view-approvals" class="view" hidden>
         <header class="view-head">
@@ -521,28 +500,40 @@
         <p id="stacks-note" class="stub-note" hidden></p>
         <ul id="stacks-catalog" class="model-list"></ul>
       </section>
-      <section id="view-floor" class="view stub" hidden>
-        <h1>Floor</h1>
-        <p class="lede">Cross-team floor activity and connect lines — UI later.</p>
-        <p class="stub-note">Coming</p>
+      <section id="view-floor" class="view" aria-labelledby="floor-title" hidden>
+        <header class="view-head"><div><p class="eyebrow">YOUR WORLD. YOUR WORKFORCE.</p><h1 id="floor-title">A world of work<span class="accent">.</span></h1><p class="lede">An office built for your agents. Step inside and see what’s happening.</p></div><button class="btn primary" id="floor-create">+ Seat an agent</button></header>
+        <div class="office-stats" id="office-stats" aria-live="polite"></div>
+        <div class="office-layout">
+          <div class="floor-panel">
+            <div class="floor-toolbar"><div><span class="live-dot"></span><strong>The office</strong><span class="floor-subtitle">Floor 01</span></div><div class="floor-controls"><div class="floor-switch" aria-label="Desk arrangement"><button type="button" data-arrange="team" aria-pressed="true">Teams</button><button type="button" data-arrange="project" aria-pressed="false">Projects</button></div><label class="sr-only" for="floor-team">Filter team</label><select id="floor-team"><option value="">All teams</option></select></div></div>
+            <div class="world-navigation"><label><span class="sr-only">Find a person or agent</span><input id="world-search" type="search" placeholder="Find a person, agent, team, or project…" /></label><div class="world-paging"><button class="btn ghost" id="world-prev" aria-label="Previous floor">←</button><span id="world-page" aria-live="polite">Floor 1</span><button class="btn ghost" id="world-next" aria-label="Next floor">→</button></div></div>
+            <div id="voxel-world" class="voxel-world" role="group" aria-label="Interactive 3D voxel office">
+              <div class="world-hud"><span><i></i> OFFICE WORLD <small>01 / MAIN FLOOR</small></span><button type="button" id="world-expand" aria-label="Expand office" aria-pressed="false">⛶</button></div>
+              <div class="world-labels" aria-label="Office desks and rooms"></div>
+              <div class="world-caption"><span>DRAG TO LOOK AROUND</span><small>Click an agent or a room to enter</small></div>
+              <div class="world-camera" aria-label="Camera controls"><button type="button" data-camera="left" aria-label="Rotate left">↶</button><button type="button" data-camera="right" aria-label="Rotate right">↷</button><span></span><button type="button" data-camera="out" aria-label="Zoom out">−</button><button type="button" data-camera="in" aria-label="Zoom in">+</button><button type="button" data-camera="reset" aria-label="Reset camera">⌂</button></div>
+            </div><p id="world-fallback" class="desk-meta" hidden>3D rendering is unavailable in this browser. Use the interactive floor below.</p>
+            <div class="floor-map" id="floor-map"><div class="floor-loading">Opening the office…</div></div>
+            <div class="floor-legend"><span><i class="legend-dot working"></i> Working</span><span><i class="legend-dot waiting"></i> Needs approval</span><span><i class="legend-dot idle"></i> Available</span><span>Click a desk to check in ↗</span></div>
+          </div>
+          <aside class="activity-panel"><div class="panel-heading"><h2>Office pulse</h2><span class="live-label">LIVE</span></div><p class="panel-description">What’s happening around you.</p><div id="office-activity" aria-live="polite"></div><button class="btn ghost wide" id="floor-history">View run history ↗</button></aside>
+        </div>
+        <p id="floor-error" class="error" hidden></p>
+        <div class="office-directory" aria-label="Explore the office"><button data-room-view="chat"><span>01 / RECEPTION</span><strong>Start a conversation ↗</strong><small>Send work to any agent</small></button><button data-room-view="memory"><span>02 / LIBRARY</span><strong>Explore knowledge ↗</strong><small>Personal notes &amp; shared facts</small></button><button data-room-view="approvals"><span>03 / REVIEW ROOM</span><strong>Make a decision ↗</strong><small>Requests waiting for your approval</small></button><button data-room-view="stacks"><span>04 / SERVER ROOM</span><strong>Connect your tools ↗</strong><small>Models, providers &amp; runtimes</small></button></div><div class="office-bottom"><div><span class="eyebrow">THE FRONT DESK</span><h2>Big question? Start with Office.</h2><p>Ask about team knowledge, recent work, or the status of a project.</p></div><button class="btn" id="floor-office-chat">Talk to Office <span>↗</span></button></div>
+        <dialog id="desk-dialog"><div class="dialog-heading"><span class="eyebrow">AGENT DESK</span><button class="btn ghost" id="desk-close" aria-label="Close desk">✕</button></div><div id="desk-detail"></div><div class="form-actions"><button class="btn primary" id="desk-chat">Start conversation ↗</button><button class="btn ghost" id="desk-configure">Configure agent</button></div></dialog>
       </section>
-      <section id="view-analytics" class="view stub" hidden>
-        <h1>Analytics</h1>
-        <p class="lede">Trust / usage from the journal — UI later.</p>
-        <p class="stub-note">Coming</p>
+      <section id="view-analytics" class="view" hidden>
+        <header class="view-head"><div><p class="eyebrow">THE WORK, ON RECORD</p><h1>Run history</h1><p class="lede">Recent agent runs and their outcomes, straight from the office journal.</p></div><button class="btn" id="runs-refresh">Refresh</button></header>
+        <div id="run-summary" class="office-stats"></div><p id="runs-error" class="error" hidden></p><div class="table-wrap"><table><thead><tr><th>Agent / Run</th><th>Team / Project</th><th>Model</th><th>Status</th><th>Started</th><th>Details</th></tr></thead><tbody id="run-rows"></tbody></table></div><p class="desk-meta">Showing the latest 100 journal entries. Token and cost accounting are not yet recorded by the backend.</p>
+        <dialog id="run-dialog"><div class="dialog-heading"><h2>Run details</h2><button class="btn ghost" id="run-close" aria-label="Close run details">✕</button></div><pre id="run-detail"></pre></dialog>
       </section>
-      <section id="view-connect" class="view stub" hidden>
-        <h1>Connect</h1>
-        <p class="lede">External channels (plugins) hit this orchestrator — API later.</p>
-        <p class="stub-note">Channels API coming</p>
-      </section>
-      <section id="view-settings" class="view stub" hidden>
-        <h1>Settings</h1>
-        <p class="lede">Platform config is env-only in v0 (read-only UI later).</p>
-        <p class="stub-note">Stub</p>
+      <section id="view-connect" class="view" hidden>
+        <header class="view-head"><div><p class="eyebrow">ONE OFFICE, MANY SURFACES</p><h1>Integrations</h1><p class="lede">Use the orchestrator API to bring your agents into your own tools.</p></div><a class="btn primary" href="/docs" target="_blank" rel="noopener">Explore API ↗</a></header>
+        <div class="integration-grid"><article class="integration-card"><span class="integration-icon">⌘</span><h2>Orchestrator API</h2><p>Route messages to a desk, stream responses, share knowledge, and request approvals.</p><code>POST /channel/chat</code><p class="desk-meta">Available · Same agents and memory as this office</p></article><article class="integration-card"><span class="integration-icon">↗</span><h2>External channels</h2><p>Slack, Teams, IDE, CRM, and GitHub connectors are planned. No native connections are available yet.</p><span class="status-pill">Planned</span></article></div>
       </section>
     </main>
   </div>
-  <script src="/assets/app.js"></script>
+  <script src="/assets/app.js?v=20260906"></script>
+  <script type="module" src="/assets/office-scene.js?v=20260906"></script>
 </body>
 </html>

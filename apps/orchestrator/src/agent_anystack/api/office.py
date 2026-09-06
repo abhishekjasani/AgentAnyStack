@@ -1,10 +1,13 @@
 """Office front-desk Q&A + orchestrator.yaml config (pinned Office card)."""
 
 import logging
+from dataclasses import asdict
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+
 from agent_anystack.api.agents import get_office_repo
 from agent_anystack.api.deps import get_user_id
 from agent_anystack.config import Settings, get_settings
@@ -133,3 +136,18 @@ async def office_ask(
         ],
         team=result.team or body.team,
     )
+
+
+@router.get("/office/activity")
+async def office_activity(
+    settings: Annotated[Settings, Depends(get_settings)],
+    user_id: Annotated[str, Depends(get_user_id)],
+) -> dict:
+    """Live presence and recent journal for this user; no prompt or credential data."""
+    from agent_anystack.runs.activity import ActivityStore
+
+    path = journal_path_from_database_url(settings.database_url, Path("./data"))
+    active = [r for r in ActivityStore(path.with_name("activity.sqlite3")).active()
+              if r.get("user_id") == user_id]
+    rows = [asdict(r) for r in RunJournal(path).recent_for_user(user_id)]
+    return {"active": active, "recent": rows}
