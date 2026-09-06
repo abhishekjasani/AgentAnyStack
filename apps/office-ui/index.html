@@ -10,7 +10,7 @@
 <body>
   <div class="shell">
     <aside class="nav" aria-label="Office navigation">
-      <a class="brand" href="#floor"><span class="brand-mark">a<span>•</span></span><span>AnyStack<small>YOUR AGENT WORKSPACE</small></span></a>
+      <a class="brand" href="#floor"><span>AnyStack<small>YOUR AGENT WORKSPACE</small></span></a>
       <div class="workspace-label"><span class="workspace-icon">A</span> My workspace <span class="workspace-dot"></span></div>
       <span class="nav-caption">WORKSPACE</span>
       <nav class="nav-list">
@@ -520,12 +520,10 @@
         </div>
         <p id="floor-error" class="error" hidden></p>
         <div class="office-directory" aria-label="Explore the office"><button data-room-view="chat"><span>01 / RECEPTION</span><strong>Start a conversation ↗</strong><small>Send work to any agent</small></button><button data-room-view="memory"><span>02 / LIBRARY</span><strong>Explore knowledge ↗</strong><small>Personal notes &amp; shared facts</small></button><button data-room-view="approvals"><span>03 / REVIEW ROOM</span><strong>Make a decision ↗</strong><small>Requests waiting for your approval</small></button><button data-room-view="stacks"><span>04 / SERVER ROOM</span><strong>Connect your tools ↗</strong><small>Models, providers &amp; runtimes</small></button></div><div class="office-bottom"><div><span class="eyebrow">THE FRONT DESK</span><h2>Big question? Start with Office.</h2><p>Ask about team knowledge, recent work, or the status of a project.</p></div><button class="btn" id="floor-office-chat">Talk to Office <span>↗</span></button></div>
-        <dialog id="desk-dialog"><div class="dialog-heading"><span class="eyebrow">AGENT DESK</span><button class="btn ghost" id="desk-close" aria-label="Close desk">✕</button></div><div id="desk-detail"></div><div class="form-actions"><button class="btn primary" id="desk-chat">Start conversation ↗</button><button class="btn ghost" id="desk-configure">Configure agent</button></div></dialog>
       </section>
       <section id="view-analytics" class="view" hidden>
         <header class="view-head"><div><p class="eyebrow">THE WORK, ON RECORD</p><h1>Run history</h1><p class="lede">Recent agent runs and their outcomes, straight from the office journal.</p></div><button class="btn" id="runs-refresh">Refresh</button></header>
         <div id="run-summary" class="office-stats"></div><p id="runs-error" class="error" hidden></p><div class="table-wrap"><table><thead><tr><th>Agent / Run</th><th>Team / Project</th><th>Model</th><th>Status</th><th>Started</th><th>Details</th></tr></thead><tbody id="run-rows"></tbody></table></div><p class="desk-meta">Showing the latest 100 journal entries. Token and cost accounting are not yet recorded by the backend.</p>
-        <dialog id="run-dialog"><div class="dialog-heading"><h2>Run details</h2><button class="btn ghost" id="run-close" aria-label="Close run details">✕</button></div><pre id="run-detail"></pre></dialog>
       </section>
       <section id="view-connect" class="view" hidden>
         <header class="view-head"><div><p class="eyebrow">ONE OFFICE, MANY SURFACES</p><h1>Integrations</h1><p class="lede">Use the orchestrator API to bring your agents into your own tools.</p></div><a class="btn primary" href="/docs" target="_blank" rel="noopener">Explore API ↗</a></header>
@@ -533,7 +531,10 @@
       </section>
     </main>
   </div>
-  <script src="/assets/app.js?v=20260906"></script>
+  <!-- Shared inspectors must remain outside hidden feature views. -->
+  <dialog id="desk-dialog"><div class="dialog-heading"><span class="eyebrow">AGENT DESK</span><button class="btn ghost" id="desk-close" aria-label="Close desk">✕</button></div><div id="desk-detail"></div><div class="form-actions"><button class="btn primary" id="desk-chat">Start conversation ↗</button><button class="btn ghost" id="desk-configure">Configure agent</button></div></dialog>
+  <dialog id="run-dialog"><div class="dialog-heading"><h2>Run details</h2><button class="btn ghost" id="run-close" aria-label="Close run details">✕</button></div><pre id="run-detail"></pre></dialog>
+  <script src="/assets/app.js?v=20260906-2"></script>
   <script type="module" src="/assets/office-scene.js?v=20260906"></script>
 </body>
 </html>
