@@ -19,7 +19,7 @@ from agent_anystack.adapters.connections import (
     connection_store_from_database_url,
     resolve_desk_stack,
 )
-from agent_anystack.adapters.llm import OpenAICompatibleAdapter
+from agent_anystack.adapters.llm import OpenAICompatibleAdapter, TokenUsage
 from agent_anystack.adapters.opencode import OpenCodeAdapter
 from agent_anystack.adapters.stack_models import (
     StackSelectionError,
@@ -30,7 +30,11 @@ from agent_anystack.channel_history import ChannelHistoryStore
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.envelope import build_office_envelope
 from agent_anystack.hitl.autonomy import compute_effective
-from agent_anystack.limits import resolve_run_limits, truncate_messages_to_input
+from agent_anystack.limits import (
+    approx_tokens,
+    resolve_run_limits,
+    truncate_messages_to_input,
+)
 from agent_anystack.memory import ExtractJob, OkfStore, pack_memory_sections
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
@@ -260,6 +264,7 @@ class ChatRunService:
         status = "ok"
         error: str | None = None
         assistant_parts: list[str] = []
+        accumulated_usage = TokenUsage()
         try:
             if runtime.stack == "opencode":
                 async for event in self._run_opencode(
@@ -271,6 +276,16 @@ class ChatRunService:
                 ):
                     if event.get("type") == "token":
                         assistant_parts.append(event.get("text") or "")
+                    elif event.get("type") == "usage":
+                        u = TokenUsage(
+                            prompt_tokens=int(event.get("prompt_tokens") or 0),
+                            completion_tokens=int(event.get("completion_tokens") or 0),
+                            total_tokens=int(event.get("total_tokens") or 0),
+                            reasoning_tokens=int(event.get("reasoning_tokens") or 0),
+                            cost=float(event["cost"]) if event.get("cost") is not None else None,
+                            estimated=bool(event.get("estimated", False)),
+                        )
+                        accumulated_usage = accumulated_usage.add(u)
                     if event.get("type") == "error":
                         status = "error"
                         error = event.get("message") or "opencode error"
@@ -290,6 +305,16 @@ class ChatRunService:
                 ):
                     if event.get("type") == "token":
                         assistant_parts.append(event.get("text") or "")
+                    elif event.get("type") == "usage":
+                        u = TokenUsage(
+                            prompt_tokens=int(event.get("prompt_tokens") or 0),
+                            completion_tokens=int(event.get("completion_tokens") or 0),
+                            total_tokens=int(event.get("total_tokens") or 0),
+                            reasoning_tokens=int(event.get("reasoning_tokens") or 0),
+                            cost=float(event["cost"]) if event.get("cost") is not None else None,
+                            estimated=bool(event.get("estimated", False)),
+                        )
+                        accumulated_usage = accumulated_usage.add(u)
                     if event.get("type") == "error":
                         status = "error"
                         error = event.get("message") or "chat error"
@@ -316,6 +341,18 @@ class ChatRunService:
                 "code": "opencode_no_tokens",
             }
 
+        # If no usage was emitted by adapter or events, calculate fallback estimate
+        if accumulated_usage.total_tokens == 0 and ("".join(assistant_parts).strip() or message.strip()):
+            p_tokens = sum(approx_tokens(str(m.get("content") or "")) for m in messages)
+            c_tokens = approx_tokens("".join(assistant_parts))
+            accumulated_usage = TokenUsage(
+                prompt_tokens=p_tokens,
+                completion_tokens=c_tokens,
+                total_tokens=p_tokens + c_tokens,
+                estimated=True,
+            )
+            yield {"type": "usage", **accumulated_usage.as_dict()}
+
         self.journal.append(
             JournalEntry(
                 run_id=run_id,
@@ -332,10 +369,21 @@ class ChatRunService:
                 ended_at=utc_now(),
                 error=error,
                 connection_id=connection_id,
+                prompt_tokens=accumulated_usage.prompt_tokens,
+                completion_tokens=accumulated_usage.completion_tokens,
+                total_tokens=accumulated_usage.total_tokens,
+                reasoning_tokens=accumulated_usage.reasoning_tokens if accumulated_usage.reasoning_tokens else None,
+                cost=accumulated_usage.cost,
+                estimated=accumulated_usage.estimated,
             )
         )
 
-        done: dict = {"type": "done", "run_id": run_id, "status": status}
+        done: dict = {
+            "type": "done",
+            "run_id": run_id,
+            "status": status,
+            "usage": accumulated_usage.as_dict(),
+        }
         if (
             self.okf_extract_enabled
             and (self.okf_extract_llm or self.okf_extract_remember_lines)
@@ -459,6 +507,19 @@ class ChatRunService:
                         yield ev
                     return
                 raise
+
+            if turn.usage:
+                yield {"type": "usage", **turn.usage.as_dict()}
+            else:
+                p_tokens = sum(approx_tokens(str(m.get("content") or "")) for m in messages)
+                c_tokens = approx_tokens(turn.content or "") + approx_tokens(turn.reasoning or "")
+                est_usage = TokenUsage(
+                    prompt_tokens=p_tokens,
+                    completion_tokens=c_tokens,
+                    total_tokens=p_tokens + c_tokens,
+                    estimated=True,
+                )
+                yield {"type": "usage", **est_usage.as_dict()}
 
             if turn.reasoning:
                 append_thinking(self.database_url, run_id, turn.reasoning)

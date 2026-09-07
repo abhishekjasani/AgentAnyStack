@@ -1,9 +1,12 @@
 """Run journal — append-only JSONL for analytics later."""
 
+from __future__ import annotations
+
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 
@@ -33,6 +36,13 @@ class JournalEntry:
     decision: str | None = None
     decided_by: str | None = None
     connection_id: str | None = None
+    # Token usage & cost
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+    reasoning_tokens: int | None = None
+    cost: float | None = None
+    estimated: bool = False
 
 
 class RunJournal:
@@ -95,6 +105,68 @@ class RunJournal:
         rows.reverse()
         return rows[: max(0, limit)]
 
+    def recent_runs(
+        self,
+        *,
+        limit: int = 50,
+        team: str | None = None,
+        agent_id: str | None = None,
+        project_id: str | None = None,
+        stack: str | None = None,
+        user_id: str | None = None,
+    ) -> list[JournalEntry]:
+        """Newest-first run entries with optional filters (excludes approval-only rows)."""
+        rows = [e for e in self._read_all() if e.agent_id and not e.approval_id]
+        if team:
+            rows = [e for e in rows if e.team == team]
+        if agent_id:
+            rows = [e for e in rows if e.agent_id == agent_id]
+        if project_id:
+            rows = [e for e in rows if e.project_id == project_id]
+        if stack:
+            rows = [e for e in rows if e.stack == stack]
+        if user_id:
+            rows = [e for e in rows if e.user_id == user_id]
+        rows.reverse()
+        return rows[: max(0, limit)]
+
+    def summary(self) -> dict[str, Any]:
+        """Aggregated summary of runs, tokens, and cost across all runs."""
+        rows = [e for e in self._read_all() if e.agent_id and not e.approval_id]
+        total_runs = len(rows)
+        total_prompt_tokens = sum(e.prompt_tokens or 0 for e in rows)
+        total_completion_tokens = sum(e.completion_tokens or 0 for e in rows)
+        total_tokens = sum(e.total_tokens or 0 for e in rows)
+        total_cost = sum(e.cost or 0.0 for e in rows)
+
+        by_stack: dict[str, dict[str, Any]] = {}
+        by_agent: dict[str, dict[str, Any]] = {}
+
+        for e in rows:
+            # By stack
+            s_key = e.stack or "unknown"
+            s_data = by_stack.setdefault(s_key, {"runs": 0, "total_tokens": 0, "cost": 0.0})
+            s_data["runs"] += 1
+            s_data["total_tokens"] += e.total_tokens or 0
+            s_data["cost"] = round(s_data["cost"] + (e.cost or 0.0), 6)
+
+            # By agent
+            a_key = e.agent_id or "unknown"
+            a_data = by_agent.setdefault(a_key, {"runs": 0, "total_tokens": 0, "cost": 0.0})
+            a_data["runs"] += 1
+            a_data["total_tokens"] += e.total_tokens or 0
+            a_data["cost"] = round(a_data["cost"] + (e.cost or 0.0), 6)
+
+        return {
+            "total_runs": total_runs,
+            "total_prompt_tokens": total_prompt_tokens,
+            "total_completion_tokens": total_completion_tokens,
+            "total_tokens": total_tokens,
+            "total_cost": round(total_cost, 6),
+            "by_stack": by_stack,
+            "by_agent": by_agent,
+        }
+
     def _read_all(self) -> list[JournalEntry]:
         if not self.path.is_file():
             return []
@@ -124,6 +196,12 @@ class RunJournal:
                         decision=data.get("decision"),
                         decided_by=data.get("decided_by"),
                         connection_id=data.get("connection_id"),
+                        prompt_tokens=data.get("prompt_tokens"),
+                        completion_tokens=data.get("completion_tokens"),
+                        total_tokens=data.get("total_tokens"),
+                        reasoning_tokens=data.get("reasoning_tokens"),
+                        cost=data.get("cost"),
+                        estimated=bool(data.get("estimated", False)),
                     )
                 except (json.JSONDecodeError, TypeError, ValueError):
                     continue

@@ -30,8 +30,8 @@ class StackAdapter(Protocol):
         model: str,
         messages: list[dict[str, Any]],
         max_tokens: int | None = None,
-    ) -> AsyncIterator[dict[str, str]]:
-        """Yield streamed events ({'type': 'thinking'|'token', 'text': str})."""
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Yield streamed events ({'type': 'thinking'|'token'|'usage', ...})."""
         ...
 
 
@@ -51,10 +51,52 @@ class ToolCallRequest:
 
 
 @dataclass
+class TokenUsage:
+    """Normalized token counts and cost for one turn or aggregated run."""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    reasoning_tokens: int = 0
+    cost: float | None = None
+    estimated: bool = False
+
+    def add(self, other: TokenUsage | None) -> TokenUsage:
+        if other is None:
+            return self
+        return TokenUsage(
+            prompt_tokens=self.prompt_tokens + other.prompt_tokens,
+            completion_tokens=self.completion_tokens + other.completion_tokens,
+            total_tokens=self.total_tokens + other.total_tokens,
+            reasoning_tokens=self.reasoning_tokens + other.reasoning_tokens,
+            cost=(
+                (self.cost or 0.0) + (other.cost or 0.0)
+                if (self.cost is not None or other.cost is not None)
+                else None
+            ),
+            estimated=self.estimated or other.estimated,
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+            "estimated": self.estimated,
+        }
+        if self.reasoning_tokens:
+            d["reasoning_tokens"] = self.reasoning_tokens
+        if self.cost is not None:
+            d["cost"] = round(self.cost, 6)
+        return d
+
+
+@dataclass
 class ChatTurnResult:
     content: str = ""
     tool_calls: list[ToolCallRequest] = field(default_factory=list)
     reasoning: str = ""
+    usage: TokenUsage | None = None
 
 
 _THINK_OPEN = "<think>"
@@ -207,13 +249,14 @@ class OpenAICompatibleAdapter:
         model: str,
         messages: list[dict[str, Any]],
         max_tokens: int | None = None,
-    ) -> AsyncIterator[dict[str, str]]:
-        """Stream events ('thinking' or 'token') from OpenAI chat completions."""
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream events ('thinking', 'token', or 'usage') from OpenAI chat completions."""
         url = f"{self.base_url}/chat/completions"
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": True,
+            "stream_options": {"include_usage": True},
         }
         _apply_limits(payload, max_tokens=max_tokens)
         headers = self._headers()
@@ -223,6 +266,53 @@ class OpenAICompatibleAdapter:
                 async with client.stream("POST", url, json=payload, headers=headers) as resp:
                     if resp.status_code >= 400:
                         body = (await resp.aread()).decode("utf-8", errors="replace")
+                        if "stream_options" in body.lower() and "stream_options" in payload:
+                            # Host rejected stream_options; retry without it
+                            payload_fallback = dict(payload)
+                            payload_fallback.pop("stream_options", None)
+                            async with client.stream("POST", url, json=payload_fallback, headers=headers) as retry_resp:
+                                if retry_resp.status_code >= 400:
+                                    retry_body = (await retry_resp.aread()).decode("utf-8", errors="replace")
+                                    raise StackError(
+                                        _friendly_http_error(retry_resp.status_code, retry_body, model, self.base_url),
+                                        code="openai_compatible_http",
+                                    )
+                                async for line in retry_resp.aiter_lines():
+                                    if not line or not line.startswith("data:"):
+                                        continue
+                                    data = line[len("data:") :].strip()
+                                    if not data or data == "[DONE]":
+                                        continue
+                                    try:
+                                        chunk = json.loads(data)
+                                    except json.JSONDecodeError:
+                                        continue
+                                    if err := chunk.get("error"):
+                                        msg = err if isinstance(err, str) else err.get("message", str(err))
+                                        raise StackError(
+                                            _friendly_http_error(200, str(msg), model, self.base_url),
+                                            code="openai_compatible_model",
+                                        )
+                                    choices = chunk.get("choices") or []
+                                    if not choices:
+                                        continue
+                                    delta = choices[0].get("delta") or {}
+                                    r_delta = (
+                                        delta.get("reasoning_content")
+                                        or delta.get("reasoning")
+                                        or delta.get("thought")
+                                    )
+                                    if r_delta:
+                                        yield {"type": "thinking", "text": str(r_delta)}
+                                    content = delta.get("content") or ""
+                                    if content:
+                                        for kind, text in parser.feed(content):
+                                            if text:
+                                                yield {"type": kind, "text": text}
+                                for kind, text in parser.flush():
+                                    if text:
+                                        yield {"type": kind, "text": text}
+                                return
                         raise StackError(
                             _friendly_http_error(resp.status_code, body, model, self.base_url),
                             code="openai_compatible_http",
@@ -243,6 +333,20 @@ class OpenAICompatibleAdapter:
                                 _friendly_http_error(200, str(msg), model, self.base_url),
                                 code="openai_compatible_model",
                             )
+                        if u := chunk.get("usage"):
+                            pt = int(u.get("prompt_tokens") or 0)
+                            ct = int(u.get("completion_tokens") or 0)
+                            tt = int(u.get("total_tokens") or (pt + ct))
+                            details = u.get("completion_tokens_details") or {}
+                            rt = int(details.get("reasoning_tokens") or u.get("reasoning_tokens") or 0)
+                            yield {
+                                "type": "usage",
+                                "prompt_tokens": pt,
+                                "completion_tokens": ct,
+                                "total_tokens": tt,
+                                "reasoning_tokens": rt,
+                                "estimated": False,
+                            }
                         choices = chunk.get("choices") or []
                         if not choices:
                             continue
@@ -263,6 +367,10 @@ class OpenAICompatibleAdapter:
                             for kind, text in parser.feed(content):
                                 if text:
                                     yield {"type": kind, "text": text}
+
+                    for kind, text in parser.flush():
+                        if text:
+                            yield {"type": kind, "text": text}
 
                     for kind, text in parser.flush():
                         if text:
@@ -354,8 +462,26 @@ class OpenAICompatibleAdapter:
                         code="openai_compatible_model",
                     )
                 choices = data.get("choices") or []
+                raw_usage = data.get("usage")
+                usage = None
+                if isinstance(raw_usage, dict):
+                    pt = int(raw_usage.get("prompt_tokens") or 0)
+                    ct = int(raw_usage.get("completion_tokens") or 0)
+                    tt = int(raw_usage.get("total_tokens") or (pt + ct))
+                    details = raw_usage.get("completion_tokens_details") or {}
+                    rt = int(
+                        details.get("reasoning_tokens")
+                        or raw_usage.get("reasoning_tokens")
+                        or 0
+                    )
+                    usage = TokenUsage(
+                        prompt_tokens=pt,
+                        completion_tokens=ct,
+                        total_tokens=tt,
+                        reasoning_tokens=rt,
+                    )
                 if not choices:
-                    return ChatTurnResult()
+                    return ChatTurnResult(usage=usage)
                 message = choices[0].get("message") or {}
                 raw_reasoning = (
                     message.get("reasoning_content")
@@ -371,6 +497,7 @@ class OpenAICompatibleAdapter:
                     content=clean_content,
                     tool_calls=_parse_tool_calls(message.get("tool_calls")),
                     reasoning=reasoning,
+                    usage=usage,
                 )
         except httpx.ConnectError as exc:
             raise StackError(

@@ -2,7 +2,7 @@ id: pythondev
 name: pythondeveloper
 team: eng
 stack: opencode
-model: amazon-bedrock/moonshot.kimi-k2-thinking
+model: zen-dev/big-pickle
 connection_id: opencode
 persona:
   domain: general

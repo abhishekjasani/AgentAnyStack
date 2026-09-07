@@ -15,6 +15,7 @@ from agent_anystack.adapters.llm import StackError
 from agent_anystack.adapters.opencode.events import (
     EventMapper,
     collect_reasoning_from_messages,
+    collect_usage_from_messages,
     parse_model_ref,
 )
 from agent_anystack.adapters.opencode.serve import ensure_serve
@@ -86,14 +87,16 @@ async def _auto_permission_once(
         log.warning("opencode permission once error %s: %s", path, exc)
 
 
-async def _harvest_thinking(
+async def _harvest_thinking_and_usage(
     client: AsyncOpencode,
     *,
     session_id: str,
     database_url: str,
     run_id: str,
+    need_thinking: bool = True,
+    need_usage: bool = True,
 ) -> AsyncIterator[dict[str, Any]]:
-    """If SSE missed reasoning parts, load them from the session after idle."""
+    """If SSE missed reasoning parts or usage, load them from the session after idle."""
     rows: Any = None
     try:
         fn = getattr(client.session, "messages", None)
@@ -108,11 +111,18 @@ async def _harvest_thinking(
                 cast_to=list,
             )
         except Exception as exc:  # noqa: BLE001
-            log.debug("opencode thinking harvest failed: %s", exc)
+            log.debug("opencode thinking/usage harvest failed: %s", exc)
             return
-    for chunk in collect_reasoning_from_messages(rows):
-        append_thinking(database_url, run_id, chunk)
-        yield {"type": "thinking", "text": chunk}
+
+    if need_usage:
+        usage = collect_usage_from_messages(rows)
+        if usage:
+            yield usage
+
+    if need_thinking:
+        for chunk in collect_reasoning_from_messages(rows):
+            append_thinking(database_url, run_id, chunk)
+            yield {"type": "thinking", "text": chunk}
 
 
 class OpenCodeAdapter:
@@ -315,6 +325,7 @@ class OpenCodeAdapter:
         chat_task = asyncio.create_task(client.session.chat(**chat_kwargs))
 
         got_token = False
+        got_usage = False
         failed = False
         loop = asyncio.get_running_loop()
         deadline = loop.time() + max(30.0, float(self.timeout))
@@ -355,6 +366,8 @@ class OpenCodeAdapter:
                 kind = item.get("type")
                 if kind == "token" and str(item.get("text") or "").strip():
                     got_token = True
+                if kind == "usage":
+                    got_usage = True
                 if kind == "session_idle":
                     break
                 yield item
@@ -394,12 +407,16 @@ class OpenCodeAdapter:
 
             if not failed and got_token:
                 stored = read_thinking(self.database_url, run_id).get("text") or ""
-                if not str(stored).strip():
-                    async for ev in _harvest_thinking(
+                need_thinking = not bool(str(stored).strip())
+                need_usage = not got_usage
+                if need_thinking or need_usage:
+                    async for ev in _harvest_thinking_and_usage(
                         client,
                         session_id=session_id,
                         database_url=self.database_url,
                         run_id=run_id,
+                        need_thinking=need_thinking,
+                        need_usage=need_usage,
                     ):
                         yield ev
         finally:

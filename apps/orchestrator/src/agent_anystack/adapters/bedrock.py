@@ -17,6 +17,7 @@ from agent_anystack.adapters.llm import (
     ChatTurnResult,
     StackError,
     StreamingThinkParser,
+    TokenUsage,
     ToolCallRequest,
     extract_reasoning_and_content,
 )
@@ -225,7 +226,7 @@ class BedrockAdapter:
         model: str,
         messages: list[dict[str, Any]],
         max_tokens: int | None = None,
-    ) -> AsyncIterator[dict[str, str]]:
+    ) -> AsyncIterator[dict[str, Any]]:
         system, converse_messages = _to_converse_messages(messages)
         kwargs = _converse_kwargs(
             model=model,
@@ -264,6 +265,20 @@ class BedrockAdapter:
                                 for kind, chunk in parser.feed(text):
                                     if chunk:
                                         queue.put_nowait(("event", {"type": kind, "text": chunk}))
+                        elif "metadata" in event:
+                            meta = event.get("metadata") or {}
+                            u = meta.get("usage") or {}
+                            if u:
+                                inp = int(u.get("inputTokens") or 0)
+                                out_tok = int(u.get("outputTokens") or 0)
+                                tot = int(u.get("totalTokens") or (inp + out_tok))
+                                queue.put_nowait(("event", {
+                                    "type": "usage",
+                                    "prompt_tokens": inp,
+                                    "completion_tokens": out_tok,
+                                    "total_tokens": tot,
+                                    "estimated": False,
+                                }))
                         elif "messageStop" in event:
                             break
                         elif "internalServerException" in event:
@@ -530,8 +545,20 @@ def _parse_converse_output(resp: dict[str, Any]) -> ChatTurnResult:
         "".join(texts),
         "\n".join(reasoning_texts) if reasoning_texts else None,
     )
+    raw_usage = resp.get("usage")
+    usage = None
+    if isinstance(raw_usage, dict):
+        inp = int(raw_usage.get("inputTokens") or 0)
+        out_tok = int(raw_usage.get("outputTokens") or 0)
+        tot = int(raw_usage.get("totalTokens") or (inp + out_tok))
+        usage = TokenUsage(
+            prompt_tokens=inp,
+            completion_tokens=out_tok,
+            total_tokens=tot,
+        )
     return ChatTurnResult(
         content=clean_content,
         tool_calls=tool_calls,
         reasoning=reasoning,
+        usage=usage,
     )

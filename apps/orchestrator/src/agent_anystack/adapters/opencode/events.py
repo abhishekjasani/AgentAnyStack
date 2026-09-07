@@ -67,6 +67,34 @@ def _error_message(err: Any) -> str:
     return str(err)
 
 
+def extract_opencode_usage(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Extract normalized usage event dict from an OpenCode message or part dict."""
+    tokens = data.get("tokens")
+    cost = data.get("cost")
+    if not isinstance(tokens, dict) and cost is None:
+        return None
+    inp = int((tokens or {}).get("input") or 0)
+    out = int((tokens or {}).get("output") or 0)
+    reasoning = int((tokens or {}).get("reasoning") or 0)
+    total = inp + out + reasoning
+    if total == 0 and cost is None:
+        return None
+    res: dict[str, Any] = {
+        "type": "usage",
+        "prompt_tokens": inp,
+        "completion_tokens": out,
+        "reasoning_tokens": reasoning,
+        "total_tokens": total,
+        "estimated": False,
+    }
+    if cost is not None:
+        try:
+            res["cost"] = round(float(cost), 6)
+        except (ValueError, TypeError):
+            pass
+    return res
+
+
 def _session_id(props: dict[str, Any], part: dict[str, Any] | None = None) -> str:
     if isinstance(part, dict):
         sid = str(part.get("sessionID") or "")
@@ -189,6 +217,14 @@ class EventMapper:
                         "code": "opencode_api_error",
                     }
                 )
+            if usage := extract_opencode_usage(info):
+                out.append(usage)
+            return out
+
+        if etype == "step-finish":
+            if self._ours(props):
+                if usage := extract_opencode_usage(props):
+                    out.append(usage)
             return out
 
         if etype == "session.idle":
@@ -240,3 +276,47 @@ def collect_reasoning_from_messages(rows: Any) -> list[str]:
             if text:
                 out.append(text)
     return out
+
+
+def collect_usage_from_messages(rows: Any) -> dict[str, Any] | None:
+    """Pull assistant tokens & cost from GET /session/{id}/message payloads."""
+    if not isinstance(rows, list):
+        return None
+    prompt_tokens = 0
+    completion_tokens = 0
+    reasoning_tokens = 0
+    total_cost = 0.0
+    has_usage = False
+
+    for row in rows:
+        data = row if isinstance(row, dict) else (getattr(row, "__dict__", None) or {})
+        if not isinstance(data, dict):
+            continue
+        info = data.get("info") if isinstance(data.get("info"), dict) else data
+        role = str(info.get("role") or "")
+        if role != "assistant":
+            continue
+        tokens = info.get("tokens") if isinstance(info.get("tokens"), dict) else None
+        cost = info.get("cost")
+        if tokens or cost is not None:
+            has_usage = True
+            if tokens:
+                prompt_tokens += int(tokens.get("input") or 0)
+                completion_tokens += int(tokens.get("output") or 0)
+                reasoning_tokens += int(tokens.get("reasoning") or 0)
+            if cost is not None:
+                try:
+                    total_cost += float(cost)
+                except (ValueError, TypeError):
+                    pass
+    if not has_usage:
+        return None
+    return {
+        "type": "usage",
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "reasoning_tokens": reasoning_tokens,
+        "total_tokens": prompt_tokens + completion_tokens + reasoning_tokens,
+        "cost": round(total_cost, 6) if total_cost > 0 else None,
+        "estimated": False,
+    }

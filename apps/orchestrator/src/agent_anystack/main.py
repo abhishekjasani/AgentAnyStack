@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from agent_anystack import __version__
 from agent_anystack.api.agents import router as agents_router
+from agent_anystack.api.analytics import router as analytics_router
 from agent_anystack.api.approvals import router as approvals_router
 from agent_anystack.api.bedrock import router as bedrock_router
 from agent_anystack.api.channel import router as channel_router
@@ -66,6 +67,7 @@ def create_app() -> FastAPI:
     app.include_router(stacks_router)
     app.include_router(connections_router)
     app.include_router(bedrock_router)
+    app.include_router(analytics_router)
 
     ui_dir = Path(settings.office_ui_path).resolve()
     if ui_dir.is_dir():

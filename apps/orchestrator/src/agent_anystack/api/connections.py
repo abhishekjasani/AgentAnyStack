@@ -626,6 +626,11 @@ async def connection_runtimes(
             "started_at": e.started_at,
             "ended_at": e.ended_at,
             "error": e.error,
+            "prompt_tokens": e.prompt_tokens,
+            "completion_tokens": e.completion_tokens,
+            "total_tokens": e.total_tokens,
+            "cost": e.cost,
+            "estimated": e.estimated,
         }
         for e in journal.recent_for_connection(
             c.id, aliases=c.aliases, stack=c.stack(), limit=20
