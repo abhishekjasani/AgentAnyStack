@@ -37,12 +37,24 @@ class JournalEntry:
     decided_by: str | None = None
     connection_id: str | None = None
     # Token usage & cost
-    prompt_tokens: int | None = None
-    completion_tokens: int | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
     total_tokens: int | None = None
     reasoning_tokens: int | None = None
     cost: float | None = None
     estimated: bool = False
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.input_tokens is None and self.prompt_tokens is not None:
+            self.input_tokens = self.prompt_tokens
+        elif self.prompt_tokens is None and self.input_tokens is not None:
+            self.prompt_tokens = self.input_tokens
+        if self.output_tokens is None and self.completion_tokens is not None:
+            self.output_tokens = self.completion_tokens
+        elif self.completion_tokens is None and self.output_tokens is not None:
+            self.completion_tokens = self.output_tokens
 
 
 class RunJournal:
@@ -131,11 +143,11 @@ class RunJournal:
         return rows[: max(0, limit)]
 
     def summary(self) -> dict[str, Any]:
-        """Aggregated summary of runs, tokens, and cost across all runs."""
+        """Aggregated summary of runs, tokens (input/output), and cost across all runs."""
         rows = [e for e in self._read_all() if e.agent_id and not e.approval_id]
         total_runs = len(rows)
-        total_prompt_tokens = sum(e.prompt_tokens or 0 for e in rows)
-        total_completion_tokens = sum(e.completion_tokens or 0 for e in rows)
+        total_input_tokens = sum(e.input_tokens or e.prompt_tokens or 0 for e in rows)
+        total_output_tokens = sum(e.output_tokens or e.completion_tokens or 0 for e in rows)
         total_tokens = sum(e.total_tokens or 0 for e in rows)
         total_cost = sum(e.cost or 0.0 for e in rows)
 
@@ -143,24 +155,52 @@ class RunJournal:
         by_agent: dict[str, dict[str, Any]] = {}
 
         for e in rows:
+            inp = e.input_tokens or e.prompt_tokens or 0
+            out = e.output_tokens or e.completion_tokens or 0
+            tot = e.total_tokens or (inp + out)
+
             # By stack
             s_key = e.stack or "unknown"
-            s_data = by_stack.setdefault(s_key, {"runs": 0, "total_tokens": 0, "cost": 0.0})
+            s_data = by_stack.setdefault(
+                s_key,
+                {
+                    "runs": 0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_tokens": 0,
+                    "cost": 0.0,
+                },
+            )
             s_data["runs"] += 1
-            s_data["total_tokens"] += e.total_tokens or 0
+            s_data["input_tokens"] += inp
+            s_data["output_tokens"] += out
+            s_data["total_tokens"] += tot
             s_data["cost"] = round(s_data["cost"] + (e.cost or 0.0), 6)
 
             # By agent
             a_key = e.agent_id or "unknown"
-            a_data = by_agent.setdefault(a_key, {"runs": 0, "total_tokens": 0, "cost": 0.0})
+            a_data = by_agent.setdefault(
+                a_key,
+                {
+                    "runs": 0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_tokens": 0,
+                    "cost": 0.0,
+                },
+            )
             a_data["runs"] += 1
-            a_data["total_tokens"] += e.total_tokens or 0
+            a_data["input_tokens"] += inp
+            a_data["output_tokens"] += out
+            a_data["total_tokens"] += tot
             a_data["cost"] = round(a_data["cost"] + (e.cost or 0.0), 6)
 
         return {
             "total_runs": total_runs,
-            "total_prompt_tokens": total_prompt_tokens,
-            "total_completion_tokens": total_completion_tokens,
+            "total_input_tokens": total_input_tokens,
+            "total_output_tokens": total_output_tokens,
+            "total_prompt_tokens": total_input_tokens,
+            "total_completion_tokens": total_output_tokens,
             "total_tokens": total_tokens,
             "total_cost": round(total_cost, 6),
             "by_stack": by_stack,
@@ -178,6 +218,12 @@ class RunJournal:
                     continue
                 try:
                     data = json.loads(line)
+                    inp = data.get("input_tokens")
+                    if inp is None:
+                        inp = data.get("prompt_tokens")
+                    out = data.get("output_tokens")
+                    if out is None:
+                        out = data.get("completion_tokens")
                     entry = JournalEntry(
                         run_id=str(data.get("run_id") or ""),
                         agent_id=str(data.get("agent_id") or ""),
@@ -196,8 +242,10 @@ class RunJournal:
                         decision=data.get("decision"),
                         decided_by=data.get("decided_by"),
                         connection_id=data.get("connection_id"),
-                        prompt_tokens=data.get("prompt_tokens"),
-                        completion_tokens=data.get("completion_tokens"),
+                        input_tokens=inp,
+                        output_tokens=out,
+                        prompt_tokens=inp,
+                        completion_tokens=out,
                         total_tokens=data.get("total_tokens"),
                         reasoning_tokens=data.get("reasoning_tokens"),
                         cost=data.get("cost"),

@@ -274,9 +274,11 @@ class BedrockAdapter:
                                 tot = int(u.get("totalTokens") or (inp + out_tok))
                                 queue.put_nowait(("event", {
                                     "type": "usage",
+                                    "input_tokens": inp,
+                                    "output_tokens": out_tok,
+                                    "total_tokens": tot,
                                     "prompt_tokens": inp,
                                     "completion_tokens": out_tok,
-                                    "total_tokens": tot,
                                     "estimated": False,
                                 }))
                         elif "messageStop" in event:
@@ -552,8 +554,8 @@ def _parse_converse_output(resp: dict[str, Any]) -> ChatTurnResult:
         out_tok = int(raw_usage.get("outputTokens") or 0)
         tot = int(raw_usage.get("totalTokens") or (inp + out_tok))
         usage = TokenUsage(
-            prompt_tokens=inp,
-            completion_tokens=out_tok,
+            input_tokens=inp,
+            output_tokens=out_tok,
             total_tokens=tot,
         )
     return ChatTurnResult(

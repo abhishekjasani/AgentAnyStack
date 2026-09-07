@@ -277,10 +277,13 @@ class ChatRunService:
                     if event.get("type") == "token":
                         assistant_parts.append(event.get("text") or "")
                     elif event.get("type") == "usage":
+                        inp = int(event.get("input_tokens") or event.get("prompt_tokens") or 0)
+                        out = int(event.get("output_tokens") or event.get("completion_tokens") or 0)
+                        tot = int(event.get("total_tokens") or (inp + out))
                         u = TokenUsage(
-                            prompt_tokens=int(event.get("prompt_tokens") or 0),
-                            completion_tokens=int(event.get("completion_tokens") or 0),
-                            total_tokens=int(event.get("total_tokens") or 0),
+                            input_tokens=inp,
+                            output_tokens=out,
+                            total_tokens=tot,
                             reasoning_tokens=int(event.get("reasoning_tokens") or 0),
                             cost=float(event["cost"]) if event.get("cost") is not None else None,
                             estimated=bool(event.get("estimated", False)),
@@ -306,10 +309,13 @@ class ChatRunService:
                     if event.get("type") == "token":
                         assistant_parts.append(event.get("text") or "")
                     elif event.get("type") == "usage":
+                        inp = int(event.get("input_tokens") or event.get("prompt_tokens") or 0)
+                        out = int(event.get("output_tokens") or event.get("completion_tokens") or 0)
+                        tot = int(event.get("total_tokens") or (inp + out))
                         u = TokenUsage(
-                            prompt_tokens=int(event.get("prompt_tokens") or 0),
-                            completion_tokens=int(event.get("completion_tokens") or 0),
-                            total_tokens=int(event.get("total_tokens") or 0),
+                            input_tokens=inp,
+                            output_tokens=out,
+                            total_tokens=tot,
                             reasoning_tokens=int(event.get("reasoning_tokens") or 0),
                             cost=float(event["cost"]) if event.get("cost") is not None else None,
                             estimated=bool(event.get("estimated", False)),
@@ -346,8 +352,8 @@ class ChatRunService:
             p_tokens = sum(approx_tokens(str(m.get("content") or "")) for m in messages)
             c_tokens = approx_tokens("".join(assistant_parts))
             accumulated_usage = TokenUsage(
-                prompt_tokens=p_tokens,
-                completion_tokens=c_tokens,
+                input_tokens=p_tokens,
+                output_tokens=c_tokens,
                 total_tokens=p_tokens + c_tokens,
                 estimated=True,
             )
@@ -369,8 +375,10 @@ class ChatRunService:
                 ended_at=utc_now(),
                 error=error,
                 connection_id=connection_id,
-                prompt_tokens=accumulated_usage.prompt_tokens,
-                completion_tokens=accumulated_usage.completion_tokens,
+                input_tokens=accumulated_usage.input_tokens,
+                output_tokens=accumulated_usage.output_tokens,
+                prompt_tokens=accumulated_usage.input_tokens,
+                completion_tokens=accumulated_usage.output_tokens,
                 total_tokens=accumulated_usage.total_tokens,
                 reasoning_tokens=accumulated_usage.reasoning_tokens if accumulated_usage.reasoning_tokens else None,
                 cost=accumulated_usage.cost,
@@ -514,8 +522,8 @@ class ChatRunService:
                 p_tokens = sum(approx_tokens(str(m.get("content") or "")) for m in messages)
                 c_tokens = approx_tokens(turn.content or "") + approx_tokens(turn.reasoning or "")
                 est_usage = TokenUsage(
-                    prompt_tokens=p_tokens,
-                    completion_tokens=c_tokens,
+                    input_tokens=p_tokens,
+                    output_tokens=c_tokens,
                     total_tokens=p_tokens + c_tokens,
                     estimated=True,
                 )

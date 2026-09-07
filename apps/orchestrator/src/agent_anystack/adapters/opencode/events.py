@@ -81,10 +81,12 @@ def extract_opencode_usage(data: dict[str, Any]) -> dict[str, Any] | None:
         return None
     res: dict[str, Any] = {
         "type": "usage",
+        "input_tokens": inp,
+        "output_tokens": out,
+        "total_tokens": total,
         "prompt_tokens": inp,
         "completion_tokens": out,
         "reasoning_tokens": reasoning,
-        "total_tokens": total,
         "estimated": False,
     }
     if cost is not None:
@@ -313,10 +315,12 @@ def collect_usage_from_messages(rows: Any) -> dict[str, Any] | None:
         return None
     return {
         "type": "usage",
+        "input_tokens": prompt_tokens,
+        "output_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens + reasoning_tokens,
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
         "reasoning_tokens": reasoning_tokens,
-        "total_tokens": prompt_tokens + completion_tokens + reasoning_tokens,
         "cost": round(total_cost, 6) if total_cost > 0 else None,
         "estimated": False,
     }

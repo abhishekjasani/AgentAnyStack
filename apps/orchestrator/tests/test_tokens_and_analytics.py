@@ -27,13 +27,18 @@ from agent_anystack.runs.service import ChatRunService
 
 def test_token_usage_model_and_aggregation():
     u1 = TokenUsage(
-        prompt_tokens=100,
-        completion_tokens=50,
+        input_tokens=100,
+        output_tokens=50,
         total_tokens=150,
         reasoning_tokens=20,
         cost=0.001,
         estimated=False,
     )
+    assert u1.input_tokens == 100
+    assert u1.output_tokens == 50
+    assert u1.prompt_tokens == 100
+    assert u1.completion_tokens == 50
+
     u2 = TokenUsage(
         prompt_tokens=200,
         completion_tokens=80,
@@ -42,7 +47,12 @@ def test_token_usage_model_and_aggregation():
         cost=0.002,
         estimated=False,
     )
+    assert u2.input_tokens == 200
+    assert u2.output_tokens == 80
+
     combined = u1.add(u2)
+    assert combined.input_tokens == 300
+    assert combined.output_tokens == 130
     assert combined.prompt_tokens == 300
     assert combined.completion_tokens == 130
     assert combined.total_tokens == 430
@@ -54,12 +64,14 @@ def test_token_usage_model_and_aggregation():
     assert combined.add(None) == combined
 
     # Add estimated
-    u_est = TokenUsage(prompt_tokens=50, completion_tokens=10, total_tokens=60, estimated=True)
+    u_est = TokenUsage(input_tokens=50, output_tokens=10, total_tokens=60, estimated=True)
     combined_est = combined.add(u_est)
     assert combined_est.estimated is True
 
-    # as_dict serialization
+    # as_dict serialization contains both pairs
     d = combined.as_dict()
+    assert d["input_tokens"] == 300
+    assert d["output_tokens"] == 130
     assert d["prompt_tokens"] == 300
     assert d["completion_tokens"] == 130
     assert d["total_tokens"] == 430
@@ -116,6 +128,8 @@ async def test_openai_compatible_adapter_complete_turn_usage(monkeypatch):
     )
     assert turn.content == "Hello world"
     assert turn.usage is not None
+    assert turn.usage.input_tokens == 12
+    assert turn.usage.output_tokens == 5
     assert turn.usage.prompt_tokens == 12
     assert turn.usage.completion_tokens == 5
     assert turn.usage.total_tokens == 17
@@ -177,6 +191,8 @@ async def test_openai_compatible_adapter_streaming_usage(monkeypatch):
     assert len(token_events) == 1
     assert token_events[0]["text"] == "Hi"
     assert len(usage_events) == 1
+    assert usage_events[0]["input_tokens"] == 10
+    assert usage_events[0]["output_tokens"] == 2
     assert usage_events[0]["prompt_tokens"] == 10
     assert usage_events[0]["completion_tokens"] == 2
     assert usage_events[0]["total_tokens"] == 12
@@ -198,6 +214,8 @@ def test_bedrock_converse_output_usage():
     turn = _parse_converse_output(mock_resp)
     assert turn.content == "Bedrock answer"
     assert turn.usage is not None
+    assert turn.usage.input_tokens == 45
+    assert turn.usage.output_tokens == 18
     assert turn.usage.prompt_tokens == 45
     assert turn.usage.completion_tokens == 18
     assert turn.usage.total_tokens == 63
@@ -226,6 +244,8 @@ def test_opencode_event_mapper_and_messages_usage():
     mapped = mapper.map(event)
     assert len(mapped) == 1
     assert mapped[0]["type"] == "usage"
+    assert mapped[0]["input_tokens"] == 150
+    assert mapped[0]["output_tokens"] == 60
     assert mapped[0]["prompt_tokens"] == 150
     assert mapped[0]["completion_tokens"] == 60
     assert mapped[0]["reasoning_tokens"] == 25
@@ -244,8 +264,8 @@ def test_opencode_event_mapper_and_messages_usage():
     mapped_step = mapper.map(step_event)
     assert len(mapped_step) == 1
     assert mapped_step[0]["type"] == "usage"
-    assert mapped_step[0]["prompt_tokens"] == 40
-    assert mapped_step[0]["completion_tokens"] == 10
+    assert mapped_step[0]["input_tokens"] == 40
+    assert mapped_step[0]["output_tokens"] == 10
     assert mapped_step[0]["total_tokens"] == 50
 
     # 3. collect_usage_from_messages harvest
@@ -259,6 +279,8 @@ def test_opencode_event_mapper_and_messages_usage():
     ]
     harvested = collect_usage_from_messages(messages_payload)
     assert harvested is not None
+    assert harvested["input_tokens"] == 200
+    assert harvested["output_tokens"] == 100
     assert harvested["prompt_tokens"] == 200
     assert harvested["completion_tokens"] == 100
     assert harvested["reasoning_tokens"] == 50
@@ -270,7 +292,7 @@ def test_run_journal_persistence_and_analytics_summary(tmp_path: Path):
     journal_path = tmp_path / "journal.jsonl"
     journal = RunJournal(journal_path)
 
-    # Append runs with token usage and cost
+    # Append runs with separate input and output tokens and cost
     e1 = JournalEntry(
         run_id="run-1",
         agent_id="pythondev",
@@ -285,8 +307,8 @@ def test_run_journal_persistence_and_analytics_summary(tmp_path: Path):
         started_at="2026-08-26T10:00:00+00:00",
         ended_at="2026-08-26T10:00:05+00:00",
         connection_id="ollama",
-        prompt_tokens=500,
-        completion_tokens=100,
+        input_tokens=500,
+        output_tokens=100,
         total_tokens=600,
         cost=0.0006,
     )
@@ -304,8 +326,8 @@ def test_run_journal_persistence_and_analytics_summary(tmp_path: Path):
         started_at="2026-08-26T10:10:00+00:00",
         ended_at="2026-08-26T10:10:04+00:00",
         connection_id="bedrock-main",
-        prompt_tokens=800,
-        completion_tokens=200,
+        input_tokens=800,
+        output_tokens=200,
         total_tokens=1000,
         cost=0.0025,
     )
@@ -315,9 +337,14 @@ def test_run_journal_persistence_and_analytics_summary(tmp_path: Path):
     # 1. Verify read_all round-trip
     rows = journal._read_all()
     assert len(rows) == 2
+    assert rows[0].input_tokens == 500
+    assert rows[0].output_tokens == 100
     assert rows[0].prompt_tokens == 500
+    assert rows[0].completion_tokens == 100
     assert rows[0].total_tokens == 600
     assert rows[0].cost == 0.0006
+    assert rows[1].input_tokens == 800
+    assert rows[1].output_tokens == 200
     assert rows[1].total_tokens == 1000
 
     # 2. Verify recent_runs filters
@@ -328,13 +355,29 @@ def test_run_journal_persistence_and_analytics_summary(tmp_path: Path):
     # 3. Verify summary aggregation
     summary = journal.summary()
     assert summary["total_runs"] == 2
+    assert summary["total_input_tokens"] == 1300
+    assert summary["total_output_tokens"] == 300
     assert summary["total_prompt_tokens"] == 1300
     assert summary["total_completion_tokens"] == 300
     assert summary["total_tokens"] == 1600
     assert summary["total_cost"] == 0.0031
+
+    # Breakdown by stack has input and output separated
+    assert summary["by_stack"]["openai-compatible"]["input_tokens"] == 500
+    assert summary["by_stack"]["openai-compatible"]["output_tokens"] == 100
     assert summary["by_stack"]["openai-compatible"]["total_tokens"] == 600
+
+    assert summary["by_stack"]["bedrock"]["input_tokens"] == 800
+    assert summary["by_stack"]["bedrock"]["output_tokens"] == 200
     assert summary["by_stack"]["bedrock"]["total_tokens"] == 1000
+
+    # Breakdown by agent has input and output separated
+    assert summary["by_agent"]["pythondev"]["input_tokens"] == 500
+    assert summary["by_agent"]["pythondev"]["output_tokens"] == 100
     assert summary["by_agent"]["pythondev"]["total_tokens"] == 600
+
+    assert summary["by_agent"]["ba"]["input_tokens"] == 800
+    assert summary["by_agent"]["ba"]["output_tokens"] == 200
     assert summary["by_agent"]["ba"]["total_tokens"] == 1000
 
 
@@ -364,18 +407,18 @@ async def test_service_multi_round_tool_tokens_accumulation():
         )
 
         # Mock adapter with 2 turns:
-        # Round 1: calls read_gold with usage (prompt: 50, completion: 15, total: 65)
-        # Round 2: final answer with usage (prompt: 80, completion: 25, total: 105)
+        # Round 1: calls read_gold with usage (input: 50, output: 15, total: 65)
+        # Round 2: final answer with usage (input: 80, output: 25, total: 105)
         mock_adapter = MagicMock()
         turn1 = ChatTurnResult(
             content="",
             tool_calls=[ToolCallRequest(id="call-1", name="read_gold", arguments="{}")],
-            usage=TokenUsage(prompt_tokens=50, completion_tokens=15, total_tokens=65),
+            usage=TokenUsage(input_tokens=50, output_tokens=15, total_tokens=65),
         )
         turn2 = ChatTurnResult(
             content="Here is your note.",
             tool_calls=[],
-            usage=TokenUsage(prompt_tokens=80, completion_tokens=25, total_tokens=105),
+            usage=TokenUsage(input_tokens=80, output_tokens=25, total_tokens=105),
         )
         mock_adapter.complete_chat_turn = AsyncMock(side_effect=[turn1, turn2])
 
@@ -393,7 +436,12 @@ async def test_service_multi_round_tool_tokens_accumulation():
         # 2 usage events yielded (one per round)
         usage_events = [e for e in events if e.get("type") == "usage"]
         assert len(usage_events) == 2
+        assert usage_events[0]["input_tokens"] == 50
+        assert usage_events[0]["output_tokens"] == 15
         assert usage_events[0]["total_tokens"] == 65
+
+        assert usage_events[1]["input_tokens"] == 80
+        assert usage_events[1]["output_tokens"] == 25
         assert usage_events[1]["total_tokens"] == 105
 
         # Also verify tool event and token event
@@ -422,8 +470,8 @@ async def test_analytics_api_endpoints(tmp_path: Path):
             started_at="2026-08-26T10:00:00+00:00",
             ended_at="2026-08-26T10:00:05+00:00",
             connection_id="ollama",
-            prompt_tokens=150,
-            completion_tokens=50,
+            input_tokens=150,
+            output_tokens=50,
             total_tokens=200,
             cost=0.0002,
         )
@@ -432,6 +480,8 @@ async def test_analytics_api_endpoints(tmp_path: Path):
     # Test summary endpoint
     summary = await get_analytics_summary(journal=journal, _user_id="user-1")
     assert summary["total_runs"] == 1
+    assert summary["total_input_tokens"] == 150
+    assert summary["total_output_tokens"] == 50
     assert summary["total_tokens"] == 200
     assert summary["total_cost"] == 0.0002
 
@@ -447,6 +497,10 @@ async def test_analytics_api_endpoints(tmp_path: Path):
     )
     assert runs_res["count"] == 1
     assert runs_res["runs"][0]["run_id"] == "run-api-1"
+    assert runs_res["runs"][0]["input_tokens"] == 150
+    assert runs_res["runs"][0]["output_tokens"] == 50
+    assert runs_res["runs"][0]["prompt_tokens"] == 150
+    assert runs_res["runs"][0]["completion_tokens"] == 50
     assert runs_res["runs"][0]["total_tokens"] == 200
     assert runs_res["runs"][0]["cost"] == 0.0002
 
@@ -479,8 +533,8 @@ async def test_connection_runtimes_endpoint_includes_tokens(tmp_path: Path):
             status="ok",
             started_at="2026-08-26T10:00:00+00:00",
             connection_id="ollama",
-            prompt_tokens=400,
-            completion_tokens=100,
+            input_tokens=400,
+            output_tokens=100,
             total_tokens=500,
             cost=0.0005,
         )
@@ -493,6 +547,8 @@ async def test_connection_runtimes_endpoint_includes_tokens(tmp_path: Path):
         _user_id="admin",
     )
     assert len(res["runs"]) == 1
+    assert res["runs"][0]["input_tokens"] == 400
+    assert res["runs"][0]["output_tokens"] == 100
     assert res["runs"][0]["prompt_tokens"] == 400
     assert res["runs"][0]["completion_tokens"] == 100
     assert res["runs"][0]["total_tokens"] == 500

@@ -54,19 +54,45 @@ class ToolCallRequest:
 class TokenUsage:
     """Normalized token counts and cost for one turn or aggregated run."""
 
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
     total_tokens: int = 0
     reasoning_tokens: int = 0
     cost: float | None = None
     estimated: bool = False
 
+    def __init__(
+        self,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        total_tokens: int = 0,
+        reasoning_tokens: int = 0,
+        cost: float | None = None,
+        estimated: bool = False,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+    ) -> None:
+        self.input_tokens = prompt_tokens if prompt_tokens is not None else input_tokens
+        self.output_tokens = completion_tokens if completion_tokens is not None else output_tokens
+        self.total_tokens = total_tokens or (self.input_tokens + self.output_tokens)
+        self.reasoning_tokens = reasoning_tokens
+        self.cost = cost
+        self.estimated = estimated
+
+    @property
+    def prompt_tokens(self) -> int:
+        return self.input_tokens
+
+    @property
+    def completion_tokens(self) -> int:
+        return self.output_tokens
+
     def add(self, other: TokenUsage | None) -> TokenUsage:
         if other is None:
             return self
         return TokenUsage(
-            prompt_tokens=self.prompt_tokens + other.prompt_tokens,
-            completion_tokens=self.completion_tokens + other.completion_tokens,
+            input_tokens=self.input_tokens + other.input_tokens,
+            output_tokens=self.output_tokens + other.output_tokens,
             total_tokens=self.total_tokens + other.total_tokens,
             reasoning_tokens=self.reasoning_tokens + other.reasoning_tokens,
             cost=(
@@ -79,9 +105,11 @@ class TokenUsage:
 
     def as_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
-            "prompt_tokens": self.prompt_tokens,
-            "completion_tokens": self.completion_tokens,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
             "total_tokens": self.total_tokens,
+            "prompt_tokens": self.input_tokens,
+            "completion_tokens": self.output_tokens,
             "estimated": self.estimated,
         }
         if self.reasoning_tokens:
@@ -341,9 +369,11 @@ class OpenAICompatibleAdapter:
                             rt = int(details.get("reasoning_tokens") or u.get("reasoning_tokens") or 0)
                             yield {
                                 "type": "usage",
+                                "input_tokens": pt,
+                                "output_tokens": ct,
+                                "total_tokens": tt,
                                 "prompt_tokens": pt,
                                 "completion_tokens": ct,
-                                "total_tokens": tt,
                                 "reasoning_tokens": rt,
                                 "estimated": False,
                             }
@@ -367,10 +397,6 @@ class OpenAICompatibleAdapter:
                             for kind, text in parser.feed(content):
                                 if text:
                                     yield {"type": kind, "text": text}
-
-                    for kind, text in parser.flush():
-                        if text:
-                            yield {"type": kind, "text": text}
 
                     for kind, text in parser.flush():
                         if text:
@@ -475,8 +501,8 @@ class OpenAICompatibleAdapter:
                         or 0
                     )
                     usage = TokenUsage(
-                        prompt_tokens=pt,
-                        completion_tokens=ct,
+                        input_tokens=pt,
+                        output_tokens=ct,
                         total_tokens=tt,
                         reasoning_tokens=rt,
                     )
