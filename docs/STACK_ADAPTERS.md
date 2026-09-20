@@ -57,7 +57,7 @@ Not: *we deeply embed every vertical AI product equally.*
 Besides sophisticated coding harnesses, orgs **fairly build** most desks from:
 
 ```text
-Inference connection  +  Guardrails catalog (MCP / Tools / Skills / External tools)
+Inference connection  +  Capability Catalog (Tools / MCP / Skills / External tools)
   → Sales / Marketing / Support / BA / research desks
 ```
 
@@ -346,18 +346,18 @@ effective = 15
 
 ---
 
-## 9. Guardrails catalog (reminder)
+## 9. Capability Catalog (reminder)
 
-Four kinds — [ORCHESTRATOR.md](./ORCHESTRATOR.md) §7: **MCP · Tools · Skills · External tools**.
+Four kinds — [ORCHESTRATOR.md](./ORCHESTRATOR.md) §7: **Tools (`internal_tool`) · MCP · Skills · External tools** in a single org catalog.
 
 | Catalog | Not catalog |
 | --- | --- |
-| **Tools** = light office desk functions (`gold.read` / `gold.update`; default-inherit agent desks) | Orchestrator spine (OKF extract, office Q&A, pack) |
+| **Tools** = light office desk functions (`internal_tool`: `gold.read`, `gold.append`, `gold.delete`, `gold.clear`; default-inherit agent desks) | Orchestrator spine (OKF extract, office Q&A, pack) |
 | **External tools** = HTTP APIs only (Firecrawl, …) | MCP servers (those are **MCP**) |
 | Skills = playbooks | **External agent** Stacks kind (MCP/A2A peer) |
 | | Native harness fs/shell/git — hooks, not a fifth kind |
 
-UI: **Guardrails** tab (policy + catalog). **Approvals** = HITL inbox. **Stacks** = connections.
+UI: **Capabilities** tab (central catalog of available capabilities). **Approvals** = HITL inbox. **Stacks** = connections.
 
 ---
 
@@ -432,7 +432,7 @@ adapters/opencode/   # serve.py · runtime.py · events.py · adapter.py · prov
 | 2026-08-12 | Three kinds (Inference / Harness / External); Stacks tab UX; OpenCode-first queue; other axes |
 | 2026-08-12 | Desks hero / few kinds; any-stack feasibility; Inference+catalog compose; UI≠adapter; coding wedge |
 | 2026-08-14 | §8.1 `_locked` guarantee: Inference 100%; harness iff no native twin; elevation + session recycle |
-| 2026-08-14 | §9 Guardrails four kinds; External tools ≠ External agent ≠ Tools |
+| 2026-08-14 | §9 Four kinds in the catalog; External tools ≠ External agent ≠ Tools |
 | 2026-08-14 | §8.2 low-autonomy harness bundle: soft prompt + hooks + `_locked` wait |
 | 2026-08-16 | §11 OpenCode slice A: AAS-managed serve per workdir; thinking store; no OKF from thinking; AsyncOpencode + big-pickle default |
 | 2026-08-16 | OpenCode slice A target SemVer **0.3.0**; single-line fixes on 0.3.x after cut |
@@ -442,4 +442,5 @@ adapters/opencode/   # serve.py · runtime.py · events.py · adapter.py · prov
 | 2026-08-18 | Desk OpenCode chat: ignore empty `session.idle` before `session.chat`; journal `error` if no tokens (`0.3.5`) |
 | 2026-08-18 | Bedrock auth: IAM access key + secret **or** Bedrock API key + region (`0.3.6`) |
 | 2026-08-18 | OpenCode thinking: match `sessionID` on event envelope; harvest reasoning parts after idle (`0.3.7`) |
+| 2026-09-08 | §9 Updated to Capability Catalog (Capabilities tab) with centralized catalog registration; Gold tools as built-in internal_tool |
 

@@ -70,11 +70,13 @@ Orchestrator remains a **deterministic spine** (route, pack filters, HITL, journ
 
 Config example: `OFFICE_MODEL` / extend `office_qa_model` in env or org settings.
 
-### 2.4 Capabilities (Guardrails catalog)
+### 2.4 Capability Catalog
 
-- Org **catalog** (admin **Guardrails** tab): **MCP · Tools · Skills · External tools**
-- **Approvals** = HITL inbox; **Guardrails** = what may exist / `hil` / registration — not the same screen
-- **Agent-level registration only** (no team/floor ACL matrix in v1). Built-in **Tools** (`gold.read` / `gold.update`) **default-inherit agent desks**
+- Org **Capability Catalog** (admin **Capabilities** tab): **Tools · MCP · External tools · Skills**
+- The catalog is the central registry of all capabilities available to the office; desk agents register the subset they need
+- Each catalog item may carry optional approval / risk metadata such as `hil`, `risk_class`, and `hil_timer_hours`, but the product model stays simple: capabilities are discovered centrally and attached to desks
+- **Approvals** = HITL inbox; **Capabilities** = catalog of what exists and which desk agents have registered it — not the same screen
+- **Agent-level registration only** (no team/floor ACL matrix in v1). Built-in internal **Tools** (`gold.read`, `gold.append`, `gold.delete`, `gold.clear`) **default-inherit agent desks** as available catalog tools
 - Direct vs **HIL-gated `_locked` wrappers**; grants after Accept; agent executes MCP / External tool under `run_id` (+ `user_id`)
 - **v1 grant path is not hard isolation** — see §10 Security TODOs
 - See §7
@@ -517,41 +519,41 @@ Two layers: **algo gates** (no human) and **human queue triggers**. Autonomy 0�
 
 ---
 
-## 7. Capabilities catalog (Guardrails)
+## 7. Capability Catalog
 
-**v1 simplicity:** one org catalog; **grants = agent-level registration only** (no team/floor ACL matrix). Operator opens an agent in the UI → registers MCP / skill / External tool (e.g. Firecrawl). Agent never browses the full org catalog in its prompt — only its registered subset is injected at run start (**scoped injection**). Built-in **Tools** (`gold.*`) default-inherit — see §7.1.
+**v1 simplicity:** one org **Capability Catalog**; **grants = agent-level registration only** (no team/floor ACL matrix). Operator opens an agent in the UI → registers MCP / skill / External tool (e.g. Firecrawl). Agent never browses the full org catalog in its prompt — only its registered subset is injected at run start (**scoped injection**). Built-in **internal Tools** (`gold.*`) default-inherit — see §7.1.
 
-**Compose non-coding desks:** Inference connection + catalog Tools / MCP / External tools / skills is enough for Sales/Marketing/Support/BA without a new runtime class. Coding harnesses stay for heavy implement desks. See [STACK_ADAPTERS.md](./STACK_ADAPTERS.md).
+**Compose non-coding desks:** Inference connection + Capability Catalog Tools / MCP / External tools / skills is enough for Sales/Marketing/Support/BA without a new runtime class. Coding harnesses stay for heavy implement desks. See [STACK_ADAPTERS.md](./STACK_ADAPTERS.md).
 
-### 7.0 Guardrails tab vs Approvals
+### 7.0 Capabilities tab vs Approvals
 
 | Screen | Job |
 | --- | --- |
 | **Approvals** | HITL **inbox** — memory + action cards; Accept / Reject / Edit |
-| **Guardrails** | **Catalog + policy** — what exists in the org, `hil` / timer, desk registration |
+| **Capabilities** | **Central catalog** — what capabilities exist in the org and which desk agents have attached them |
 
-Guardrails is **not** a second approval queue. Autonomy slider + hard floors still live in desk/org settings; Guardrails is where capabilities and per-item `hil` are managed.
+The catalog is the source of available capabilities; approval and risk metadata are optional policy details attached to catalog items, not the defining product concept. Autonomy slider + hard floors still live in desk/org settings; Capabilities is where capability registration and attached metadata are managed.
 
-v0 may **stub** the Guardrails nav (direction visible); full catalog UI is post-v0 — [V0_SCOPE.md](./V0_SCOPE.md).
+v0 may **stub** the Capabilities nav (direction visible); full catalog UI is post-v0 — [V0_SCOPE.md](./V0_SCOPE.md).
 
 ### 7.1 Four catalog kinds
 
 | Kind | UI label | What admin adds | Notes |
 | --- | --- | --- | --- |
-| **MCP** | MCP | Server package / URL + auth | Protocol servers |
-| **Tool** | Tools | Light **in-orchestrator desk functions** (no MCP/HTTP required) | e.g. `gold.read`, `gold.update` |
-| **Skill** | Skills | Playbook (prompt + which MCP / External tool / Tool ids it needs) | Not a server — how we do work |
-| **External tool** | External tools | HTTP API: Firecrawl, AWS, GitHub, custom REST | `baseUrl` + `secretRef`; presets + custom. **APIs only — not MCP** |
+| **internal_tool** | Tools | Light **in-orchestrator desk functions** (no MCP/HTTP required) | e.g. `gold.read`, `gold.append`, `gold.delete`, `gold.clear` |
+| **mcp** | MCP | Server package / URL + auth | Protocol servers |
+| **external_tool** | External tools | HTTP API: Firecrawl, AWS, GitHub, custom REST | `baseUrl` + `secretRef`; presets + custom. **APIs only — not MCP** |
+| **skill** | Skills | Playbook (prompt + which MCP / External tool / Tool ids it needs) | Not a server — how we do work |
 
 **Do not confuse:**
 
 | Name | Where | What |
 | --- | --- | --- |
-| **Tools** (catalog) | Guardrails | Office-implemented desk functions |
-| **External tools** (catalog) | Guardrails | Third-party **HTTP APIs** |
+| **Tools** (catalog) | Capabilities tab | Office-implemented desk functions (`internal_tool`) |
+| **External tools** (catalog) | Capabilities tab | Third-party **HTTP APIs** |
 | **External agent** (Stacks) | Stacks tab | Peer agent via MCP/A2A — [STACK_ADAPTERS.md](./STACK_ADAPTERS.md) |
 | Harness natives | Cursor/OpenCode | fs / shell / git / browser — **not** a catalog kind; hooks/sandbox |
-| `tools.mode` | `agent.yaml` | `none` / `mediated` / `worker` — runtime class, not Guardrails |
+| `tools.mode` | `agent.yaml` | `none` / `mediated` / `worker` — runtime class, not catalog |
 
 Native stack built-ins stay out of the four-kind catalog.
 
@@ -561,30 +563,31 @@ Tools are **small functions the desk agent may call**, implemented by the office
 
 | In Tools | Not Tools |
 | --- | --- |
-| `gold.read` / `gold.update` (that user’s `gold(a,u)`) | OKF extract / `remember:` pipeline |
+| `gold.read`, `gold.append`, `gold.delete`, `gold.clear` (that user’s `gold(a,u)`) | OKF extract / `remember:` pipeline |
 | Other light desk helpers (later: e.g. draft a card, read own recent_thread slice) | Office Q&A / `OFFICE_MODEL` jobs |
 | | Packing, journal, HITL disposer, catalog admin |
 | | Anything that is **orchestrator spine**, not a desk capability |
 
-**Default inherit:** built-in `gold.read` + `gold.update` are registered on **all agent desks** (`seat_kind: agent`) unless admin unregisters / denies. **Human seats** do not get gold or these Tools — [IDE_FIRST.md](./IDE_FIRST.md).
+**Default inherit:** built-in `gold.read`, `gold.append`, `gold.delete`, `gold.clear` are registered on **all agent desks** (`seat_kind: agent`) unless admin unregisters / denies. **Human seats** do not get gold or these Tools — [IDE_FIRST.md](./IDE_FIRST.md).
 
-Built-in gold Tools: default `hil: never` (own notepad). Custom Tools may set `hil` like MCP / External tools.
+Built-in gold Tools are treated as default-available internal catalog items. Custom Tools/MCP/APIs can carry approval or risk metadata when needed.
 
 Secrets **should** live in vault / env refs — never deliberately in OKF facts or agent gold. Accidental leaks possible in v1 — see §10.
 
 **Platform vs catalog:** `DATABASE_URL`, office path, process auth = **platform config** (env). Do **not** register them as External tools. v0 UI: platform settings **read-only**; passwords **masked by default**, admin **may reveal**. See [IMPLEMENTATION.md §7.1](./IMPLEMENTATION.md#71-configuration-buckets--ui-v0).
 
-### 7.2 HIL policy on the catalog item (admin)
+### 7.2 Optional approval / risk metadata on catalog items (admin)
 
-When adding MCP, External tool, or a custom Tool, admin sets:
+Each item in the Capability Catalog may carry optional metadata for approval and risk classification. Admin may set:
 
 | Field | Values |
 | --- | --- |
-| `hil` | **`always`** \| **`never`** \| **`follow_autonomy`** (three options only) |
-| `hil_timer_hours` | Optional: elevate toward autonomy for N hours, then **snap back** to the **original** `hil` set at create |
-| `risk_class` | **Optional** |
+| `approval_mode` | **`always`** \| **`never`** \| **`autonomy`** |
+| `approval_window_hours` | Optional: temporarily widen or narrow approval requirements for N hours |
+| `risk_class` | **Optional** (`read_draft`, `system_write`, `external_send`, `money_legal_pii`) |
+| `tags` | **Optional** for filtering and reporting |
 
-No agent-level `force_hil` / inherit matrix in v1. Timer elevations are **admin-started** (not the agent, not the card requester) and **journaled** (who, catalog item, N hours, original `hil`).
+No agent-level `force_hil` / inherit matrix in v1. Temporary approval overrides are **admin-started** (not the agent, not the card requester) and **journaled** (who, catalog item, N hours, original setting).
 
 `hil_timer_hours` is a **clock**, not a fourth `hil` value. Stored `hil` does not change.
 
@@ -733,8 +736,8 @@ domain: sales
 channels: [phone, whatsapp]      # side-effect surfaces (descriptive)
 stack: openai-compatible         # or cursor | claude | ...
 workspace: null | path/to/repo
-# capabilities: registered per agent in Guardrails (MCP / Tool / Skill / External tool ids)
-# — not a team-level grant list in v1; gold.* Tools default-inherit agent desks
+# capabilities: registered per agent from Capability Catalog (Tools / MCP / Skills / External tools)
+# — not a team-level grant list in v1; gold.* internal Tools default-inherit agent desks
 ```
 
 Coding agents are just `domain: eng` + stack defaults + registered APIs/MCPs as needed. Same office, same memory rules, same knob.
@@ -817,6 +820,7 @@ Memory-side detail: [MEMORY_ARCHITECTURE.md §9](./MEMORY_ARCHITECTURE.md#9-secu
 | 2026-08-12 | Human seats: MEMORY-only HITL; Connect WorkPacket hooks |
 | 2026-08-12 | Catalog compose for non-coding desks; link STACK_ADAPTERS direction |
 | 2026-08-14 | §7.2 elevation timer mapping + session recycle + hard floors; §7.3 `_locked` = capability path (Inference 100%; harness iff no native twin) |
-| 2026-08-14 | §7 Guardrails tab vs Approvals; four kinds: MCP · Tools · Skills · External tools; gold.* default-inherit agent desks only |
+| 2026-08-14 | §7 Capabilities tab vs Approvals; four kinds: MCP · Tools · Skills · External tools; gold.* default-inherit agent desks only |
 | 2026-08-14 | HITL not model-decided; `_locked` wrapper wait + exp backoff; autonomy soft+hard bundle (link STACK §8.2) |
 | 2026-08-14 | §4 / §6.0.3: autonomy ↔ desk chat (ask before changes at 0–20); clarify ≠ Approvals |
+| 2026-09-08 | §7 Formalized Capability Catalog (Capabilities tab) with centralized registration and Gold tools as built-in internal_tool (default_inherit: true) |

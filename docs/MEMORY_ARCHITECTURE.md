@@ -346,7 +346,7 @@ v1 levels: **team + floor + org** (+ per-user gold). Office deferred. Floor is o
 
 ## 6. Write pipeline (agents don't manage long-term memory)
 
-Principle: **agents propose, the pipeline disposes** — a mediated write path. The agent only: reads context → does the task → updates **gold(a,u)** via Guardrails **Tools** `gold.read` / `gold.update` (default-inherit **agent desks** only) → returns a plain-text report. Everything else is orchestrator code — **not** catalog Tools (no OKF extract, no office Q&A as a Tool). See [ORCHESTRATOR.md](./ORCHESTRATOR.md) §7.1.
+Principle: **agents propose, the pipeline disposes** — a mediated write path. The agent only: reads context → does the task → updates **gold(a,u)** via Capability Catalog internal **Tools** `gold.read`, `gold.append`, `gold.delete`, `gold.clear` (default-inherit **agent desks** only) → returns a plain-text report. Everything else is orchestrator code — **not** catalog Tools (no OKF extract, no office Q&A as a Tool). See [ORCHESTRATOR.md](./ORCHESTRATOR.md) §7.1.
 
 Why: direct agent writes would require every stack to know our schema (kills any-stack); N agents writing = N failure modes; one pipeline = one quality gate; and task execution vs knowledge curation are different jobs.
 

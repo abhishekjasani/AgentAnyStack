@@ -57,9 +57,10 @@ max_input_tokens: -1                 # -1 = inherit stack envelope; >0 tightens
 max_output_tokens: -1                # -1 = inherit stack envelope; >0 tightens
 
 registrations:
-  mcp: []                            # Guardrails catalog ids — scoped injection
-  skills: []                         # Skill IDs
-  apis: []                           # External HTTP APIs / tools
+  mcp: []                            # Capability Catalog MCP IDs — scoped injection
+  skills: []                         # Capability Catalog Skill IDs
+  apis: []                           # Capability Catalog External HTTP APIs / tools
+  tools: []                          # Optional Capability Catalog tool IDs (gold.* auto-inherited)
 
 tools:
   mode: worker                       # none | mediated | worker
@@ -76,7 +77,7 @@ tools:
 | `name` | `name` (+ `id`) |
 | `model` | `stack` + `model` |
 | `system` | `AGENT.md` / `system_prompt` |
-| `tools` | `registrations` + `tools.mode` (Guardrails Tools ≠ `tools.mode`) |
+| `tools` | `registrations` + `tools.mode` (Capability Catalog Tools ≠ `tools.mode`) |
 
 UI wizard collects the four Claude fields + team/workspace/autonomy → writes `agent.yaml` + `AGENT.md` → git commit.
 
@@ -171,7 +172,7 @@ No office-wide law duplication unless a temporary override is explicitly product
 
 | Avoid | Why |
 | --- | --- |
-| Full org Guardrails catalog | Scoped registration only (`gold.*` default-inherit) |
+| Full org Capability Catalog | Scoped registration only (`gold.*` default-inherit) |
 | `DATABASE_URL` / vault secrets | Platform/catalog vault — never in prompt |
 | “You may read all OKF files on disk” | Bypasses team walls |
 | Agent-owned temperature | Breaks controllability |
@@ -191,4 +192,5 @@ No office-wide law duplication unless a temporary override is explicitly product
 | 2026-08-14 | Envelope: `*_locked` only; do not invent bypass / leaked creds |
 | 2026-08-14 | registrations: tools + external_tools; gold.* default-inherit agent desks |
 | 2026-08-14 | Envelope: autonomy-for-everything soft guidance; wait on `*_locked` (no model backoff) |
+| 2026-09-08 | Formalized Capability Catalog registrations (mcp, skills, apis, tools) with gold.* default-inherit |
 | 2026-08-21 | Align agent.yaml schema & envelope with code (connection_id, max_input/output_tokens, registrations.apis, build_office_envelope) |

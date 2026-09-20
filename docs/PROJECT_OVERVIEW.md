@@ -10,7 +10,7 @@
 
 The product **is an office where agents work** — a great place to work for agents. Desks, **teams**, optional **floors** (with collaboration links), shared memory, and visible activity. Users walk in, see who is working on what, talk to agents by role, and everything the agents learn stays in the right room.
 
-**Any stack** is the headline *feature* of this office, not the core: desks for coding, sales, support, BA, … under one orchestrator. Runtimes stay **few kinds** (Inference / coding harness / external); orgs compose most non-coding desks from **Inference + Guardrails catalog** (MCP / Tools / Skills / External tools, e.g. Firecrawl). Deep Cursor/Canva/Harvey parity is not year-one — see [STACK_ADAPTERS.md](./STACK_ADAPTERS.md).
+**Any stack** is the headline *feature* of this office, not the core: desks for coding, sales, support, BA, … under one orchestrator. Runtimes stay **few kinds** (Inference / coding harness / external); orgs compose most non-coding desks from **Inference + Capability Catalog** (Tools / MCP / External tools / Skills, e.g. Firecrawl). Deep Cursor/Canva/Harvey parity is not year-one — see [STACK_ADAPTERS.md](./STACK_ADAPTERS.md).
 
 ```mermaid
 flowchart LR
@@ -32,7 +32,7 @@ flowchart LR
 | Pillar | What it is | Attached features |
 | --- | --- | --- |
 | **1. Agent office** | Workplace for agents — desks, teams, floors, visible activity | UI desks; **Connect** = same desks via AutoCAD/web/IDE plugins ([CONNECT.md](./CONNECT.md)) |
-| **2. Controllability** | 0–100 autonomy knob + HITL gates | **Approvals** inbox; **Guardrails** catalog ([ORCHESTRATOR.md](./ORCHESTRATOR.md) §7); **Analytics** ([ANALYTICS.md](./ANALYTICS.md)) |
+| **2. Controllability** | 0–100 autonomy knob + HITL gates | **Approvals** inbox; **Capability Catalog** of desk-registered tools, MCP, skills, and external APIs ([ORCHESTRATOR.md](./ORCHESTRATOR.md) §7); **Analytics** ([ANALYTICS.md](./ANALYTICS.md)) |
 | **3. Org / project memory** | Scoped knowledge across org → floor → team × projects | Packing; later OKF **graph** in Analytics |
 | **4. No vendor lock-in** | Any stack + office-as-git + OKF export + BYO | Plugins hit **your** orchestrator; data stays yours |
 
@@ -187,7 +187,7 @@ flowchart LR
 ### v0 nav shell (simple)
 
 ```text
-Team ★ | Memory | Approvals | Guardrails (stub) | Analytics (stub) | Connect (stub) | Settings
+Team ★ | Memory | Approvals | Capabilities (stub) | Analytics (stub) | Connect (stub) | Settings
 ```
 
 | Tab | v0 |
@@ -195,7 +195,7 @@ Team ★ | Memory | Approvals | Guardrails (stub) | Analytics (stub) | Connect (
 | Team | Works — desks + chat |
 | Memory | Works thin — fact list |
 | Approvals | One HITL path (inbox) |
-| Guardrails | Stub — catalog MCP · Tools · Skills · External tools ([ORCHESTRATOR.md](./ORCHESTRATOR.md) §7) |
+| Capabilities | Stub — Capability Catalog (Tools, MCP, Skills, External tools) with centralized registration and optional approval metadata ([ORCHESTRATOR.md](./ORCHESTRATOR.md) §7) |
 | Analytics | Stub — [ANALYTICS.md](./ANALYTICS.md) |
 | Connect | Stub — [CONNECT.md](./CONNECT.md) |
 | Settings | Platform read-only when ready |
@@ -263,16 +263,16 @@ The **live activity panel** shows every run with the context used (e.g. `thread 
 
 List = **one card per connection** (not per model). Full UX: [STACK_ADAPTERS.md §3](./STACK_ADAPTERS.md).
 
-**Guardrails** (own nav, not Stacks): org catalog — **MCP · Tools · Skills · External tools** + admin `hil`. Stacks = connections only.
+**Capabilities** (own nav, not Stacks): org Capability Catalog — **Tools · MCP · External tools · Skills**. Stacks = connections only.
 
-- **Agent desk** (Team): pick a **connected** stack; register MCP / skill / External tool for that agent. Built-in Tools `gold.read` / `gold.update` default-inherit agent desks  
+- **Agent desk** (Team): pick a **connected** stack; register MCP / skill / External tool for that agent. Built-in internal Tools `gold.read` / `gold.append` / `gold.delete` / `gold.clear` default-inherit agent desks  
 - **Local Models tab** (top-level nav): pull local models into volume (SSE progress, GPU status, flush, delete, 1-click **Enable as Inference**)  
 
 See [ORCHESTRATOR.md](./ORCHESTRATOR.md) §7 · [STACK_ADAPTERS.md](./STACK_ADAPTERS.md).
 
 ### 5. System / platform settings (v0)
 
-**Not** part of the Guardrails catalog. Platform = how the orchestrator runs (DB, office path, process secrets).
+**Not** part of the Capability Catalog. Platform = how the orchestrator runs (DB, office path, process secrets).
 
 | v0 rule | Detail |
 | --- | --- |
@@ -488,4 +488,5 @@ Claim name early: empty GitHub `agent-anystack`, npm name, domain (`agentanystac
 | 2026-08-12 | Pitch hook: org direction + AI confidence gap → link USE_CASES_MEMORY |
 | 2026-08-13 | More survey punch-line stories in USE_CASES_MEMORY (A–G) |
 | 2026-08-14 | `_locked`: Inference complete; harness catalog-only — link ORCHESTRATOR §7.3 |
-| 2026-08-14 | Guardrails nav vs Approvals; catalog = MCP · Tools · Skills · External tools; gold.* inherit |
+| 2026-08-14 | Capabilities nav vs Approvals; catalog = MCP · Tools · Skills · External tools; gold.* inherit |
+| 2026-09-08 | Formalized Capability Catalog (Capabilities tab) with centralized registration and Gold tools as built-in internal_tool |

@@ -188,13 +188,13 @@ effective = clamp(user.override ?? agent.default ?? org.default, 0, effective_ma
 
 ## 7.1 Configuration buckets & UI (v0)
 
-Do **not** put platform/DB settings inside the Guardrails catalog. Three buckets:
+Do **not** put platform/DB settings inside the Capability Catalog. Three buckets:
 
 | Bucket | What | Examples | UI (v0) | Storage |
 | --- | --- | --- | --- | --- |
 | **1. Platform / runtime** | How the office process runs | `DATABASE_URL` (or host/port/db/user/password), `OFFICE_REPO_PATH`, `OFFICE_MODEL`, `SECRET_KEY`, `PORT`, pack budget, `APPROVER_MODE` | **Read-only** settings page (admin). Edit via `.env` / compose / deploy only | Env / vault |
 | **2. Stacks** | BYO model/runtime connections | Cursor / Claude / Ollama keys & base URLs | Editable on Stacks screen (later); v0 may be env-only | Env / vault refs |
-| **3. Catalog (Guardrails)** | Desk capabilities | MCP · Tools (`gold.*`) · Skills · External tools (HTTP APIs) + `hil` / `_locked` / cred owner | Stub nav in v0; editable catalog + agent registration later | Git descriptors + vault for secret values |
+| **3. Capability Catalog** | Desk capabilities registered from a central catalog | Tools (`gold.*`), MCP, Skills, External tools (HTTP APIs) with optional approval/risk metadata | Capabilities tab stub in v0; editable catalog + agent registration later | JSON/DB descriptors + vault for secret values |
 
 **Office structure** (org/floor/team/agent/links/autonomy numbers) stays in **office git YAML**, editable from UI later (create = commit) — separate from platform secrets.
 
@@ -289,7 +289,7 @@ Canonical v0 cut: **[V0_SCOPE.md](./V0_SCOPE.md)**. Do not build floors+MCP+anal
 | 8 | Approval board: one action card, permissive | Accept → journal |
 | 9 | Effective autonomy §4.1 on one gate | Ceiling works |
 | 10 | OKF export to `memory/` | Leave-path |
-| 11 | **UI shell:** Team/Memory/Approvals + Guardrails / Analytics / Connect **stubs** | Direction clear |
+| 11 | **UI shell:** Team/Memory/Approvals + Capabilities / Analytics / Connect **stubs** | Direction clear |
 | — | Floors, full MCP/`_locked`, Analytics deep UI, Connect plugins | **After v0** |
 
 ---
@@ -338,8 +338,9 @@ Canonical v0 cut: **[V0_SCOPE.md](./V0_SCOPE.md)**. Do not build floors+MCP+anal
 | 2026-08-12 | IDE_FIRST: human seats, WorkPacket, hooks |
 | 2026-08-12 | STACK_ADAPTERS: three kinds + Stacks tab UX; OpenCode-first layout |
 | 2026-08-14 | HITL: elevation timer; `_locked` Inference vs harness (catalog-only) |
-| 2026-08-14 | Guardrails catalog: MCP · Tools · Skills · External tools; gold.* inherit agent desks |
+| 2026-08-14 | Capability catalog: MCP · Tools · Skills · External tools; gold.* inherit agent desks |
 | 2026-08-14 | `_locked` wrapper wait; harness low-autonomy soft+hooks bundle |
 | 2026-08-16 | OpenCode slice A design: AAS serve per workdir; thinking store; no OKF from thinking — [architecture/18_OPENCODE.md](./architecture/18_OPENCODE.md) |
 | 2026-08-16 | SemVer: OpenCode A = **0.3.0**; after that bugfixes on **0.3.x** (single line, no 0.2 LTS) |
+| 2026-09-08 | Formalized Capability Catalog (Capabilities tab) with centralized registration and Gold tools as built-in internal_tool |
 | 2026-08-16 | OpenCode: binary in orchestrator image; permission grant=`once`; later autonomy + slice C question UI |
