@@ -1,0 +1,36 @@
+# Office front desk / soft orchestrator jobs — NOT a desk persona.
+# Team shows a pinned "Office" card; Configure edits this file.
+# Desk agents: office/teams/<team>/agents/<id>/agent.yaml
+#
+# Soft jobs using `model` and `connection_id`:
+#   - OKF post-run extract (when okf_extract_enabled)
+#       okf_extract_llm / okf_extract_remember_lines
+#   - Office Q&A phrasing (when office_qa_llm)
+#
+# Token envelope: default_max_input_tokens / default_max_output_tokens
+# (agents tighten max_input/output only, -1 inherit; Ollama KV via OLLAMA_CONTEXT_LENGTH)
+#
+# Sampling: extract_temperature (low variance) / office_qa_temperature (conversational)
+#
+# TODO: office_qa_phrase_style (short | formal)
+# TODO: default_project_id for memory pack when projects ship
+# TODO: extract_schema_version
+# TODO: Stacks helper restart_ollama_on_flush (container recreate)
+
+id: office
+name: Office
+model: llama3.2
+connection_id: ollama-local
+office_qa_llm: false
+okf_extract_enabled: true
+okf_extract_llm: true
+okf_extract_remember_lines: true
+pack_token_budget: 8000
+gold_max_chars: 64000
+recent_history_days: 7
+recent_history_char_budget: 6000
+approver_mode: permissive
+default_max_input_tokens: -1
+default_max_output_tokens: 1024
+extract_temperature: 0.0
+office_qa_temperature: 0.2

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 
 from agent_anystack.adapters.bedrock_store import BedrockProviderStore, bedrock_data_dir
 from agent_anystack.adapters.connections import (
@@ -20,6 +21,7 @@ from agent_anystack.adapters.stack_models import (
 from agent_anystack.api.deps import get_user_id
 from agent_anystack.api.projects import get_project_registry
 from agent_anystack.config import Settings, get_settings
+from agent_anystack.capabilities.catalog import CapabilityCatalogService, DEFAULT_GOLD_TOOLS
 from agent_anystack.domain.agent import (
     AgentConfig,
     AgentDetail,
@@ -37,6 +39,15 @@ from agent_anystack.office import (
 from agent_anystack.office.project_registry import ProjectNotFoundError, ProjectRegistry
 
 router = APIRouter(tags=["agents"])
+
+
+class AgentCapabilitiesResponse(BaseModel):
+    agent_id: str
+    team: str
+    connection_id: str | None = None
+    effective_capabilities: list[str] = Field(default_factory=list)
+    catalog_count: int = 0
+    default_gold_tools: list[str] = Field(default_factory=list)
 
 
 def get_office_repo(settings: Settings = Depends(get_settings)) -> OfficeRepository:
@@ -105,6 +116,28 @@ async def get_agent(
     return AgentDetail(
         **agent.model_dump(),
         persona_markdown=repo.read_persona(agent),
+    )
+
+
+@router.get("/agents/{agent_id}/capabilities", response_model=AgentCapabilitiesResponse)
+async def get_agent_capabilities(
+    agent_id: str,
+    repo: OfficeRepository = Depends(get_office_repo),
+    _user_id: str = Depends(get_user_id),
+) -> AgentCapabilitiesResponse:
+    agent = repo.get_agent(agent_id)
+    if agent is None:
+        raise HTTPException(status_code=404, detail=f"agent not found: {agent_id}")
+
+    service = CapabilityCatalogService()
+    effective = service.resolve_for_agent(agent)
+    return AgentCapabilitiesResponse(
+        agent_id=agent.id,
+        team=agent.team,
+        connection_id=agent.connection_id,
+        effective_capabilities=effective,
+        catalog_count=len(service.list()),
+        default_gold_tools=DEFAULT_GOLD_TOOLS,
     )
 
 

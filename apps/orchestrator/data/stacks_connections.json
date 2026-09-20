@@ -1,0 +1,54 @@
+{
+  "connections": [
+    {
+      "id": "ollama",
+      "kind": "inference",
+      "product": "ollama",
+      "label": "ollama",
+      "aliases": [
+        "ollama-local"
+      ],
+      "enabled": true,
+      "status": "unknown"
+    },
+    {
+      "id": "bedrock",
+      "kind": "inference",
+      "product": "bedrock",
+      "label": "bedrock",
+      "aliases": [
+        "bed-prod"
+      ],
+      "enabled": true,
+      "status": "unknown"
+    },
+    {
+      "id": "opencode",
+      "kind": "agent_runtime",
+      "product": "opencode",
+      "label": "opencode",
+      "aliases": [
+        "oc-local"
+      ],
+      "enabled": true,
+      "status": "unknown",
+      "registered_models": []
+    },
+    {
+      "id": "zen",
+      "kind": "inference",
+      "product": "openai-compatible",
+      "label": "zen",
+      "aliases": [
+        "zen"
+      ],
+      "enabled": true,
+      "status": "unknown",
+      "meta": {
+        "base_url": "https://opencode.ai/zen/v1",
+        "requires_api_key": true
+      }
+    }
+  ],
+  "updated_at": "2026-09-20T18:00:36+00:00"
+}

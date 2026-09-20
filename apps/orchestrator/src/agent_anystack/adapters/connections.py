@@ -291,20 +291,20 @@ class ConnectionStore:
         self.ensure_seeded()
 
     def ensure_seeded(self) -> None:
-        if not self.path.is_file():
-            self._write_raw([dict(d) for d in _DEFAULTS])
-            return
-        rows = self._read_raw()
+        rows = self._read_raw() if self.path.is_file() else []
         by_id = {r["id"]: r for r in rows if r.get("id")}
         changed = False
         for d in _DEFAULTS:
-            if d["id"] in by_id:
-                aliases = list(d.get("aliases") or [])
-                cur = list(by_id[d["id"]].get("aliases") or [])
-                merged = list(dict.fromkeys([*cur, *aliases]))
-                if merged != cur:
-                    by_id[d["id"]]["aliases"] = merged
-                    changed = True
+            if d["id"] not in by_id:
+                by_id[d["id"]] = dict(d)
+                changed = True
+                continue
+            aliases = list(d.get("aliases") or [])
+            cur = list(by_id[d["id"]].get("aliases") or [])
+            merged = list(dict.fromkeys([*cur, *aliases]))
+            if merged != cur:
+                by_id[d["id"]]["aliases"] = merged
+                changed = True
         if changed:
             self._write_raw(list(by_id.values()))
 

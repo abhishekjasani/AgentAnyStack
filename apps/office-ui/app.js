@@ -86,9 +86,97 @@
     if (name === "local-models") {
       loadStacks();
     }
+    if (name === "capabilities") {
+      loadCapabilities();
+    }
     if (name === "create") {
       loadCreateConnections();
       loadCreateProjects();
+    }
+  }
+
+  let channelAgents = [];
+  let selectedAgentId = ""; // "" = office front desk
+  let configuringAgentId = "";
+
+  async function loadCapabilities() {
+    const list = $("#capability-catalog-list");
+    const err = $("#capabilities-error");
+    const select = $("#capabilities-agent-select");
+    err.hidden = true;
+    list.innerHTML = "";
+    try {
+      const [catalogRes, agentsRes] = await Promise.all([
+        api("/capabilities"),
+        api("/agents"),
+      ]);
+      if (!catalogRes.ok) throw new Error(`GET /capabilities ${catalogRes.status}`);
+      if (!agentsRes.ok) throw new Error(`GET /agents ${agentsRes.status}`);
+      const catalog = await catalogRes.json();
+      const agents = await agentsRes.json();
+
+      for (const item of catalog.items || []) {
+        list.appendChild(renderCapabilityRow(item));
+      }
+
+      select.innerHTML = '<option value="">Select a desk\u2026</option>';
+      for (const a of agents) {
+        const opt = document.createElement("option");
+        opt.value = a.id;
+        opt.textContent = `${a.name} (${a.team})`;
+        select.appendChild(opt);
+      }
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  function renderCapabilityRow(item) {
+    const li = document.createElement("li");
+    li.className = "model-row";
+    const main = document.createElement("div");
+    main.className = "model-row-main";
+    const title = document.createElement("p");
+    title.className = "model-title";
+    title.textContent = `${item.name} \u00b7 ${item.kind}`;
+    const meta = document.createElement("p");
+    meta.className = "desk-meta";
+    meta.textContent = item.default_inherit
+      ? "Default-inherit for all desks"
+      : `Approval: ${item.approval_mode}`;
+    main.appendChild(title);
+    main.appendChild(meta);
+    li.appendChild(main);
+    return li;
+  }
+
+  async function lookupAgentCapabilities() {
+    const select = $("#capabilities-agent-select");
+    const box = $("#capabilities-agent-result");
+    const err = $("#capabilities-error");
+    const agentId = select.value;
+    if (!agentId) return;
+    err.hidden = true;
+    try {
+      const res = await api(`/agents/${encodeURIComponent(agentId)}/capabilities`);
+      if (!res.ok) throw new Error(`GET capabilities ${res.status}`);
+      const data = await res.json();
+      box.hidden = false;
+      $("#capabilities-agent-title").textContent = `${data.agent_id} \u00b7 ${data.team}`;
+      $("#capabilities-agent-meta").textContent =
+        `connection: ${data.connection_id || "\u2014"} \u00b7 ${data.effective_capabilities.length} of ${data.catalog_count} catalog items`;
+      const ul = $("#capabilities-agent-list");
+      ul.innerHTML = "";
+      for (const cap of data.effective_capabilities) {
+        const li = document.createElement("li");
+        li.textContent = cap;
+        ul.appendChild(li);
+      }
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+      box.hidden = true;
     }
   }
 
@@ -2627,6 +2715,7 @@
     officeConn.addEventListener("change", () => onConnectionChange("office-config"));
   }
   $("#btn-connections-refresh")?.addEventListener("click", () => loadConnections());
+  $("#btn-capabilities-lookup")?.addEventListener("click", () => lookupAgentCapabilities());
 
   $("#bedrock-creds-form [name=auth_mode]")?.addEventListener("change", (ev) => {
     syncBedrockAuthFields(String(ev.target.value || "iam"));
