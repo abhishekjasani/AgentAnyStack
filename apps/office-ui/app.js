@@ -95,10 +95,6 @@
     }
   }
 
-  let channelAgents = [];
-  let selectedAgentId = ""; // "" = office front desk
-  let configuringAgentId = "";
-
   async function loadCapabilities() {
     const list = $("#capability-catalog-list");
     const err = $("#capabilities-error");
