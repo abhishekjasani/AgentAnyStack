@@ -1,6 +1,7 @@
 import json
 import shutil
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -10,7 +11,9 @@ from agent_anystack.capabilities.catalog import (
     CapabilityKind,
     DEFAULT_GOLD_TOOLS,
 )
+from agent_anystack.capabilities.binding import build_bindings
 from agent_anystack.config import Settings, get_settings
+from agent_anystack.adapters.llm import ChatTurnResult, ToolCallRequest
 from agent_anystack.domain.agent import (
     AgentAutonomy,
     AgentConfig,
@@ -21,6 +24,7 @@ from agent_anystack.domain.agent import (
     Workspace,
 )
 from agent_anystack.office.repository import OfficeRepository
+from agent_anystack.runs.service import ChatRunService
 
 
 def _office_root() -> Path:
@@ -63,6 +67,159 @@ def test_gold_catalog_descriptors_persist_in_office_catalog(tmp_path):
     assert set(DEFAULT_GOLD_TOOLS).issubset(persisted_ids)
     assert set(DEFAULT_GOLD_TOOLS).issubset({item.id for item in second_service.list()})
     assert {item.id for item in first_service.list()} == {item.id for item in second_service.list()}
+
+
+def test_bindings_only_offer_tools_with_catalog_descriptors(tmp_path):
+    shutil.copytree(_office_root() / "catalog", tmp_path / "catalog")
+    (tmp_path / "catalog" / "tools" / "gold.append.yaml").unlink()
+    service = CapabilityCatalogService(tmp_path)
+
+    bindings = build_bindings(service, _agent("sales-assistant", team="sales"))
+
+    assert set(bindings) == {"read_gold", "delete_gold", "clear_gold"}
+    assert all(binding.item.id != "gold.append" for binding in bindings.values())
+
+
+def test_duplicate_model_tool_names_are_rejected():
+    service = CapabilityCatalogService(_office_root())
+    service.register(
+        CapabilityCatalogItem(
+            id="gold.append",
+            kind=CapabilityKind.internal_tool,
+            name="Duplicate read",
+            handler="gold.append",
+            tool_name="read_gold",
+            parameters={"type": "object", "properties": {}},
+        )
+    )
+
+    with pytest.raises(ValueError, match="duplicate capability tool_name: read_gold"):
+        build_bindings(service, _agent("sales-assistant", team="sales"))
+
+
+def test_unknown_internal_tool_handler_fails_catalog_load(tmp_path):
+    shutil.copytree(_office_root() / "catalog", tmp_path / "catalog")
+    descriptor = tmp_path / "catalog" / "tools" / "gold.read.yaml"
+    descriptor.write_text(
+        descriptor.read_text(encoding="utf-8").replace(
+            "handler: gold.read", "handler: gold.unknown"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="unknown capability handler: gold.unknown"):
+        CapabilityCatalogService(tmp_path)
+
+
+@pytest.mark.asyncio
+async def test_unoffered_model_tool_call_is_rejected(tmp_path):
+    shutil.copytree(_office_root() / "catalog", tmp_path / "catalog")
+    (tmp_path / "catalog" / "tools" / "gold.append.yaml").unlink()
+    repo = OfficeRepository(tmp_path)
+    service = ChatRunService(
+        repo=repo,
+        journal=MagicMock(),
+        openai_compatible_base_url="http://mock:11434",
+        okf=MagicMock(),
+        database_url=f"sqlite:///{tmp_path}/test.db",
+    )
+    adapter = MagicMock()
+    adapter.complete_chat_turn = AsyncMock(
+        side_effect=[
+            ChatTurnResult(
+                tool_calls=[
+                    ToolCallRequest(
+                        id="call-1",
+                        name="append_gold",
+                        arguments='{"text":"should not be written"}',
+                    )
+                ]
+            ),
+            ChatTurnResult(content="Done"),
+        ]
+    )
+    messages = [{"role": "user", "content": "save this"}]
+
+    events = [
+        event
+        async for event in service._run_with_gold_tools(
+            adapter=adapter,
+            model="test-model",
+            messages=messages,
+            agent=_agent("sales-assistant", team="sales"),
+            user_id="user-1",
+            run_id="run-1",
+        )
+    ]
+
+    offered_names = {
+        tool["function"]["name"]
+        for tool in adapter.complete_chat_turn.call_args_list[0].kwargs["tools"]
+    }
+    assert "append_gold" not in offered_names
+    assert messages[2]["content"] == "error: unknown tool"
+    assert next(event for event in events if event.get("type") == "tool")["ok"] is False
+
+
+@pytest.mark.asyncio
+async def test_catalog_bound_append_gold_dispatches_to_repository(tmp_path):
+    shutil.copytree(_office_root() / "catalog", tmp_path / "catalog")
+    (tmp_path / "org.yaml").write_text(
+        "id: demo\nname: Demo Org\nmax_autonomy: 100\n",
+        encoding="utf-8",
+    )
+    repo = OfficeRepository(tmp_path)
+    agent = repo.create_agent(
+        CreateAgentRequest(
+            id="sales-assistant",
+            name="Sales Assistant",
+            team="sales",
+            stack="openai-compatible",
+            model="test-model",
+            workspace={"project_id": "proj-1", "path": str(tmp_path)},
+            tools_mode="none",
+        ),
+        user_id="user-1",
+    )
+    service = ChatRunService(
+        repo=repo,
+        journal=MagicMock(),
+        openai_compatible_base_url="http://mock:11434",
+        okf=MagicMock(),
+        database_url=f"sqlite:///{tmp_path}/test.db",
+    )
+    adapter = MagicMock()
+    adapter.complete_chat_turn = AsyncMock(
+        side_effect=[
+            ChatTurnResult(
+                tool_calls=[
+                    ToolCallRequest(
+                        id="call-1",
+                        name="append_gold",
+                        arguments='{"text":"Keep the release note concise."}',
+                    )
+                ]
+            ),
+            ChatTurnResult(content="Saved"),
+        ]
+    )
+
+    async for _event in service._run_with_gold_tools(
+        adapter=adapter,
+        model="test-model",
+        messages=[{"role": "user", "content": "remember this"}],
+        agent=agent,
+        user_id="user-1",
+        run_id="run-1",
+    ):
+        pass
+
+    offered_names = {
+        tool["function"]["name"]
+        for tool in adapter.complete_chat_turn.call_args_list[0].kwargs["tools"]
+    }
+    assert "append_gold" in offered_names
+    assert "Keep the release note concise." in repo.read_gold(agent, "user-1")
 
 
 def test_catalog_service_resolves_registered_capabilities():

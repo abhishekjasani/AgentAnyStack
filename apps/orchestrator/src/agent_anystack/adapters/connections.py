@@ -233,6 +233,20 @@ _DEFAULTS: tuple[dict[str, Any], ...] = (
     },
 )
 
+_SECRET_META_KEYS = {
+    "api_key",
+    "access_key_id",
+    "secret_access_key",
+    "session_token",
+    "aws_access_key_id",
+    "aws_secret_access_key",
+    "aws_session_token",
+    "bearer_token",
+    "client_secret",
+    "password",
+    "token",
+}
+
 
 @dataclass
 class StackConnection:
@@ -255,6 +269,12 @@ class StackConnection:
 
     def as_dict(self) -> dict[str, Any]:
         d = asdict(self)
+        meta = dict(d.get("meta") or {})
+        if meta.get("api_key"):
+            meta["has_api_key"] = True
+        for key in _SECRET_META_KEYS:
+            meta.pop(key, None)
+        d["meta"] = meta
         d["stack"] = self.stack()
         d["kind_label"] = _kind_label(self.kind)
         d["registered_models"] = [m.as_dict() for m in self.registered_models]

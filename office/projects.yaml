@@ -9,3 +9,8 @@ projects:
   slug: loan-portal
   path: /projects/loan-portal
   status: active
+- id: zen-api-test-0a2178ae
+  name: Zen API Test Project
+  slug: zen-api-test
+  path: /projects/zen-api-test
+  status: active

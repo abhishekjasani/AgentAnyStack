@@ -1,7 +1,13 @@
 id: gold.read
 kind: internal_tool
 name: Read Gold Notes
-description: Read the current user's personal working notes for this desk.
+description: Read your personal working notes (gold). Each note has an id — use those ids with delete_gold.
+handler: gold.read
+tool_name: read_gold
+parameters:
+  type: object
+  properties: {}
+  additionalProperties: false
 default_inherit: true
 approval_mode: never
 risk_class: read_draft

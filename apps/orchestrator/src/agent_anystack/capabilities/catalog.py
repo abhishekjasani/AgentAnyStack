@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from agent_anystack.domain.agent import AgentConfig
+from agent_anystack.capabilities.registry import has_handler
 
 DEFAULT_GOLD_TOOLS = [
     "gold.read",
@@ -36,6 +37,20 @@ class CapabilityCatalogItem(BaseModel):
     risk_class: str | None = None
     secret_ref: str | None = None
     tags: list[str] = Field(default_factory=list)
+    handler: str | None = None
+    tool_name: str | None = None
+    parameters: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def validate_internal_tool(self) -> CapabilityCatalogItem:
+        if self.kind == CapabilityKind.internal_tool:
+            if not self.handler or not self.tool_name or self.parameters is None:
+                raise ValueError(
+                    "internal_tool capabilities require handler, tool_name, and parameters"
+                )
+            if not has_handler(self.handler):
+                raise ValueError(f"unknown capability handler: {self.handler}")
+        return self
 
 
 class CapabilityCatalogService:

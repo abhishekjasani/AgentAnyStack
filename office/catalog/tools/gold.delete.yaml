@@ -1,7 +1,21 @@
 id: gold.delete
 kind: internal_tool
 name: Delete Gold Notes
-description: Delete specified notes from the current user's personal notes for this desk.
+description: Delete one or more gold notes by id (from read_gold or packed gold). Cannot delete the usage primer (g_system). Pass a single id or a list of ids.
+handler: gold.delete
+tool_name: delete_gold
+parameters:
+  type: object
+  properties:
+    ids:
+      type: array
+      items:
+        type: string
+      description: Note ids to remove.
+      minItems: 1
+  required:
+    - ids
+  additionalProperties: false
 default_inherit: true
 approval_mode: never
 risk_class: read_draft

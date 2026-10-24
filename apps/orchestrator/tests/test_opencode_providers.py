@@ -479,6 +479,24 @@ async def test_create_connection_with_preset_defaults_base_url(tmp_path: Path, m
             assert data["id"] == "my-mistral"
             assert data["meta"]["preset"] == "mistral"
             assert data["meta"]["base_url"] == "https://api.mistral.ai/v1"
+            assert data["meta"]["has_api_key"] is True
+            assert "api_key" not in data["meta"]
             assert data["status"] == "ok"
+
+            detail = await client.get(
+                "/stacks/connections/my-mistral",
+                headers={"X-User-Id": "admin"},
+            )
+            listing = await client.get(
+                "/stacks/connections",
+                headers={"X-User-Id": "admin"},
+            )
+            assert "api_key" not in detail.json()["meta"]
+            listed = next(
+                item
+                for item in listing.json()["connections"]
+                if item["id"] == "my-mistral"
+            )
+            assert "api_key" not in listed["meta"]
     finally:
         app.dependency_overrides.pop(get_settings, None)

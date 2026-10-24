@@ -27,6 +27,9 @@ from agent_anystack.adapters.stack_models import (
 )
 from agent_anystack.adapters.thinking import append_thinking
 from agent_anystack.channel_history import ChannelHistoryStore
+from agent_anystack.capabilities.binding import build_bindings
+from agent_anystack.capabilities.catalog import CapabilityCatalogService
+from agent_anystack.capabilities.registry import ToolContext, dispatch
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.envelope import build_office_envelope
 from agent_anystack.hitl.autonomy import compute_effective
@@ -38,7 +41,6 @@ from agent_anystack.limits import (
 from agent_anystack.memory import ExtractJob, OkfStore, pack_memory_sections
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
-from agent_anystack.tools.gold import GOLD_TOOL_SCHEMAS, execute_gold_tool
 
 MAX_TOOL_ROUNDS = 6
 _TOKEN_CHUNK = 48
@@ -70,6 +72,7 @@ class ChatRunService:
         opencode_default_output_limit: int | None = None,
     ) -> None:
         self.repo = repo
+        self.capability_catalog = CapabilityCatalogService(repo.root)
         self.journal = journal
         self.adapter = OpenAICompatibleAdapter(
             openai_compatible_base_url,
@@ -490,12 +493,13 @@ class ChatRunService:
         max_tokens: int | None = None,
     ) -> AsyncIterator[dict]:
         """Tool loop for gold CRUD; then emit assistant text as tokens."""
+        bindings = build_bindings(self.capability_catalog, agent)
         for _round in range(MAX_TOOL_ROUNDS):
             try:
                 turn = await adapter.complete_chat_turn(
                     model=model,
                     messages=messages,
-                    tools=GOLD_TOOL_SCHEMAS,
+                    tools=[binding.schema for binding in bindings.values()],
                     max_tokens=max_tokens,
                 )
             except StackError as exc:
@@ -552,14 +556,20 @@ class ChatRunService:
                 }
                 messages.append(assistant_msg)
                 for tc in turn.tool_calls:
-                    result = execute_gold_tool(
-                        tc.name,
-                        tc.arguments,
-                        repo=self.repo,
-                        agent=agent,
-                        user_id=user_id,
-                        run_id=run_id,
-                    )
+                    binding = bindings.get(tc.name)
+                    if binding is None:
+                        result = "error: unknown tool"
+                    else:
+                        result = dispatch(
+                            binding,
+                            tc.arguments,
+                            ToolContext(
+                                repo=self.repo,
+                                agent=agent,
+                                user_id=user_id,
+                                run_id=run_id,
+                            ),
+                        )
                     yield {
                         "type": "tool",
                         "name": tc.name,

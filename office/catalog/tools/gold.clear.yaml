@@ -1,7 +1,13 @@
 id: gold.clear
 kind: internal_tool
 name: Clear Gold Notes
-description: Clear the current user's personal working notes for this desk while preserving the usage primer.
+description: Remove all working gold notes. The usage primer is kept/restored.
+handler: gold.clear
+tool_name: clear_gold
+parameters:
+  type: object
+  properties: {}
+  additionalProperties: false
 default_inherit: true
 approval_mode: never
 risk_class: read_draft
