@@ -412,6 +412,7 @@
   }
 
   let channelAgents = [];
+  let channelMessages = [];
   let selectedAgentId = ""; // "" = office front desk
   let configuringAgentId = "";
 
@@ -1969,6 +1970,7 @@
       selectedAgentId = "";
       $("#chat-agent-id").value = "";
       renderAgentChips();
+      renderHistory(channelMessages);
       $("#chat-meta").textContent = "Route: Office front desk";
     });
     wrap.appendChild(officeBtn);
@@ -1984,6 +1986,7 @@
         $("#chat-agent-id").value = a.id;
         if (a.team) $("#chat-team").value = a.team;
         renderAgentChips();
+        renderHistory(channelMessages);
         $("#chat-meta").textContent = `Route: desk ${a.id}`;
       });
       wrap.appendChild(btn);
@@ -1994,7 +1997,12 @@
   function renderHistory(messages) {
     const log = $("#chat-log");
     log.innerHTML = "";
-    for (const m of messages || []) {
+    const selectedMessages = (messages || []).filter((message) =>
+      selectedAgentId
+        ? message.mode === "agent" && message.agent_id === selectedAgentId
+        : message.mode === "office",
+    );
+    for (const m of selectedMessages) {
       const role =
         m.role === "user"
           ? "user"
@@ -2076,7 +2084,8 @@
         selectedAgentId = "";
       }
       renderAgentChips();
-      renderHistory(data.messages || []);
+      channelMessages = data.messages || [];
+      renderHistory(channelMessages);
       renderChannelApprovals(data.pending_approvals || []);
       $("#chat-meta").textContent = selectedAgentId
         ? `Route: desk ${selectedAgentId} · user ${data.user_id}`
@@ -3628,6 +3637,7 @@
       if (replyText.textContent === "…") replyText.textContent = "(error)";
     } finally {
       send.disabled = false;
+      await loadChannel({ keepRoute: true });
     }
   });
 

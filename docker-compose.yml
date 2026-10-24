@@ -31,6 +31,7 @@ services:
       - ./office:/office
       - ./projects:/projects
       - ./data:/data
+      - ./apps/office-ui:/ui:ro
     # Ollama optional at boot — chat wiring is a later phase
     restart: unless-stopped
 
