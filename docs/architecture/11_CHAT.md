@@ -13,6 +13,8 @@ Full call chain: main → router → classes. See [V0_SCOPE.md](../V0_SCOPE.md) 
 | `agent_id` from URL + `user_id` from `X-User-Id` (run locals, not cache) | **Built** |
 | Office Envelope + `AGENT.md` + pack **gold(a,u)** into system prompt | **Built** |
 | Mediated **`read_gold` / `append_gold` / `delete_gold` / `clear_gold`** | **Built** |
+| Catalog-backed internal/API/MCP callable tools with approval gating | **Built**; pending approval blocks the call and does not auto-resume |
+| Registered skills | **Built**; eligible prompt text is scoped to the desk |
 | One OpenAI-compatible adapter (`adapters/llm.py`); switch host via URL | **Built** |
 | Journal row per run (team, project_id, stack, autonomy, …) | **Built** |
 | Gold HTTP `GET` (UI view) + optional `PUT/DELETE` (ops) | **Built** |
@@ -167,8 +169,8 @@ flowchart TD
 7. repo.read_gold(a,u)     → gold/<user_id>.md (if any)
 8. okf.list_team_facts     → SQLite mem(team)
 9. pack_memory_sections    → gold + team OKF markdown (budget)
-10. system = envelope + persona + memory
-11. adapter.stream_chat     → yield tokens / StackError
+10. system = envelope + persona + eligible skill text + memory
+11. adapter completes tool-call rounds; run service dispatches resolved capabilities and emits final text
 12. journal.append         → journal.jsonl
 13. yield done (+ ExtractJob if enabled)
 14. api/chat BackgroundTasks → run_okf_extract (after SSE)
@@ -176,7 +178,7 @@ flowchart TD
 
 ## Backwards journey: LLM stream → UI (today)
 
-Today the adapter only reads **text** deltas. No tool-call parsing yet.
+The chat run handles callable tool rounds before emitting final assistant text as SSE. Tool schemas are resolved for the desk; the orchestrator gates and dispatches capability calls. A pending or denied call stops that tool loop.
 
 ```mermaid
 sequenceDiagram
@@ -186,27 +188,30 @@ sequenceDiagram
     participant C as chat() SSE
     participant UI as Browser
 
-    OAI-->>AD: data: {"choices":[{"delta":{"content":"Hi"}}]}
-    Note over AD: Only delta.content<br/>Ignores tool_calls today
-    AD-->>S: yield "Hi"
-    S-->>C: yield {type:"token", text:"Hi"}
-    C-->>UI: data: {"type":"token","text":"Hi"}
+    OAI-->>AD: assistant response / tool_calls
+    AD->>S: complete tool-call round
+    S->>S: resolve binding → approval gate → registry dispatch
+    alt dispatched successfully
+        S->>AD: tool result; continue model turn
+    else pending or denied
+        S-->>C: stop tool loop; record outcome
+    end
+    AD-->>S: final assistant text
+    S-->>C: yield token events
+    C-->>UI: SSE token events
 ```
 
 ```text
-SSE line from model server
-  → json.loads
-  → choices[0].delta.content   ← text token
-  → yield str to ChatRunService
-  → yield {"type":"token",...} to chat route
-  → "data: {...}\n\n" to UI
+Model response
+    → final text: stream as SSE tokens
+    → tool call: resolve desk binding → apply approval mode → dispatch or stop
 ```
 
 `agent_id` / `user_id` never come back from the LLM — they remain locals from the original HTTP request.
 
-## Token vs tool_call (gold tools)
+## Token vs tool_call (gold and catalog capabilities)
 
-Gold tools use **non-streaming** `complete_chat_turn` rounds (tools on the request), then the final assistant text is emitted as SSE `token` chunks. Hosts that reject `tools` fall back to plain `stream_chat`.
+Gold tools and catalog capabilities use **non-streaming** `complete_chat_turn` rounds (tools on the request), then final assistant text is emitted as SSE `token` chunks. Hosts that reject `tools` fall back to plain `stream_chat`.
 
 ### Wire (OpenAI-compatible)
 

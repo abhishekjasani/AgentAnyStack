@@ -289,6 +289,8 @@ BYO keys — [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) Runtime & ToS.
 
 ### 8.1 Catalog HITL (`_locked`) vs harness natives
 
+**Design-only:** the `_locked` wrapper, grant, timed elevation, and blocking wait described here are not implemented. Current catalog calls use `approval_mode` and pending calls do not resume after approval; see [ORCHESTRATOR.md](./ORCHESTRATOR.md) §7.2. The harness comparison below remains a threat-model/design note, not a shipped interception guarantee.
+
 Gate is the **capability path**, not the string `_locked`. Office never injects the real MCP id into the agent tool list — only `*_locked`. Detail: [ORCHESTRATOR.md §7.2–7.3](./ORCHESTRATOR.md#72-hil-policy-on-the-catalog-item-admin).
 
 | Runtime | `_locked` intercept? |

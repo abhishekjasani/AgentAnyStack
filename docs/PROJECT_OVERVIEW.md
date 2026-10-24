@@ -187,7 +187,7 @@ flowchart LR
 ### v0 nav shell (simple)
 
 ```text
-Team ★ | Memory | Approvals | Capabilities (stub) | Analytics (stub) | Connect (stub) | Settings
+Team ★ | Memory | Approvals | Capabilities | Analytics (stub) | Connect (stub) | Settings
 ```
 
 | Tab | v0 |
@@ -195,7 +195,7 @@ Team ★ | Memory | Approvals | Capabilities (stub) | Analytics (stub) | Connect
 | Team | Works — desks + chat |
 | Memory | Works thin — fact list |
 | Approvals | One HITL path (inbox) |
-| Capabilities | Stub — Capability Catalog (Tools, MCP, Skills, External tools) with centralized registration and optional approval metadata ([ORCHESTRATOR.md](./ORCHESTRATOR.md) §7) |
+| Capabilities | Catalog descriptor CRUD, desk registration, MCP discovery, and per-user OAuth ([ORCHESTRATOR.md](./ORCHESTRATOR.md) §7) |
 | Analytics | Stub — [ANALYTICS.md](./ANALYTICS.md) |
 | Connect | Stub — [CONNECT.md](./CONNECT.md) |
 | Settings | Platform read-only when ready |
@@ -391,7 +391,7 @@ Accepted for v1 — do not claim “secrets-proof” or “hard MCP sandbox.”
 | Gap | Note |
 | --- | --- |
 | Creds may land in **gold** or **OKF** bodies | Keep as-is for now; scrub/encrypt later |
-| MCP **`_locked`** grant | Inference: complete intercept. Harness: catalog-only path (no native twin / leaked creds). Not a hard sandbox |
+| Capability approval | Pending calls block dispatch; deciding a card does not resume the call. Resumable `_locked` grants are not implemented |
 | Intended path | Vault/env for real secrets |
 
 Full lists: [ORCHESTRATOR.md §10](./ORCHESTRATOR.md#10-security--known-gaps-todo) · [MEMORY_ARCHITECTURE.md §9](./MEMORY_ARCHITECTURE.md#9-security--known-gaps-todo).

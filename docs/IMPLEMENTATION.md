@@ -157,15 +157,7 @@ effective = clamp(user.override ?? agent.default ?? org.default, 0, effective_ma
 **Approvers v1 (`permissive`):** requester ∪ org admin ∪ MCP/cred owner.  
 **Later (`strict`):** org admin and/or MCP/cred owner only.
 
-**Catalog `hil` + `_locked`:** Direct = `never` or **elevated** (`hil_timer_hours` then snap back to original `hil`). Gated = agent sees `*_locked` only (never the real MCP name). Elevation is admin-started; recycle the desk TTL session at window start/end; **hard floors still apply**.
-
-| Runtime | `_locked` intercept |
-| --- | --- |
-| Inference (office tool list) | **Complete** |
-| Harness + catalog-only action (e.g. WhatsApp; no native twin / leaked creds) | **Complete** |
-| Harness natives (fs/shell/git) | Soft envelope + **hook profile** from autonomy band — not `_locked` |
-
-`*_locked` wait: wrapper **blocks** with internal exp backoff until Accept / Reject / `action_timeout` — Cursor sees one slow tool call (not model-driven retry). Detail: [ORCHESTRATOR.md](./ORCHESTRATOR.md) §4.1 · §6.0.2 · §7.2–7.3 · [STACK_ADAPTERS.md §8.1–8.2](./STACK_ADAPTERS.md#81-catalog-hitl-_locked-vs-harness-natives).
+**Capability approvals (current):** `approval_mode` is `never`, `always`, or `autonomy`; pending cards block the capability call. Approval decisions do not resume calls or issue grants. Timed elevation and the `_locked` grant/wait path are planned only; see [ORCHESTRATOR.md](./ORCHESTRATOR.md) §7.
 
 ---
 
@@ -181,7 +173,7 @@ effective = clamp(user.override ?? agent.default ?? org.default, 0, effective_ma
 **Known gaps (do not market as solved):**
 
 1. Gold/OKF may accidentally contain credentials — scrub later.  
-2. MCP `_locked` + grant is **complete on Inference**; on harness **only for catalog-only capabilities** (no native twin). Not a hard sandbox / full proxy.
+2. Capability approval cards are not resumable grants; approval does not execute or resume a capability call.
 3. Intended secret path = vault/env refs only.
 
 ---
@@ -194,7 +186,7 @@ Do **not** put platform/DB settings inside the Capability Catalog. Three buckets
 | --- | --- | --- | --- | --- |
 | **1. Platform / runtime** | How the office process runs | `DATABASE_URL` (or host/port/db/user/password), `OFFICE_REPO_PATH`, `OFFICE_MODEL`, `SECRET_KEY`, `PORT`, pack budget, `APPROVER_MODE` | **Read-only** settings page (admin). Edit via `.env` / compose / deploy only | Env / vault |
 | **2. Stacks** | BYO model/runtime connections | Cursor / Claude / Ollama keys & base URLs | Editable on Stacks screen (later); v0 may be env-only | Env / vault refs |
-| **3. Capability Catalog** | Desk capabilities registered from a central catalog | Tools (`gold.*`), MCP, Skills, External tools (HTTP APIs) with optional approval/risk metadata | Capabilities tab stub in v0; editable catalog + agent registration later | JSON/DB descriptors + vault for secret values |
+| **3. Capability Catalog** | Desk capabilities registered from a central catalog | Tools (`gold.*`), MCP, Skills, APIs with optional approval/risk metadata | Capabilities UI supports YAML descriptor CRUD, per-desk assignment, MCP discovery, and user OAuth connection | Descriptors in office Git; per-user OAuth tokens encrypted in SQLite |
 
 **Office structure** (org/floor/team/agent/links/autonomy numbers) stays in **office git YAML**, editable from UI later (create = commit) — separate from platform secrets.
 
@@ -289,8 +281,8 @@ Canonical v0 cut: **[V0_SCOPE.md](./V0_SCOPE.md)**. Do not build floors+MCP+anal
 | 8 | Approval board: one action card, permissive | Accept → journal |
 | 9 | Effective autonomy §4.1 on one gate | Ceiling works |
 | 10 | OKF export to `memory/` | Leave-path |
-| 11 | **UI shell:** Team/Memory/Approvals + Capabilities / Analytics / Connect **stubs** | Direction clear |
-| — | Floors, full MCP/`_locked`, Analytics deep UI, Connect plugins | **After v0** |
+| 11 | **UI shell:** Team/Memory/Approvals and Capabilities catalog | Catalog CRUD, desk registration, MCP discovery, OAuth controls |
+| — | Floors, Analytics deep UI, Connect plugins, resumable `_locked` grants | **After v0** |
 
 ---
 

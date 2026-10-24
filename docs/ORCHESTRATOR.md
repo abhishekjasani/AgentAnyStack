@@ -74,22 +74,22 @@ Config example: `OFFICE_MODEL` / extend `office_qa_model` in env or org settings
 
 - Org **Capability Catalog** (admin **Capabilities** tab): **Tools · MCP · External tools · Skills**
 - The catalog is the central registry of all capabilities available to the office; desk agents register the subset they need
-- Each catalog item may carry optional approval / risk metadata such as `hil`, `risk_class`, and `hil_timer_hours`, but the product model stays simple: capabilities are discovered centrally and attached to desks
+- Catalog descriptors carry `approval_mode` (`never`, `always`, or `autonomy`) and optional `risk_class` / tags; autonomy timers are not implemented
 - **Approvals** = HITL inbox; **Capabilities** = catalog of what exists and which desk agents have registered it — not the same screen
 - **Agent-level registration only** (no team/floor ACL matrix in v1). Built-in internal **Tools** (`gold.read`, `gold.append`, `gold.delete`, `gold.clear`) **default-inherit agent desks** as available catalog tools
-- Direct vs **HIL-gated `_locked` wrappers**; grants after Accept; agent executes MCP / External tool under `run_id` (+ `user_id`)
-- **v1 grant path is not hard isolation** — see §10 Security TODOs
+- Capability calls are resolved and dispatched by the orchestrator; pending approvals block dispatch and are journaled
+- Approval decisions do not currently resume or grant the original call; `_locked` wrappers and resumable grants are planned, not shipped
 - See §7
 
 ### 2.5 Action pipeline (side effects)
 
-- Agent proposes Slack send / call / CRM write / git push / deploy / gated capability
-- Catalog `hil` + **effective autonomy** (§4.1) + timer → allow / HITL card / deny
-- After approve: deliver to **agent** to execute (ACK); journal
+- Agent calls a registered capability (or proposes an action through the approval API)
+- Capability `approval_mode` → dispatch / pending card / deny according to §7.2
+- A capability pending card does not automatically deliver the call to an agent after approval; see §7.2
 
 ### 2.6 Human-in-the-loop
 
-- Durable review queue for **memory** and **actions** / gated MCP
+- Durable review queue for **memory** and **actions**; capability calls can create pending action cards
 - Approve / edit / reject; never silent drop — **who may Approve** in §6.0.2
 - Batched UI — avoid interrupt-fatigue
 
@@ -155,7 +155,7 @@ Do **not** put modes + pack cutters + hook toggles + approvals on the Team chat 
 - **Stack hooks** = tool safety for that runtime (e.g. Cursor `.cursor/hooks.json`) — native fs/shell/git/browser.  
 - **Office / Connect hooks (human seats)** = git/CI/stop events that build a **WorkPacket** for OKF sync (portable across IDE/cloud/CLI) — not scraping agent transcripts.  
 - **Office policy** = business rules (Jira-gated development, deploy windows) enforced by the **orchestrator** so Bedrock/Claude Code/OpenCode desks share the same rule.  
-- **Catalog `_locked`** = HITL for **office MCP/API** only. Inference: 100%. Harness: only if no native twin (§7.3).
+- **Catalog capability gate** = orchestrator approval mode before dispatch; it does not currently implement the `_locked` grant path (§7.2–7.3).
 
 ---
 
@@ -163,7 +163,7 @@ Do **not** put modes + pack cutters + hook toggles + approvals on the Team chat 
 
 | Layer | Deterministic? |
 | --- | --- |
-| Routing, packing *selection*, project stamp, schema validate, upsert, archive, catalog `hil` + timer, registration list, HITL cards / grants | **Yes** — pure algo |
+| Routing, packing *selection*, project stamp, schema validate, upsert, archive, capability `approval_mode`, registration list, HITL cards | **Yes** — deterministic policy and persistence |
 | Memory **extractor** (report → candidate facts) | **No** — office-model LLM; fenced by schema + citations + quarantine |
 | Optional **recent-thread summarize** at pack | **No** — office-model LLM; output ephemeral in prompt only |
 | Office Q&A phrasing | **No** — office-model LLM; claims must cite retrieved ids |
@@ -171,7 +171,7 @@ Do **not** put modes + pack cutters + hook toggles + approvals on the Team chat 
 | Prompt text (“please ask before send”) | **Soft** — not enforcement |
 | Agent reasoning (desk model) | **No** — outside orchestrator spine |
 
-Honest framing: registration **scopes** what the agent may have; HITL is deterministic on the **approval / `_locked` unlock** path — not on every MCP round-trip unless proxied. Criticality **only** in the system prompt is not a guarantee. **Inference desks:** `_locked` is complete (office owns the tool list). **Harness desks:** `_locked` is complete **only for catalog-only capabilities** (no native twin, no leaked creds) — see §7.3.
+Honest framing: registration scopes callable schemas to desk capabilities. The orchestrator gates and dispatches catalog calls. Pending decisions stop the call loop; there is no resumable grant yet. Prompt text alone is not enforcement. Harness-native tools remain outside this capability dispatch path.
 
 ---
 
@@ -329,7 +329,9 @@ Every card links: `approval_id` → `run_id` → `agent_id` → `user_id` (reque
 
 ---
 
-## 6.0.1 HITL / board config options (so far)
+## 6.0.1 HITL / board config options (design inventory)
+
+This inventory includes future policy options. For the implemented capability gate, only `approval_mode` (`never`, `always`, `autonomy`) is authoritative; see §7.2. Timers, automatic grants, and call resumption are not implemented.
 
 | Config | Applies | Purpose |
 | --- | --- | --- |
@@ -453,7 +455,9 @@ Two layers: **algo gates** (no human) and **human queue triggers**. Autonomy 0�
 
 ---
 
-## 6.2 ACTION HITL — validations discovered so far
+## 6.2 ACTION HITL — design inventory
+
+The checks below describe desired policy, not a claim that every check is enforced by the current runtime. The implemented capability-call behavior is specified in §7.2.
 
 ### A. Algo validations (before execute)
 
@@ -521,7 +525,7 @@ Two layers: **algo gates** (no human) and **human queue triggers**. Autonomy 0�
 
 ## 7. Capability Catalog
 
-**v1 simplicity:** one org **Capability Catalog**; **grants = agent-level registration only** (no team/floor ACL matrix). Operator opens an agent in the UI → registers MCP / skill / External tool (e.g. Firecrawl). Agent never browses the full org catalog in its prompt — only its registered subset is injected at run start (**scoped injection**). Built-in **internal Tools** (`gold.*`) default-inherit — see §7.1.
+**v1 simplicity:** one org **Capability Catalog**; desk registration is agent-level (no team/floor ACL matrix). Operator assigns capabilities in the UI. Agents receive callable schemas only for their resolved registrations; eligible registered skills contribute prompt text. Built-in **internal Tools** (`gold.*`) default-inherit — see §7.1.
 
 **Compose non-coding desks:** Inference connection + Capability Catalog Tools / MCP / External tools / skills is enough for Sales/Marketing/Support/BA without a new runtime class. Coding harnesses stay for heavy implement desks. See [STACK_ADAPTERS.md](./STACK_ADAPTERS.md).
 
@@ -534,7 +538,7 @@ Two layers: **algo gates** (no human) and **human queue triggers**. Autonomy 0�
 
 The catalog is the source of available capabilities; approval and risk metadata are optional policy details attached to catalog items, not the defining product concept. Autonomy slider + hard floors still live in desk/org settings; Capabilities is where capability registration and attached metadata are managed.
 
-v0 may **stub** the Capabilities nav (direction visible); full catalog UI is post-v0 — [V0_SCOPE.md](./V0_SCOPE.md).
+The Capabilities UI supports descriptor create/edit/delete, per-desk registration assignment, MCP tool discovery, and per-user OAuth connection. Descriptors are YAML under `office/catalog/{tools,mcp,skills,apis}/`; writes are validated and persisted to that office tree.
 
 ### 7.1 Four catalog kinds
 
@@ -580,46 +584,38 @@ Secrets **should** live in vault / env refs — never deliberately in OKF facts 
 
 ### 7.2 Optional approval / risk metadata on catalog items (admin)
 
-Each item in the Capability Catalog may carry optional metadata for approval and risk classification. Admin may set:
+Each item in the Capability Catalog may carry approval and risk metadata. The current run path implements `approval_mode` as:
 
 | Field | Values |
 | --- | --- |
 | `approval_mode` | **`always`** \| **`never`** \| **`autonomy`** |
-| `approval_window_hours` | Optional: temporarily widen or narrow approval requirements for N hours |
 | `risk_class` | **Optional** (`read_draft`, `system_write`, `external_send`, `money_legal_pii`) |
 | `tags` | **Optional** for filtering and reporting |
 
-No agent-level `force_hil` / inherit matrix in v1. Temporary approval overrides are **admin-started** (not the agent, not the card requester) and **journaled** (who, catalog item, N hours, original setting).
+| Mode | Runtime behavior |
+| --- | --- |
+| `never` | Dispatch immediately, then journal the call outcome. |
+| `always` | Create a pending action card and block dispatch. Accept/Reject does not resume this call yet. |
+| `autonomy` | Reuse the existing `external_send` autonomy gate: ≤20 denies, 21–79 creates a pending card, ≥80 auto-allows. |
 
-`hil_timer_hours` is a **clock**, not a fourth `hil` value. Stored `hil` does not change.
+Each capability attempt is journaled with `capability_id`, `capability_kind`, `callable_name`, operation, mode, outcome, and optional `approval_id`; arguments and credentials are excluded. Pending or denied calls stop the tool loop. **Current limitation:** deciding a pending card does not resume or grant that call; an `always` call will remain blocked until a resume/grant workflow is implemented. The caller must not assume that approval alone executes it.
 
-**“Closer to autonomy” (product rule):**
+Autonomy elevation windows, `follow_autonomy`, and automatic resume/grants are not implemented by this run path.
 
-| Original `hil` | During elevation window | After snap-back |
-| --- | --- | --- |
-| `always` | **Direct** (`never`-like): real MCP/API bound; **no per-call HITL** | Gated again (`_locked` + card + grant) |
-| `follow_autonomy` | Treat as a **higher autonomy band** (fewer HITL trips; Direct if that band allows) | Back to desk/team/org `effective` autonomy |
-| `never` | Already Direct — timer is a no-op | Still `never` |
+### 7.3 Planned `_locked` grant model
 
-```text
-effective behavior at call / unlock time:
-  if within elevation window → Direct / higher band (table above)
-  else → use catalog hil default
-  follow_autonomy (outside window) → autonomy 0–100 band decides HITL vs allow
-```
-
-**Hard floors still apply (A3).** Elevation loosens **HITL on that catalog item**; it is not a license to ignore deny rules (mass WhatsApp, `npm publish`, prod deploy, PII send, …). Incident weekend: “Jira freely for 4h, still cannot publish.”
-
-**Live harness / inference sessions:** tool lists are bound at `agent.start` / session (re)bind. Elevation start or snap-back does **not** hot-swap a running loop. Recycle the TTL session at window start and expiry, or the timer is cosmetic for that desk.
-
-### 7.3 Two pools: Direct vs Gated (`_locked`)
+The current runtime does not create `_locked` wrappers, issue resumable grants, or resume calls after approval. The table below summarizes current dispatch outcomes; subsequent `_locked` details in this section preserve the earlier proposal and are not implemented.
 
 | Pool | When | What agent runtime gets |
 | --- | --- | --- |
-| **Direct** | `hil: never`, or temporarily elevated (§7.2) | Real MCP / External tool bound — use freely mid-run (orchestrator does **not** validate every tool hop) |
-| **Gated** | `hil: always` (default HIL) | **Real MCP / External tool is never attached.** Agent only sees a **`_locked` wrapper** name |
+| **Direct** | `approval_mode: never`, or `autonomy` auto-allow | Registered capability operation is offered as a callable and dispatched by the orchestrator |
+| **Approval pending** | `approval_mode: always`, or `autonomy` mid-band | A pending card is created; the call is blocked and is not resumed by a later decision yet |
+| **Denied** | `autonomy` deny band | The call is blocked and the denial is journaled |
 
-Example: real server `@modelcontextprotocol/server-everything` → agent-facing `@modelcontextprotocol/server-everything_locked`.
+The `_locked` wrapper/grant model remains a future design; current approval gating records the pending decision but does not hold a resumable tool invocation.
+
+<details>
+<summary>Earlier _locked design proposal (not implemented)</summary>
 
 - Agent may **see and register** HIL MCPs in the UI.
 - Backend: only the `_locked` entry is wired into the agent tool list. **Do not inject the real MCP name** into the agent tool list / prompt.
@@ -719,6 +715,8 @@ sequenceDiagram
 - Claiming `_locked` is 100% safe against a compromised or malicious agent runtime  
 - Claiming harness `_locked` intercepts **native** Cursor/OpenCode tools (fs/shell/git/browser)
 
+</details>
+
 ---
 
 ## 8. Personas: domain × channel × risk (not a closed market list)
@@ -777,7 +775,7 @@ Keep two rhythms inside the orchestrator codebase (**Python / FastAPI** target):
 
 | Module | Path | Failure mode |
 | --- | --- | --- |
-| **Runtime coordinator** | Routing, packing, office chat retrieve, action gates, capability grants / `_locked`, WS | Latency-sensitive; must not block on extraction |
+| **Runtime coordinator** | Routing, packing, office chat retrieve, capability dispatch/approval gates, WS | Latency-sensitive; must not block on extraction |
 | **Memory / HITL pipeline** | Extract, upsert, review queue | **Async job** after run; stuck extraction must never delay chat |
 
 Shared: registry, derived index, journal, **effective autonomy** (§4.1), **capability catalog + bindings + registrations**, multi-user run isolation.
@@ -792,7 +790,7 @@ Do not market these as solved. Accepted for v1; track for hardening.
 
 | Gap | Reality | Later |
 | --- | --- | --- |
-| **`_locked` / grant** | Inference: intercept is complete. Harness: catalog-only path only (no native twin / leaked creds). After Accept, agent runs MCP under `run_id` — not a hard sandbox / full proxy | Full MCP proxy, short-lived scoped tokens, no raw key in agent context, stronger runtime isolation |
+| **Capability approval / resumable grant** | Calls can create pending cards and are blocked; card decisions do not resume calls. `_locked` interception is not implemented | Resumable grants, scoped tokens, stronger runtime isolation |
 | **Creds in gold** | Free-text `gold(a,u)` may accidentally store API keys | Detect/redact on write; size caps; easy reset; UI warning |
 | **Creds in OKF** | Fact bodies may contain secrets; DB ≠ encryption-at-rest / field scrub | Scrub pipeline; encrypt sensitive; purge + key rotation on incident |
 | **Intended secret path** | Catalog vault / env refs — never in agent.yaml | Keep; audit accidental leaks |

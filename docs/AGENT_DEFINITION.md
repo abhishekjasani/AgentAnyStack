@@ -56,11 +56,12 @@ system_prompt_file: ./AGENT.md       # preferred for long personas
 max_input_tokens: -1                 # -1 = inherit stack envelope; >0 tightens
 max_output_tokens: -1                # -1 = inherit stack envelope; >0 tightens
 
-registrations:
-  mcp: []                            # Capability Catalog MCP IDs — scoped injection
-  skills: []                         # Capability Catalog Skill IDs
-  apis: []                           # Capability Catalog External HTTP APIs / tools
-  tools: []                          # Optional Capability Catalog tool IDs (gold.* auto-inherited)
+capability_registrations:
+  mcp: []                            # Capability Catalog MCP IDs — scoped discovery
+  skills: []                         # Registered Skill IDs; prompt text is injected
+  apis: []                           # Capability Catalog HTTP API IDs
+  tools: []                          # Optional internal tool IDs; default_inherit applies
+# Legacy `registrations` is still accepted when loading older agent.yaml files.
 
 tools:
   mode: worker                       # none | mediated | worker
@@ -77,7 +78,7 @@ tools:
 | `name` | `name` (+ `id`) |
 | `model` | `stack` + `model` |
 | `system` | `AGENT.md` / `system_prompt` |
-| `tools` | `registrations` + `tools.mode` (Capability Catalog Tools ≠ `tools.mode`) |
+| `tools` | `capability_registrations` + `tools.mode` (Capability Catalog Tools ≠ `tools.mode`) |
 
 UI wizard collects the four Claude fields + team/workspace/autonomy → writes `agent.yaml` + `AGENT.md` → git commit.
 
@@ -107,9 +108,13 @@ Agents must **not** mount or browse `office/memory/` export trees.
 ```text
 1. Fixed Office Envelope          ← orchestrator template (this doc §6)
 2. Persona AGENT.md               ← desk-specific
-3. Registered tools schema        ← scoped only
+3. Registered skill prompt text   ← scoped by registration + declared dependencies
 4. Packed memory C(a,p,u)         ← labeled: Recent thread · gold · team · shelf
 5. User message
+```
+
+Callable tool schemas are sent separately in the model request and contain only
+capabilities resolved for this desk. Skills add prompt text; they are not callable tools.
 ```
 
 Persona files must **not** contradict the envelope (no “ignore approvals”, no “read all office markdown”).

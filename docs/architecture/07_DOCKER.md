@@ -55,6 +55,7 @@ See also [LOCAL_MODEL_STACK.md](../LOCAL_MODEL_STACK.md) §9 · [17_MODELS.md](.
 | `/root/.ollama` | `./data/ollama` | model weights (Ollama) |
 
 Env inside compose: `OFFICE_REPO_PATH=/office`, `OPENAI_COMPATIBLE_BASE_URL=http://ollama:11434/v1`.
+Per-user capability OAuth additionally requires a persistent `CAPABILITY_OAUTH_ENCRYPTION_KEY` in the host `.env`; without it, OAuth storage endpoints fail closed. Generate a Fernet key with `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'`, keep it stable across restarts, and never commit it.
 
 ```text
 + OK: create agent via API → files appear under host ./office

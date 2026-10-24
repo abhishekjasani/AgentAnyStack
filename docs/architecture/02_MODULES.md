@@ -71,6 +71,6 @@ apps/orchestrator/src/agent_anystack/
 
 | Name | Role |
 | --- | --- |
-| Autonomy gate on catalog `hil` | Slice 9 — effective autonomy decides allow vs card |
+| Capability approval gate | `approval_mode` decides dispatch, pending-card, or autonomy-band behavior; see [ORCHESTRATOR.md](../ORCHESTRATOR.md) §7 |
 | Memory HITL cards | Async review queue |
-| MCP `_locked` + grant | After Accept, agent executes |
+| MCP `_locked` + resumable grant | Planned; pending capability calls currently do not resume after a decision |

@@ -3,6 +3,8 @@
 One **action** card path — propose → board → Accept/Reject → journal.  
 Orchestrator **gates**; it does **not** execute Slack/send/etc. on Accept (agent execute / MCP grant = later).
 
+This describes the standalone action-card proposal/decision API. Catalog capability calls also use the approval board: `approval_mode: always` creates a pending card and blocks dispatch, but deciding that card does not resume or execute the call. See [ORCHESTRATOR.md](../ORCHESTRATOR.md) §7.2. The `_locked` grant flow below is not implemented.
+
 **P14:** `external_send` propose is gated by effective autonomy — see **[14_AUTONOMY_GATE.md](./14_AUTONOMY_GATE.md)**. This file is the human board path (HITL mid-band + decide).
 
 Product intent: [ORCHESTRATOR.md](../ORCHESTRATOR.md) §6.0 · formula index: [06_HITL.md](./06_HITL.md).
