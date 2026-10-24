@@ -347,7 +347,7 @@ office/                          # customer-owned git repo
     mcp/<id>.yaml
     tools/<id>.yaml              # gold.read / gold.update built-in
     skills/<id>/...
-    external_tools/<id>.yaml     # HTTP APIs (Firecrawl, …) — not MCP
+    apis/<id>.yaml               # HTTP APIs (Firecrawl, …) — not MCP
   memory/                        # optional OKF export snapshot (not hot path)
     ...
 ```

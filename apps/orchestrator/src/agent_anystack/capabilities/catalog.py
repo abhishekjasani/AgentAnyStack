@@ -3,11 +3,13 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from agent_anystack.domain.agent import AgentConfig
+from agent_anystack.capabilities.apis.auth import has_auth_handler
 from agent_anystack.capabilities.registry import has_handler
 
 DEFAULT_GOLD_TOOLS = [
@@ -21,8 +23,42 @@ DEFAULT_GOLD_TOOLS = [
 class CapabilityKind(str, Enum):
     internal_tool = "internal_tool"
     mcp = "mcp"
-    external_tool = "external_tool"
+    api = "api"
     skill = "skill"
+
+
+class ApiRequestMapping(BaseModel):
+    path: dict[str, str] = Field(default_factory=dict)
+    query: dict[str, str] = Field(default_factory=dict)
+    body: dict[str, str] = Field(default_factory=dict)
+
+
+class ApiOperation(BaseModel):
+    tool_name: str
+    description: str
+    method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
+    path: str
+    parameters: dict[str, Any]
+    request: ApiRequestMapping = Field(default_factory=ApiRequestMapping)
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, value: str) -> str:
+        if not value.startswith("/") or value.startswith("//"):
+            raise ValueError("API operation path must be a root-relative path")
+        parsed = urlsplit(value)
+        if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment:
+            raise ValueError("API operation path cannot override host, query, or fragment")
+        return value
+
+    @model_validator(mode="after")
+    def validate_path_mappings(self) -> ApiOperation:
+        import re
+
+        placeholders = set(re.findall(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}", self.path))
+        if placeholders != set(self.request.path):
+            raise ValueError("API request.path must map every path placeholder exactly once")
+        return self
 
 
 class CapabilityCatalogItem(BaseModel):
@@ -40,6 +76,15 @@ class CapabilityCatalogItem(BaseModel):
     handler: str | None = None
     tool_name: str | None = None
     parameters: dict[str, Any] | None = None
+    base_url: str | None = None
+    auth: dict[str, Any] = Field(default_factory=lambda: {"type": "none"})
+    headers: dict[str, str] = Field(default_factory=dict)
+    operations: list[ApiOperation] = Field(default_factory=list)
+
+    @field_validator("kind", mode="before")
+    @classmethod
+    def normalize_legacy_kind(cls, value: Any) -> Any:
+        return CapabilityKind.api.value if value == "external_tool" else value
 
     @model_validator(mode="after")
     def validate_internal_tool(self) -> CapabilityCatalogItem:
@@ -50,6 +95,25 @@ class CapabilityCatalogItem(BaseModel):
                 )
             if not has_handler(self.handler):
                 raise ValueError(f"unknown capability handler: {self.handler}")
+        if self.kind == CapabilityKind.api:
+            parsed = urlsplit(self.base_url or "")
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError("api capabilities require a valid absolute HTTP(S) base_url")
+            auth_type = str(self.auth.get("type") or "none")
+            if not has_auth_handler(auth_type):
+                raise ValueError(f"unknown API auth type: {auth_type}")
+            if not self.operations:
+                raise ValueError("api capabilities require at least one operation")
+            names = [operation.tool_name for operation in self.operations]
+            if len(names) != len(set(names)):
+                raise ValueError(f"duplicate API operation tool_name in capability {self.id}")
         return self
 
 
@@ -63,7 +127,7 @@ class CapabilityCatalogService:
             ("tools", CapabilityKind.internal_tool),
             ("mcp", CapabilityKind.mcp),
             ("skills", CapabilityKind.skill),
-            ("apis", CapabilityKind.external_tool),
+            ("apis", CapabilityKind.api),
         ):
             self._load_directory(catalog_dir / directory, expected_kind)
 
@@ -109,7 +173,7 @@ class CapabilityCatalogService:
             "tools": CapabilityKind.internal_tool,
             "mcp": CapabilityKind.mcp,
             "skills": CapabilityKind.skill,
-            "apis": CapabilityKind.external_tool,
+            "apis": CapabilityKind.api,
         }
         for registration_name, expected_kind in expected_kinds.items():
             for item_id in getattr(registrations, registration_name):

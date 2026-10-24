@@ -228,8 +228,19 @@ def test_catalog_service_resolves_registered_capabilities():
     service.register(
         CapabilityCatalogItem(
             id="firecrawl-api",
-            kind=CapabilityKind.external_tool,
+            kind=CapabilityKind.api,
             name="Firecrawl API",
+            base_url="https://api.firecrawl.dev",
+            auth={"type": "none"},
+            operations=[
+                {
+                    "tool_name": "firecrawl_search",
+                    "description": "Search the web",
+                    "method": "GET",
+                    "path": "/search",
+                    "parameters": {"type": "object", "properties": {}},
+                }
+            ],
             default_inherit=False,
             approval_mode="always",
             risk_class="external_send",

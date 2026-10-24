@@ -175,7 +175,7 @@ async def put_agent_registrations(
         "tools": "internal_tool",
         "mcp": "mcp",
         "skills": "skill",
-        "apis": "external_tool",
+        "apis": "api",
     }
     for registration_name, expected_kind in expected_kinds.items():
         for item_id in getattr(body, registration_name):

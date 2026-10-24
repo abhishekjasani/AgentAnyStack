@@ -542,7 +542,7 @@ v0 may **stub** the Capabilities nav (direction visible); full catalog UI is pos
 | --- | --- | --- | --- |
 | **internal_tool** | Tools | Light **in-orchestrator desk functions** (no MCP/HTTP required) | e.g. `gold.read`, `gold.append`, `gold.delete`, `gold.clear` |
 | **mcp** | MCP | Server package / URL + auth | Protocol servers |
-| **external_tool** | External tools | HTTP API: Firecrawl, AWS, GitHub, custom REST | `baseUrl` + `secretRef`; presets + custom. **APIs only — not MCP** |
+| **api** | External APIs | HTTP API: Firecrawl, AWS, GitHub, custom REST | `base_url` + `secret_ref`; per-operation schemas and request mappings. **APIs only — not MCP** |
 | **skill** | Skills | Playbook (prompt + which MCP / External tool / Tool ids it needs) | Not a server — how we do work |
 
 **Do not confuse:**
@@ -550,7 +550,7 @@ v0 may **stub** the Capabilities nav (direction visible); full catalog UI is pos
 | Name | Where | What |
 | --- | --- | --- |
 | **Tools** (catalog) | Capabilities tab | Office-implemented desk functions (`internal_tool`) |
-| **External tools** (catalog) | Capabilities tab | Third-party **HTTP APIs** |
+| **External APIs** (catalog) | Capabilities tab | Third-party **HTTP APIs** |
 | **External agent** (Stacks) | Stacks tab | Peer agent via MCP/A2A — [STACK_ADAPTERS.md](./STACK_ADAPTERS.md) |
 | Harness natives | Cursor/OpenCode | fs / shell / git / browser — **not** a catalog kind; hooks/sandbox |
 | `tools.mode` | `agent.yaml` | `none` / `mediated` / `worker` — runtime class, not catalog |
@@ -736,7 +736,7 @@ domain: sales
 channels: [phone, whatsapp]      # side-effect surfaces (descriptive)
 stack: openai-compatible         # or cursor | claude | ...
 workspace: null | path/to/repo
-# capabilities: registered per agent from Capability Catalog (Tools / MCP / Skills / External tools)
+# capabilities: registered per agent from Capability Catalog (Tools / MCP / Skills / APIs)
 # — not a team-level grant list in v1; gold.* internal Tools default-inherit agent desks
 ```
 

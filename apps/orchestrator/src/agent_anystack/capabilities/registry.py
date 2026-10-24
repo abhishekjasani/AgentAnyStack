@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from agent_anystack.capabilities.apis.auth import SecretResolver
+from agent_anystack.capabilities.apis.executor import execute_api_operation
 from agent_anystack.capabilities.tools.gold import (
     append_gold,
     clear_gold,
@@ -15,10 +17,11 @@ from agent_anystack.office import OfficeRepository
 
 @dataclass(frozen=True)
 class ToolContext:
-    repo: OfficeRepository
+    repo: OfficeRepository | None
     agent: AgentConfig
     user_id: str
     run_id: str
+    secret_resolver: SecretResolver | None = None
 
 
 Handler = Callable[..., str]
@@ -34,10 +37,23 @@ def has_handler(handler: str) -> bool:
     return handler in HANDLERS
 
 
-def dispatch(binding: Any, arguments: dict[str, Any] | str | None, ctx: ToolContext) -> str:
+async def dispatch(
+    binding: Any,
+    arguments: dict[str, Any] | str | None,
+    ctx: ToolContext,
+) -> str:
+    if binding.kind.value == "api":
+        return await execute_api_operation(
+            binding,
+            arguments,
+            secret_resolver=ctx.secret_resolver,
+        )
+
     handler = HANDLERS.get(binding.item.handler or "")
     if handler is None:
         return "error: unknown tool"
+    if ctx.repo is None:
+        return "error: missing repository context"
     return handler(
         arguments,
         repo=ctx.repo,

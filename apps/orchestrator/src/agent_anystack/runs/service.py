@@ -560,7 +560,7 @@ class ChatRunService:
                     if binding is None:
                         result = "error: unknown tool"
                     else:
-                        result = dispatch(
+                        result = await dispatch(
                             binding,
                             tc.arguments,
                             ToolContext(

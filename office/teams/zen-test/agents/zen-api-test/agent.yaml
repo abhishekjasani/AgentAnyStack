@@ -14,7 +14,8 @@ workspace:
   project_id: zen-api-test-0a2178ae
   path: /projects/zen-api-test
 system_prompt_file: ./AGENT.md
-registrations:
+capability_registrations:
+  tools: []
   mcp: []
   skills: []
   apis: []

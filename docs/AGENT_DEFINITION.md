@@ -190,7 +190,7 @@ No office-wide law duplication unless a temporary override is explicitly product
 | 2026-08-11 | Worker stacks preferred for coding; desk defaults for mode/pack; link STACK_ADAPTERS.md |
 | 2026-08-12 | Human seats pointer → IDE_FIRST (no gold/autonomy) |
 | 2026-08-14 | Envelope: `*_locked` only; do not invent bypass / leaked creds |
-| 2026-08-14 | registrations: tools + external_tools; gold.* default-inherit agent desks |
+| 2026-08-14 | `capability_registrations`: tools + apis; legacy `registrations` remains readable; gold.* default-inherit agent desks |
 | 2026-08-14 | Envelope: autonomy-for-everything soft guidance; wait on `*_locked` (no model backoff) |
 | 2026-09-08 | Formalized Capability Catalog registrations (mcp, skills, apis, tools) with gold.* default-inherit |
 | 2026-08-21 | Align agent.yaml schema & envelope with code (connection_id, max_input/output_tokens, registrations.apis, build_office_envelope) |
