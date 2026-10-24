@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 SecretResolver = Callable[[str], str | None]
-AuthHandler = Callable[..., Any]
+AuthHandler = Callable[..., Any] | None
 
 
 def _required_secret(auth: dict[str, Any], key: str, resolve: SecretResolver) -> str:
@@ -79,11 +79,16 @@ AUTH_HANDLERS: dict[str, AuthHandler] = {
     "bearer": _bearer_auth,
     "basic": _basic_auth,
     "oauth2_client_credentials": _oauth2_client_credentials_auth,
+    "oauth2_user": None,
 }
 
 
 def has_auth_handler(auth_type: str) -> bool:
     return auth_type in AUTH_HANDLERS
+
+
+def requires_user_oauth(auth_type: str) -> bool:
+    return auth_type in AUTH_HANDLERS and AUTH_HANDLERS[auth_type] is None
 
 
 async def build_auth_headers(
@@ -93,9 +98,11 @@ async def build_auth_headers(
     timeout: float,
 ) -> dict[str, str]:
     auth_type = str(auth.get("type") or "none")
-    handler = AUTH_HANDLERS.get(auth_type)
-    if handler is None:
+    if auth_type not in AUTH_HANDLERS:
         raise ValueError(f"unsupported API auth type: {auth_type}")
+    handler = AUTH_HANDLERS[auth_type]
+    if handler is None:
+        raise ValueError(f"API auth type requires a user-scoped token resolver: {auth_type}")
     if auth_type == "oauth2_client_credentials":
         return await handler(auth, secret_resolver, timeout=timeout)
     return handler(auth, secret_resolver)

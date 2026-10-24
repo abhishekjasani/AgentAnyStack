@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
+import re
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
@@ -82,9 +83,12 @@ class CapabilityCatalogItem(BaseModel):
     )
     parameters: dict[str, Any] | None = None
     base_url: str | None = None
+    server_url: str | None = None
     auth: dict[str, Any] = Field(default_factory=lambda: {"type": "none"})
     headers: dict[str, str] = Field(default_factory=dict)
     operations: list[ApiOperation] = Field(default_factory=list)
+    content: str | None = None
+    requires: list[str] = Field(default_factory=list)
 
     @field_validator("kind", mode="before")
     @classmethod
@@ -114,18 +118,45 @@ class CapabilityCatalogItem(BaseModel):
             auth_type = str(self.auth.get("type") or "none")
             if not has_auth_handler(auth_type):
                 raise ValueError(f"unknown API auth type: {auth_type}")
+            _validate_user_oauth_config(self.auth)
             if not self.operations:
                 raise ValueError("api capabilities require at least one operation")
             names = [operation.callable_name for operation in self.operations]
             if len(names) != len(set(names)):
                 raise ValueError(f"duplicate API operation callable_name in capability {self.id}")
+        if self.kind == CapabilityKind.mcp:
+            parsed = urlsplit(self.server_url or "")
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError("mcp capabilities require an absolute HTTP(S) server_url")
+            auth_type = str(self.auth.get("type") or "none")
+            if auth_type not in {"none", "api_key", "bearer", "basic", "oauth2_user"}:
+                raise ValueError(f"unsupported MCP auth type: {auth_type}")
+            _validate_user_oauth_config(self.auth)
+        if self.kind == CapabilityKind.skill and not (self.content or "").strip():
+            raise ValueError("skill capabilities require non-empty content")
         return self
+
+
+def _validate_user_oauth_config(auth: dict[str, Any]) -> None:
+    if auth.get("type") != "oauth2_user":
+        return
+    for field_name in ("authorization_url", "token_url", "client_id", "redirect_uri"):
+        if not str(auth.get(field_name) or "").strip():
+            raise ValueError(f"oauth2_user auth requires {field_name}")
 
 
 class CapabilityCatalogService:
     """Load org capability descriptors from the office repository."""
 
     def __init__(self, office_root: Path) -> None:
+        self.office_root = office_root
         self._items: dict[str, CapabilityCatalogItem] = {}
         catalog_dir = office_root / "catalog"
         for directory, expected_kind in (
@@ -153,6 +184,51 @@ class CapabilityCatalogService:
     def register(self, item: CapabilityCatalogItem) -> CapabilityCatalogItem:
         self._items[item.id] = item
         return item
+
+    def save(self, item: CapabilityCatalogItem, *, create_only: bool = False) -> CapabilityCatalogItem:
+        if not re.fullmatch(r"[a-z][a-z0-9_.-]{0,127}", item.id):
+            raise ValueError("capability id must use lowercase letters, digits, '.', '_' or '-' ")
+        if create_only and item.id in self._items:
+            raise FileExistsError(f"capability already exists: {item.id}")
+        previous = self._items.get(item.id)
+        if previous is not None and previous.kind != item.kind:
+            raise ValueError("capability kind is immutable")
+        directory_by_kind = {
+            CapabilityKind.internal_tool: "tools",
+            CapabilityKind.mcp: "mcp",
+            CapabilityKind.skill: "skills",
+            CapabilityKind.api: "apis",
+        }
+        directory = self.office_root / "catalog" / directory_by_kind[item.kind]
+        directory.mkdir(parents=True, exist_ok=True)
+        target = directory / f"{item.id}.yaml"
+        payload = yaml.safe_dump(
+            item.model_dump(mode="json", exclude_none=True),
+            sort_keys=False,
+            allow_unicode=True,
+        )
+        temp = target.with_suffix(".yaml.tmp")
+        temp.write_text(payload, encoding="utf-8")
+        temp.replace(target)
+        self._items[item.id] = item
+        return item
+
+    def delete(self, item_id: str) -> bool:
+        item = self._items.get(item_id)
+        if item is None:
+            return False
+        if item_id in DEFAULT_GOLD_TOOLS:
+            raise ValueError("default Gold capabilities cannot be deleted")
+        directory_by_kind = {
+            CapabilityKind.internal_tool: "tools",
+            CapabilityKind.mcp: "mcp",
+            CapabilityKind.skill: "skills",
+            CapabilityKind.api: "apis",
+        }
+        target = self.office_root / "catalog" / directory_by_kind[item.kind] / f"{item_id}.yaml"
+        target.unlink(missing_ok=True)
+        del self._items[item_id]
+        return True
 
     def get(self, item_id: str) -> CapabilityCatalogItem | None:
         return self._items.get(item_id)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -30,7 +31,10 @@ from agent_anystack.channel_history import ChannelHistoryStore
 from agent_anystack.capabilities.binding import build_bindings
 from agent_anystack.capabilities.catalog import CapabilityCatalogService
 from agent_anystack.capabilities.registry import ToolContext, dispatch
+from agent_anystack.capabilities.skills import render_registered_skill_prompt
+from agent_anystack.capabilities.mcp.client import discover_mcp_bindings
 from agent_anystack.domain.agent import AgentConfig
+from agent_anystack.database import sqlite_path_from_database_url
 from agent_anystack.envelope import build_office_envelope
 from agent_anystack.hitl.autonomy import compute_effective
 from agent_anystack.hitl import (
@@ -46,9 +50,9 @@ from agent_anystack.limits import (
     truncate_messages_to_input,
 )
 from agent_anystack.memory import ExtractJob, OkfStore, pack_memory_sections
-from agent_anystack.memory.store import sqlite_path_from_database_url
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
+from agent_anystack.security.capability_oauth import CapabilityOAuthStore
 
 MAX_TOOL_ROUNDS = 6
 _TOKEN_CHUNK = 48
@@ -81,6 +85,7 @@ class ChatRunService:
         approval_service: ApprovalService | None = None,
         approver_mode: str = "permissive",
         org_admins: str = "",
+        capability_oauth_encryption_key: str = "",
     ) -> None:
         self.repo = repo
         self.capability_catalog = CapabilityCatalogService(repo.root)
@@ -117,6 +122,14 @@ class ChatRunService:
         self.recent_history_days = recent_history_days
         self.recent_history_char_budget = recent_history_char_budget
         self.office_model = office_model
+        self._capability_oauth = (
+            CapabilityOAuthStore(
+                sqlite_path_from_database_url(database_url),
+                capability_oauth_encryption_key,
+            )
+            if capability_oauth_encryption_key
+            else None
+        )
 
     def _bedrock_adapter(self, connection_id: str | None = None) -> BedrockAdapter:
         if connection_id:
@@ -247,6 +260,7 @@ class ChatRunService:
             effective_autonomy=eff,
         )
         persona = self.repo.read_persona(agent)
+        skill_prompt = render_registered_skill_prompt(self.capability_catalog, agent)
         gold_notes = self.repo.list_gold_notes(agent, user_id)
         team_facts = self.okf.list_team_facts(agent.team)
         recent_messages = []
@@ -272,7 +286,10 @@ class ChatRunService:
                 pack_budget * 2,
             ),
         )
-        parts = [envelope, persona, *memory_sections]
+        parts = [envelope, persona]
+        if skill_prompt:
+            parts.append(skill_prompt)
+        parts.extend(memory_sections)
         system = "\n\n---\n\n".join(parts)
         messages: list[dict[str, Any]] = truncate_messages_to_input(
             [
@@ -499,6 +516,19 @@ class ChatRunService:
         ):
             yield event
 
+    async def _resolve_capability_oauth_token(
+        self,
+        user_id: str,
+        capability_id: str,
+    ) -> str | None:
+        if self._capability_oauth is None:
+            return None
+        return await self._capability_oauth.get_access_token(
+            user_id,
+            capability_id,
+            secret_resolver=os.environ.get,
+        )
+
     async def _run_with_gold_tools(
         self,
         *,
@@ -512,6 +542,15 @@ class ChatRunService:
     ) -> AsyncIterator[dict]:
         """Tool loop for gold CRUD; then emit assistant text as tokens."""
         bindings = build_bindings(self.capability_catalog, agent)
+        bindings.update(
+            await discover_mcp_bindings(
+                self.capability_catalog,
+                agent,
+                secret_resolver=os.environ.get,
+                user_id=user_id,
+                oauth_token_resolver=self._resolve_capability_oauth_token,
+            )
+        )
         for _round in range(MAX_TOOL_ROUNDS):
             try:
                 turn = await adapter.complete_chat_turn(
@@ -671,6 +710,7 @@ class ChatRunService:
                             agent=agent,
                             user_id=user_id,
                             run_id=run_id,
+                            oauth_token_resolver=self._resolve_capability_oauth_token,
                         ),
                     )
                     call_status = "failed" if result.startswith("error:") else "succeeded"
@@ -693,6 +733,7 @@ class ChatRunService:
                     agent=agent,
                     user_id=user_id,
                     run_id=run_id,
+                    oauth_token_resolver=self._resolve_capability_oauth_token,
                 ),
             )
             call_status = "failed" if result.startswith("error:") else "succeeded"

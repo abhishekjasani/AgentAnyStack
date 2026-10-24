@@ -22,6 +22,7 @@ class ToolContext:
     user_id: str
     run_id: str
     secret_resolver: SecretResolver | None = None
+    oauth_token_resolver: Any = None
 
 
 Handler = Callable[..., str]
@@ -47,6 +48,19 @@ async def dispatch(
             binding,
             arguments,
             secret_resolver=ctx.secret_resolver,
+            oauth_token_resolver=ctx.oauth_token_resolver,
+            user_id=ctx.user_id,
+        )
+    if binding.kind.value == "mcp":
+        from agent_anystack.capabilities.mcp.client import call_mcp_tool
+
+        args = arguments if isinstance(arguments, dict) else {}
+        return await call_mcp_tool(
+            binding,
+            args,
+            secret_resolver=ctx.secret_resolver,
+            oauth_token_resolver=ctx.oauth_token_resolver,
+            user_id=ctx.user_id,
         )
 
     handler = HANDLERS.get(binding.item.handler or "")

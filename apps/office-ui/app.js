@@ -3,6 +3,8 @@
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
   let inferencePresets = [];
+  let capabilityCatalogItems = [];
+  let editingCapabilityId = null;
 
   function getPresetsList() {
     if (inferencePresets.length > 0) return inferencePresets;
@@ -110,8 +112,9 @@
       if (!agentsRes.ok) throw new Error(`GET /agents ${agentsRes.status}`);
       const catalog = await catalogRes.json();
       const agents = await agentsRes.json();
+      capabilityCatalogItems = catalog.items || [];
 
-      for (const item of catalog.items || []) {
+      for (const item of capabilityCatalogItems) {
         list.appendChild(renderCapabilityRow(item));
       }
 
@@ -138,13 +141,238 @@
     title.textContent = `${item.name} \u00b7 ${item.kind}`;
     const meta = document.createElement("p");
     meta.className = "desk-meta";
-    meta.textContent = item.default_inherit
+    meta.textContent = `${item.id} · ${item.default_inherit
       ? "Default-inherit for all desks"
-      : `Approval: ${item.approval_mode}`;
+      : `Approval: ${item.approval_mode}`}`;
     main.appendChild(title);
     main.appendChild(meta);
-    li.appendChild(main);
+    const actions = document.createElement("div");
+    actions.className = "model-actions";
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "btn ghost";
+    edit.textContent = "Edit";
+    edit.addEventListener("click", () => openCapabilityEditor(item));
+    actions.appendChild(edit);
+    if (item.kind === "mcp") {
+      const discover = document.createElement("button");
+      discover.type = "button";
+      discover.className = "btn ghost";
+      discover.textContent = "Discover tools";
+      discover.addEventListener("click", () => discoverMcpTools(item, main));
+      actions.appendChild(discover);
+    }
+    if (!item.default_inherit) {
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "btn danger";
+      remove.textContent = "Delete";
+      remove.addEventListener("click", () => deleteCapability(item));
+      actions.appendChild(remove);
+    }
+    li.append(main, actions);
     return li;
+  }
+
+  async function discoverMcpTools(item, parent) {
+    const output = document.createElement("p");
+    output.className = "desk-meta";
+    output.textContent = "Discovering tools…";
+    parent.querySelector(".mcp-discovery-result")?.remove();
+    output.classList.add("mcp-discovery-result");
+    parent.appendChild(output);
+    try {
+      const res = await api(`/capabilities/${encodeURIComponent(item.id)}/discover`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.detail || `MCP discovery ${res.status}`);
+      output.textContent = data.tools.length
+        ? `Discovered: ${data.tools.map((tool) => tool.name).join(", ")}`
+        : "No tools discovered.";
+    } catch (e) {
+      output.textContent = String(e.message || e);
+      output.classList.add("error");
+    }
+  }
+
+  function openCapabilityEditor(item = null) {
+    editingCapabilityId = item?.id || null;
+    $("#capability-editor-title").textContent = item ? `Edit ${item.id}` : "New capability";
+    $("#capability-editor-json").value = JSON.stringify(item || {
+      id: "",
+      kind: "api",
+      name: "",
+      description: "",
+      approval_mode: "never",
+      risk_class: "read_draft",
+      secret_ref: null,
+      tags: [],
+      base_url: "https://api.example.com",
+      auth: { type: "none" },
+      headers: {},
+      operations: [],
+    }, null, 2);
+    $("#capability-editor-error").hidden = true;
+    $("#capability-editor").hidden = false;
+    $("#capability-editor").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function deleteCapability(item) {
+    const err = $("#capabilities-error");
+    err.hidden = true;
+    try {
+      const res = await api(`/capabilities/${encodeURIComponent(item.id)}`, { method: "DELETE" });
+      const data = !res.ok ? await res.json().catch(() => ({})) : null;
+      if (!res.ok) throw new Error(data?.detail || `DELETE capability ${res.status}`);
+      await loadCapabilities();
+      $("#capability-registrations").hidden = true;
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.hidden = false;
+    }
+  }
+
+  async function saveCapability(event) {
+    event.preventDefault();
+    const error = $("#capability-editor-error");
+    error.hidden = true;
+    try {
+      const descriptor = JSON.parse($("#capability-editor-json").value);
+      if (!descriptor.id || (editingCapabilityId && descriptor.id !== editingCapabilityId)) {
+        throw new Error("Capability id is required and cannot be changed while editing.");
+      }
+      const path = editingCapabilityId
+        ? `/capabilities/${encodeURIComponent(editingCapabilityId)}`
+        : "/capabilities";
+      const res = await api(path, {
+        method: editingCapabilityId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(descriptor),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.detail || `Save capability ${res.status}`);
+      $("#capability-editor").hidden = true;
+      editingCapabilityId = null;
+      await loadCapabilities();
+    } catch (e) {
+      error.textContent = String(e.message || e);
+      error.hidden = false;
+    }
+  }
+
+  function renderRegistrationChoices(items, registrations) {
+    const list = $("#capability-registration-list");
+    const assignmentKinds = {
+      internal_tool: "tools",
+      mcp: "mcp",
+      skill: "skills",
+      api: "apis",
+    };
+    list.replaceChildren();
+    for (const item of items) {
+      const category = assignmentKinds[item.kind];
+      if (!category) continue;
+      const inherited = item.id.startsWith("gold.") && item.default_inherit;
+      const row = document.createElement("li");
+      const label = document.createElement("label");
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.dataset.capabilityId = item.id;
+      checkbox.dataset.category = category;
+      checkbox.checked = inherited || (registrations[category] || []).includes(item.id);
+      checkbox.disabled = inherited;
+      const text = document.createElement("span");
+      text.textContent = `${item.name} · ${item.id}${inherited ? " · inherited" : ""}`;
+      label.append(checkbox, text);
+      row.appendChild(label);
+      if ((item.kind === "api" || item.kind === "mcp") && item.auth?.type === "oauth2_user") {
+        const oauth = document.createElement("button");
+        oauth.type = "button";
+        oauth.className = "btn ghost btn-xs";
+        oauth.textContent = "Checking OAuth…";
+        oauth.addEventListener("click", () => connectCapabilityOAuth(item, oauth));
+        row.appendChild(oauth);
+        refreshCapabilityOAuthStatus(item, oauth);
+      }
+      list.appendChild(row);
+    }
+  }
+
+  async function refreshCapabilityOAuthStatus(item, button) {
+    const agentId = $("#capabilities-agent-select").value;
+    if (!agentId) return;
+    try {
+      const res = await api(
+        `/agents/${encodeURIComponent(agentId)}/capabilities/${encodeURIComponent(item.id)}/oauth/status`,
+      );
+      const data = res.ok ? await res.json() : null;
+      button.dataset.connected = data?.connected ? "true" : "false";
+      button.textContent = data?.connected ? "Disconnect OAuth" : "Connect OAuth";
+      button.title = data?.connected
+        ? `Connected with scope: ${data.scope || "unspecified"}`
+        : "Authorize this capability for the current user";
+    } catch (_) {
+      button.textContent = "Connect OAuth";
+    }
+  }
+
+  async function connectCapabilityOAuth(item, button) {
+    const agentId = $("#capabilities-agent-select").value;
+    const error = $("#capability-registration-error");
+    error.hidden = true;
+    if (!agentId) return;
+    try {
+      if (button.dataset.connected === "true") {
+        const disconnected = await api(
+          `/agents/${encodeURIComponent(agentId)}/capabilities/${encodeURIComponent(item.id)}/oauth`,
+          { method: "DELETE" },
+        );
+        const disconnectedData = await disconnected.json().catch(() => ({}));
+        if (!disconnected.ok) {
+          throw new Error(disconnectedData?.detail || `OAuth disconnect ${disconnected.status}`);
+        }
+        await refreshCapabilityOAuthStatus(item, button);
+        return;
+      }
+      const res = await api(
+        `/agents/${encodeURIComponent(agentId)}/capabilities/${encodeURIComponent(item.id)}/oauth/start`,
+        { method: "POST" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.detail || `OAuth start ${res.status}`);
+      window.open(data.authorization_url, "_blank", "noopener,noreferrer");
+      button.textContent = "Finish OAuth, then refresh";
+    } catch (e) {
+      error.textContent = String(e.message || e);
+      error.hidden = false;
+    }
+  }
+
+  async function saveAgentRegistrations() {
+    const agentId = $("#capabilities-agent-select").value;
+    const error = $("#capability-registration-error");
+    if (!agentId) return;
+    error.hidden = true;
+    const registrations = { tools: [], mcp: [], skills: [], apis: [] };
+    $$("#capability-registration-list input:checked").forEach((checkbox) => {
+      if (!checkbox.disabled) {
+        registrations[checkbox.dataset.category].push(checkbox.dataset.capabilityId);
+      }
+    });
+    try {
+      const res = await api(`/agents/${encodeURIComponent(agentId)}/registrations`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(registrations),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.detail || `Save registrations ${res.status}`);
+      await lookupAgentCapabilities();
+    } catch (e) {
+      error.textContent = String(e.message || e);
+      error.hidden = false;
+    }
   }
 
   async function lookupAgentCapabilities() {
@@ -183,6 +411,11 @@
   async function loadTeam() {
     const list = $("#desk-list");
     const empty = $("#team-empty");
+          const registrationsRes = await api(`/agents/${encodeURIComponent(agentId)}/registrations`);
+          if (!registrationsRes.ok) {
+            throw new Error(`GET registrations ${registrationsRes.status}`);
+          }
+          renderRegistrationChoices(capabilityCatalogItems, await registrationsRes.json());
     const err = $("#team-error");
     err.hidden = true;
     try {
@@ -2712,6 +2945,16 @@
   }
   $("#btn-connections-refresh")?.addEventListener("click", () => loadConnections());
   $("#btn-capabilities-lookup")?.addEventListener("click", () => lookupAgentCapabilities());
+  $("#btn-capability-new")?.addEventListener("click", () => openCapabilityEditor());
+  $("#btn-capability-cancel")?.addEventListener("click", () => {
+    $("#capability-editor").hidden = true;
+    editingCapabilityId = null;
+  });
+  $("#capability-editor")?.addEventListener("submit", saveCapability);
+  $("#btn-capability-save-registrations")?.addEventListener(
+    "click",
+    saveAgentRegistrations,
+  );
 
   $("#bedrock-creds-form [name=auth_mode]")?.addEventListener("change", (ev) => {
     syncBedrockAuthFields(String(ev.target.value || "iam"));

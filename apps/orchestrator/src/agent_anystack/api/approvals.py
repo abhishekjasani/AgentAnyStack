@@ -20,7 +20,7 @@ from agent_anystack.hitl.service import (
     ApprovalGateDeniedError,
     ApprovalNotPendingError,
 )
-from agent_anystack.memory import sqlite_path_from_database_url
+from agent_anystack.database import sqlite_path_from_database_url
 from agent_anystack.runs.journal import RunJournal
 from agent_anystack.runs.service import journal_path_from_database_url
 

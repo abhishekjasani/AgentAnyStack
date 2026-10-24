@@ -305,6 +305,46 @@ async def test_explicit_api_auth_schemes(auth, secrets, expected):
     assert headers == expected
 
 
+@pytest.mark.asyncio
+async def test_user_oauth_token_is_used_for_api_call(tmp_path, local_api_server):
+    catalog = _api_catalog(tmp_path, local_api_server)
+    descriptor_path = tmp_path / "catalog" / "apis" / "inventory.yaml"
+    descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+    descriptor["auth"] = {
+        "type": "oauth2_user",
+        "authorization_url": "https://identity.example.test/authorize",
+        "token_url": "https://identity.example.test/token",
+        "client_id": "inventory-client",
+        "redirect_uri": "https://office.example.test/capability-oauth/callback",
+        "scopes": ["inventory.read"],
+    }
+    descriptor_path.write_text(yaml.safe_dump(descriptor, sort_keys=False), encoding="utf-8")
+    catalog = CapabilityCatalogService(tmp_path)
+    binding = build_bindings(catalog, _api_agent())["inventory_lookup"]
+
+    from agent_anystack.capabilities.registry import ToolContext, dispatch
+
+    async def user_token(user_id, capability_id):
+        assert user_id == "alice"
+        assert capability_id == "inventory-api"
+        return "alice-access-token"
+
+    result = await dispatch(
+        binding,
+        {"sku": "oauth-sku"},
+        ToolContext(
+            repo=None,
+            agent=_api_agent(),
+            user_id="alice",
+            run_id="oauth-run",
+            oauth_token_resolver=user_token,
+        ),
+    )
+
+    assert _ApiHandler.last_request["authorization"] == "Bearer alice-access-token"
+    assert "alice-access-token" not in result
+
+
 def test_api_descriptor_rejects_unknown_auth_type(tmp_path, local_api_server):
     descriptor = _api_catalog(tmp_path, local_api_server)
     path = tmp_path / "catalog" / "apis" / "inventory.yaml"

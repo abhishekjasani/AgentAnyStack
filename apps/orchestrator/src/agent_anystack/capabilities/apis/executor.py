@@ -9,7 +9,7 @@ from urllib.parse import quote, urlsplit
 
 import httpx
 
-from agent_anystack.capabilities.apis.auth import build_auth_headers
+from agent_anystack.capabilities.apis.auth import build_auth_headers, requires_user_oauth
 
 API_TIMEOUT_SECONDS = 10.0
 MAX_API_RESPONSE_BYTES = 16_384
@@ -71,6 +71,8 @@ async def execute_api_operation(
     arguments: dict[str, Any] | str | None,
     *,
     secret_resolver: Callable[[str], str | None] | None = None,
+    oauth_token_resolver=None,
+    user_id: str | None = None,
 ) -> str:
     item = binding.item
     operation = next(
@@ -90,13 +92,23 @@ async def execute_api_operation(
         auth = dict(item.auth)
         if item.secret_ref and not auth.get("secret_ref"):
             auth["secret_ref"] = item.secret_ref
-        headers.update(
-            await build_auth_headers(
-                auth,
-                secret_resolver or _environment_secret,
-                timeout=API_TIMEOUT_SECONDS,
+        if requires_user_oauth(str(auth.get("type") or "none")):
+            token = (
+                await oauth_token_resolver(user_id, item.id)
+                if oauth_token_resolver and user_id
+                else None
             )
-        )
+            if not token:
+                raise ValueError("user OAuth authorization is required")
+            headers["Authorization"] = f"Bearer {token}"
+        else:
+            headers.update(
+                await build_auth_headers(
+                    auth,
+                    secret_resolver or _environment_secret,
+                    timeout=API_TIMEOUT_SECONDS,
+                )
+            )
         query = _mapped_values(operation.request.query, args)
         body = _mapped_values(operation.request.body, args)
         async with httpx.AsyncClient(timeout=API_TIMEOUT_SECONDS, follow_redirects=False) as client:

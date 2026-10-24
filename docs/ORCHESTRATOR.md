@@ -545,6 +545,8 @@ v0 may **stub** the Capabilities nav (direction visible); full catalog UI is pos
 | **api** | External APIs | HTTP API: Firecrawl, AWS, GitHub, custom REST | `base_url` + `secret_ref`; per-operation schemas and request mappings. **APIs only — not MCP** |
 | **skill** | Skills | Playbook (prompt + which MCP / External tool / Tool ids it needs) | Not a server — how we do work |
 
+REST API capabilities expose one callable per operation; request host and auth are descriptor-controlled. MCP tools are discovered from registered Streamable HTTP servers at run time. Registered skills inject prompt text only when their declared capability dependencies are also available to the desk. Per-user OAuth tokens are encrypted in the SQLite store using `CAPABILITY_OAUTH_ENCRYPTION_KEY`; token values are not stored in office YAML or journal entries.
+
 **Do not confuse:**
 
 | Name | Where | What |

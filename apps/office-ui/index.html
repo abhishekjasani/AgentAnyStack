@@ -527,13 +527,27 @@
           <div>
             <h1 id="capabilities-title">Capability Catalog</h1>
             <p class="lede">
-              Org-wide registry of tools, MCP, skills and external tools. Desks inherit gold
-              tools by default; other items are scoped via desk <code>registrations</code>.
+              Org-wide registry of tools, MCP, skills and APIs. Desks inherit Gold tools;
+              other items are assigned through desk registrations.
             </p>
           </div>
+          <button type="button" class="btn primary" id="btn-capability-new">New capability</button>
         </header>
         <ul id="capability-catalog-list" class="model-list"></ul>
         <p id="capabilities-error" class="error" hidden></p>
+
+        <form id="capability-editor" class="form capability-editor" hidden>
+          <h2 class="section-subhead" id="capability-editor-title">New capability</h2>
+          <label>Descriptor JSON
+            <textarea id="capability-editor-json" rows="12" spellcheck="false" required></textarea>
+          </label>
+          <p class="desk-meta">Secret values are not accepted here. Use secret references.</p>
+          <p id="capability-editor-error" class="error" hidden></p>
+          <div class="form-actions memory-actions">
+            <button type="submit" class="btn primary">Save descriptor</button>
+            <button type="button" class="btn ghost" id="btn-capability-cancel">Cancel</button>
+          </div>
+        </form>
 
         <h2 class="section-subhead">Effective capabilities for a desk</h2>
         <div class="inline-form">
@@ -541,6 +555,12 @@
             <option value="">Select a desk…</option>
           </select>
           <button type="button" class="btn" id="btn-capabilities-lookup">View capabilities</button>
+        </div>
+        <div id="capability-registrations" class="capability-registrations" hidden>
+          <h3 class="memory-h2">Desk registrations</h3>
+          <ul id="capability-registration-list" class="registration-list"></ul>
+          <p id="capability-registration-error" class="error" hidden></p>
+          <button type="button" class="btn primary" id="btn-capability-save-registrations">Save registrations</button>
         </div>
         <div id="capabilities-agent-result" class="model-row" hidden>
           <div class="model-row-main">

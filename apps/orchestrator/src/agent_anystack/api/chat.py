@@ -16,11 +16,11 @@ from agent_anystack.channel_history import (
     channel_history_root_from_database_url,
 )
 from agent_anystack.config import Settings, get_settings
+from agent_anystack.database import sqlite_path_from_database_url
 from agent_anystack.memory import (
     ExtractJob,
     OkfStore,
     run_okf_extract,
-    sqlite_path_from_database_url,
 )
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import RunJournal
@@ -71,6 +71,7 @@ def get_chat_service(
         opencode_default_output_limit=settings.opencode_default_output_limit,
         approver_mode=orc.approver_mode,
         org_admins=settings.org_admins,
+        capability_oauth_encryption_key=settings.capability_oauth_encryption_key,
     )
 
 

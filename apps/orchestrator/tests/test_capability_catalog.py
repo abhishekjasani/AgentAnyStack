@@ -9,9 +9,9 @@ from agent_anystack.capabilities.catalog import (
     CapabilityCatalogItem,
     CapabilityCatalogService,
     CapabilityKind,
-    DEFAULT_GOLD_TOOLS,
 )
 from agent_anystack.capabilities.binding import build_bindings
+from agent_anystack.capabilities.skills import render_registered_skill_prompt
 from agent_anystack.config import Settings, get_settings
 from agent_anystack.adapters.llm import ChatTurnResult, ToolCallRequest
 from agent_anystack.domain.agent import (
@@ -30,6 +30,16 @@ from agent_anystack.runs.service import ChatRunService
 
 def _office_root() -> Path:
     return Path(__file__).resolve().parents[3] / "office"
+
+
+def _gold_capability_ids(service: CapabilityCatalogService) -> set[str]:
+    return {
+        item.id
+        for item in service.list()
+        if item.kind == CapabilityKind.internal_tool
+        and item.default_inherit
+        and "gold" in item.tags
+    }
 
 
 def _agent(agent_id: str, team: str = "eng") -> AgentConfig:
@@ -53,8 +63,28 @@ def test_default_gold_tools_are_available_for_agent_desks():
 
     capabilities = service.resolve_for_agent(agent)
 
-    assert set(DEFAULT_GOLD_TOOLS).issubset(set(capabilities))
-    assert len(capabilities) >= len(DEFAULT_GOLD_TOOLS)
+    defaults = _gold_capability_ids(service)
+    assert defaults.issubset(set(capabilities))
+    assert len(capabilities) >= len(defaults)
+
+
+def test_any_default_inherit_descriptor_is_resolved_without_id_registry():
+    service = CapabilityCatalogService(_office_root())
+    service.register(
+        CapabilityCatalogItem(
+            id="team.helper",
+            kind=CapabilityKind.internal_tool,
+            name="Team Helper",
+            handler="gold.read",
+            callable_name="team_helper",
+            parameters={"type": "object", "properties": {}},
+            default_inherit=True,
+        )
+    )
+
+    resolved = service.resolve_for_agent(_agent("support-agent"))
+
+    assert "team.helper" in resolved
 
 
 def test_gold_catalog_descriptors_persist_in_office_catalog(tmp_path):
@@ -304,6 +334,7 @@ def test_capabilities_are_isolated_and_registration_kind_is_enforced():
             id="browser-mcp",
             kind=CapabilityKind.mcp,
             name="Browser MCP",
+            server_url="https://browser.example.test/mcp",
         )
     )
     service.register(
@@ -329,6 +360,38 @@ def test_capabilities_are_isolated_and_registration_kind_is_enforced():
     assert "private-tool" not in caps_a
 
 
+def test_skill_prompt_includes_only_registered_skills_and_available_dependencies():
+    service = CapabilityCatalogService(_office_root())
+    service.register(
+        CapabilityCatalogItem(
+            id="skill.support",
+            kind=CapabilityKind.skill,
+            name="Support workflow",
+            content="Use concise customer-safe language.",
+            requires=["gold.read"],
+        )
+    )
+    service.register(
+        CapabilityCatalogItem(
+            id="skill.legal",
+            kind=CapabilityKind.skill,
+            name="Legal review",
+            content="Escalate legal commitments.",
+            requires=["missing-api"],
+        )
+    )
+    registered = _agent("support-desk")
+    registered.capability_registrations.skills = ["skill.support", "skill.legal"]
+    not_registered = _agent("other-desk")
+
+    prompt = render_registered_skill_prompt(service, registered)
+    other_prompt = render_registered_skill_prompt(service, not_registered)
+
+    assert "Use concise customer-safe language." in prompt
+    assert "Escalate legal commitments." not in prompt
+    assert other_prompt == ""
+
+
 @pytest.mark.asyncio
 async def test_registration_api_is_desk_scoped_and_rejects_unknown_ids(tmp_path):
     from httpx import ASGITransport, AsyncClient
@@ -340,7 +403,8 @@ async def test_registration_api_is_desk_scoped_and_rejects_unknown_ids(tmp_path)
     mcp_dir = office_dir / "catalog" / "mcp"
     mcp_dir.mkdir()
     (mcp_dir / "browser.yaml").write_text(
-        "id: browser-mcp\nkind: mcp\nname: Browser MCP\n",
+        "id: browser-mcp\nkind: mcp\nname: Browser MCP\n"
+        "server_url: https://browser.example.test/mcp\n",
         encoding="utf-8",
     )
     (office_dir / "org.yaml").write_text(

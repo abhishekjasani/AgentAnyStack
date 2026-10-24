@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     port: int = 8787
     secret_key: str = "change-me"
     office_api_token: str = "change-me"
+    capability_oauth_encryption_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("CAPABILITY_OAUTH_ENCRYPTION_KEY"),
+    )
 
     office_repo_path: str = "./office"
     office_ui_path: str = "./apps/office-ui"

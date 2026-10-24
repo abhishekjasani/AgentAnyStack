@@ -6,6 +6,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+from agent_anystack.database import sqlite_path_from_database_url
 from agent_anystack.memory.fact import OkfFact
 
 
@@ -27,14 +28,6 @@ CREATE TABLE IF NOT EXISTS okf_facts (
 );
 CREATE INDEX IF NOT EXISTS idx_okf_scope_arch ON okf_facts(scope, archived);
 """
-
-
-def sqlite_path_from_database_url(database_url: str) -> Path:
-    """sqlite:///./data/office.db → Path; also handles sqlite:////data/office.db."""
-    if not database_url.startswith("sqlite:///"):
-        raise ValueError(f"unsupported DATABASE_URL for OKF (need sqlite): {database_url}")
-    raw = database_url.removeprefix("sqlite:///")
-    return Path(raw)
 
 
 class OkfStore:

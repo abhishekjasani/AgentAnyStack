@@ -411,6 +411,37 @@ h1 {
   flex-wrap: wrap;
 }
 .inline-form select { max-width: 320px; }
+.capability-editor { margin-top: 1rem; }
+.capability-editor[hidden],
+.capability-registrations[hidden] { display: none; }
+.capability-editor textarea {
+  min-height: 16rem;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.capability-registrations {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.25rem;
+}
+.registration-list {
+  list-style: none;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 0.4rem 1rem;
+}
+.registration-list label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  min-width: 0;
+  color: var(--ink);
+}
+.registration-list input { flex: 0 0 auto; margin-top: 0.2rem; }
+.registration-list span { overflow-wrap: anywhere; }
 .tag-list {
   list-style: none;
   margin: 0.5rem 0 0;

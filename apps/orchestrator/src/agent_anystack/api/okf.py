@@ -8,12 +8,12 @@ from pydantic import BaseModel, Field
 
 from agent_anystack.api.deps import get_user_id
 from agent_anystack.config import Settings, get_settings
+from agent_anystack.database import sqlite_path_from_database_url
 from agent_anystack.memory import (
     CreateOkfFactRequest,
     OkfFact,
     OkfStore,
     export_okf_to_memory,
-    sqlite_path_from_database_url,
 )
 
 router = APIRouter(tags=["okf"])
