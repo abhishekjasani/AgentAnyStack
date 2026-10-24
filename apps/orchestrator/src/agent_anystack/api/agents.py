@@ -21,7 +21,7 @@ from agent_anystack.adapters.stack_models import (
 from agent_anystack.api.deps import get_user_id
 from agent_anystack.api.projects import get_project_registry
 from agent_anystack.config import Settings, get_settings
-from agent_anystack.capabilities.catalog import CapabilityCatalogService, DEFAULT_GOLD_TOOLS
+from agent_anystack.capabilities.catalog import CapabilityCatalogService, CapabilityKind
 from agent_anystack.domain.agent import (
     AgentConfig,
     AgentDetail,
@@ -138,7 +138,10 @@ async def get_agent_capabilities(
         connection_id=agent.connection_id,
         effective_capabilities=effective,
         catalog_count=len(service.list()),
-        default_gold_tools=DEFAULT_GOLD_TOOLS,
+        default_gold_tools=service.default_inherited_ids(
+            kind=CapabilityKind.internal_tool,
+            tag="gold",
+        ),
     )
 
 

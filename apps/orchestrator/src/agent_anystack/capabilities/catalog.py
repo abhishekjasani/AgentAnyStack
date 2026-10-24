@@ -13,13 +13,6 @@ from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.capabilities.apis.auth import has_auth_handler
 from agent_anystack.capabilities.registry import has_handler
 
-DEFAULT_GOLD_TOOLS = [
-    "gold.read",
-    "gold.append",
-    "gold.delete",
-    "gold.clear",
-]
-
 
 class CapabilityKind(str, Enum):
     internal_tool = "internal_tool"
@@ -217,8 +210,8 @@ class CapabilityCatalogService:
         item = self._items.get(item_id)
         if item is None:
             return False
-        if item_id in DEFAULT_GOLD_TOOLS:
-            raise ValueError("default Gold capabilities cannot be deleted")
+        if item.default_inherit:
+            raise ValueError("default-inherited capabilities cannot be deleted")
         directory_by_kind = {
             CapabilityKind.internal_tool: "tools",
             CapabilityKind.mcp: "mcp",
@@ -236,18 +229,27 @@ class CapabilityCatalogService:
     def list(self) -> list[CapabilityCatalogItem]:
         return list(self._items.values())
 
+    def default_inherited_ids(
+        self,
+        *,
+        kind: CapabilityKind | None = None,
+        tag: str | None = None,
+    ) -> list[str]:
+        return sorted(
+            item.id
+            for item in self._items.values()
+            if item.default_inherit
+            and (kind is None or item.kind == kind)
+            and (tag is None or tag in item.tags)
+        )
+
     def resolve_for_agent(self, agent: AgentConfig) -> list[str]:
         """Return effective capability ids for the current desk, scoped to registrations.
 
-        Built-in gold tools default-inherit for agent desks. Higher-level approval/risk logic
-        is intentionally kept out of this first release.
+        Any catalog entry marked default_inherit is available to every desk. Explicit
+        registrations remain category-checked and desk-scoped.
         """
-        effective: set[str] = set()
-
-        for item_id in DEFAULT_GOLD_TOOLS:
-            item = self.get(item_id)
-            if item is not None and item.kind == CapabilityKind.internal_tool:
-                effective.add(item_id)
+        effective: set[str] = set(self.default_inherited_ids())
 
         registrations = agent.capability_registrations
         expected_kinds = {

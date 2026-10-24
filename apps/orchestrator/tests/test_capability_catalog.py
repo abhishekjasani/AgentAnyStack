@@ -95,8 +95,9 @@ def test_gold_catalog_descriptors_persist_in_office_catalog(tmp_path):
     persisted_ids = {path.stem for path in catalog_dir.glob("*.yaml")}
     second_service = CapabilityCatalogService(tmp_path)
 
-    assert set(DEFAULT_GOLD_TOOLS).issubset(persisted_ids)
-    assert set(DEFAULT_GOLD_TOOLS).issubset({item.id for item in second_service.list()})
+    expected_gold = _gold_capability_ids(second_service)
+    assert expected_gold.issubset(persisted_ids)
+    assert expected_gold.issubset({item.id for item in second_service.list()})
     assert {item.id for item in first_service.list()} == {item.id for item in second_service.list()}
 
 
@@ -115,12 +116,13 @@ def test_duplicate_model_tool_names_are_rejected():
     service = CapabilityCatalogService(_office_root())
     service.register(
         CapabilityCatalogItem(
-            id="gold.append",
+            id="duplicate.read",
             kind=CapabilityKind.internal_tool,
             name="Duplicate read",
             handler="gold.append",
             callable_name="read_gold",
             parameters={"type": "object", "properties": {}},
+            default_inherit=True,
         )
     )
 
@@ -283,7 +285,7 @@ def test_catalog_service_resolves_registered_capabilities():
     capabilities = service.resolve_for_agent(agent)
 
     assert "firecrawl-api" in capabilities
-    assert set(DEFAULT_GOLD_TOOLS).issubset(set(capabilities))
+    assert _gold_capability_ids(service).issubset(set(capabilities))
 
 
 def test_agent_config_reads_legacy_registrations_and_writes_new_key():
@@ -503,8 +505,8 @@ def test_zen_connection_team_of_four_gold_only(tmp_path):
     for agent in agents:
         assert agent.connection_id == "zen"
         effective = service.resolve_for_agent(agent)
-        assert set(DEFAULT_GOLD_TOOLS).issubset(set(effective))
-        assert len(effective) == len(DEFAULT_GOLD_TOOLS)
+        assert _gold_capability_ids(service).issubset(set(effective))
+        assert len(effective) == len(_gold_capability_ids(service))
 
 
 def test_gold_only_customer_handoff_workflow_for_four_zen_desks(tmp_path):
@@ -565,9 +567,8 @@ def test_gold_only_customer_handoff_workflow_for_four_zen_desks(tmp_path):
     assert "pricing proposal" in sales_notes.lower()
     assert "onboarding scheduled" in ba_notes.lower()
     assert "Acme pricing request closed" in ba_notes
-    assert set(DEFAULT_GOLD_TOOLS).issubset(
-        set(CapabilityCatalogService(_office_root()).resolve_for_agent(ba))
-    )
+    catalog = CapabilityCatalogService(_office_root())
+    assert _gold_capability_ids(catalog).issubset(set(catalog.resolve_for_agent(ba)))
 
 
 @pytest.mark.asyncio
@@ -651,7 +652,7 @@ async def test_capability_catalog_api_exposes_agent_effective_capabilities(tmp_p
             )
             assert catalog.status_code == 200, catalog.text
             catalog_ids = {item["id"] for item in catalog.json()["items"]}
-            assert set(DEFAULT_GOLD_TOOLS).issubset(catalog_ids)
+            assert _gold_capability_ids(CapabilityCatalogService(office_dir)).issubset(catalog_ids)
 
             capabilities = await client.get(
                 "/agents/sales-agent/capabilities",
@@ -660,7 +661,9 @@ async def test_capability_catalog_api_exposes_agent_effective_capabilities(tmp_p
             assert capabilities.status_code == 200, capabilities.text
             payload = capabilities.json()
             assert payload["agent_id"] == "sales-agent"
-            assert set(DEFAULT_GOLD_TOOLS).issubset(set(payload["effective_capabilities"]))
-            assert payload["catalog_count"] >= len(DEFAULT_GOLD_TOOLS)
+            assert _gold_capability_ids(CapabilityCatalogService(office_dir)).issubset(
+                set(payload["effective_capabilities"])
+            )
+            assert payload["catalog_count"] >= len(_gold_capability_ids(CapabilityCatalogService(office_dir)))
     finally:
         app.dependency_overrides.clear()
