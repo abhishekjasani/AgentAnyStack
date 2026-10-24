@@ -1,0 +1,9 @@
+id: gold.append
+kind: internal_tool
+name: Append Gold Note
+description: Append one durable working note to the current user's personal notes for this desk.
+default_inherit: true
+approval_mode: never
+risk_class: read_draft
+tags:
+  - gold

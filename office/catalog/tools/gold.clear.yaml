@@ -1,0 +1,9 @@
+id: gold.clear
+kind: internal_tool
+name: Clear Gold Notes
+description: Clear the current user's personal working notes for this desk while preserving the usage primer.
+default_inherit: true
+approval_mode: never
+risk_class: read_draft
+tags:
+  - gold

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from enum import Enum
+from pathlib import Path
 from typing import Literal
 
+import yaml
 from pydantic import BaseModel, Field
 
 from agent_anystack.domain.agent import AgentConfig
@@ -37,22 +39,20 @@ class CapabilityCatalogItem(BaseModel):
 
 
 class CapabilityCatalogService:
-    """Simple catalog registry for desk-scoped capability resolution."""
+    """Load org capability descriptors from the office repository."""
 
-    def __init__(self) -> None:
+    def __init__(self, office_root: Path) -> None:
         self._items: dict[str, CapabilityCatalogItem] = {}
-        self._seed_default_gold_tools()
+        self._load_tools(office_root / "catalog" / "tools")
 
-    def _seed_default_gold_tools(self) -> None:
-        for tool_name in DEFAULT_GOLD_TOOLS:
-            self._items[tool_name] = CapabilityCatalogItem(
-                id=tool_name,
-                kind=CapabilityKind.internal_tool,
-                name=tool_name,
-                default_inherit=True,
-                approval_mode="never",
-                risk_class="read_draft",
-            )
+    def _load_tools(self, tools_dir: Path) -> None:
+        if not tools_dir.is_dir():
+            return
+
+        for descriptor_path in sorted(tools_dir.glob("*.yaml")):
+            data = yaml.safe_load(descriptor_path.read_text(encoding="utf-8")) or {}
+            item = CapabilityCatalogItem.model_validate(data)
+            self._items[item.id] = item
 
     def register(self, item: CapabilityCatalogItem) -> CapabilityCatalogItem:
         self._items[item.id] = item

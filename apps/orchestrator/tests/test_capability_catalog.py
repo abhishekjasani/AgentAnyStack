@@ -1,4 +1,6 @@
 import json
+import shutil
+from pathlib import Path
 
 import pytest
 
@@ -21,6 +23,10 @@ from agent_anystack.domain.agent import (
 from agent_anystack.office.repository import OfficeRepository
 
 
+def _office_root() -> Path:
+    return Path(__file__).resolve().parents[3] / "office"
+
+
 def _agent(agent_id: str, team: str = "eng") -> AgentConfig:
     return AgentConfig(
         id=agent_id,
@@ -37,7 +43,7 @@ def _agent(agent_id: str, team: str = "eng") -> AgentConfig:
 
 
 def test_default_gold_tools_are_available_for_agent_desks():
-    service = CapabilityCatalogService()
+    service = CapabilityCatalogService(_office_root())
     agent = _agent("sales-assistant", team="sales")
 
     capabilities = service.resolve_for_agent(agent)
@@ -46,8 +52,21 @@ def test_default_gold_tools_are_available_for_agent_desks():
     assert len(capabilities) >= len(DEFAULT_GOLD_TOOLS)
 
 
+def test_gold_catalog_descriptors_persist_in_office_catalog(tmp_path):
+    shutil.copytree(_office_root() / "catalog", tmp_path / "catalog")
+    catalog_dir = tmp_path / "catalog" / "tools"
+
+    first_service = CapabilityCatalogService(tmp_path)
+    persisted_ids = {path.stem for path in catalog_dir.glob("*.yaml")}
+    second_service = CapabilityCatalogService(tmp_path)
+
+    assert set(DEFAULT_GOLD_TOOLS).issubset(persisted_ids)
+    assert set(DEFAULT_GOLD_TOOLS).issubset({item.id for item in second_service.list()})
+    assert {item.id for item in first_service.list()} == {item.id for item in second_service.list()}
+
+
 def test_catalog_service_resolves_registered_capabilities():
-    service = CapabilityCatalogService()
+    service = CapabilityCatalogService(_office_root())
     service.register(
         CapabilityCatalogItem(
             id="firecrawl-api",
@@ -91,7 +110,7 @@ def test_zen_connection_team_of_four_gold_only(tmp_path):
     agents = repo.list_agents()
     assert len(agents) == 4
 
-    service = CapabilityCatalogService()
+    service = CapabilityCatalogService(_office_root())
     for agent in agents:
         assert agent.connection_id == "zen"
         effective = service.resolve_for_agent(agent)
@@ -157,7 +176,9 @@ def test_gold_only_customer_handoff_workflow_for_four_zen_desks(tmp_path):
     assert "pricing proposal" in sales_notes.lower()
     assert "onboarding scheduled" in ba_notes.lower()
     assert "Acme pricing request closed" in ba_notes
-    assert set(DEFAULT_GOLD_TOOLS).issubset(set(CapabilityCatalogService().resolve_for_agent(ba)))
+    assert set(DEFAULT_GOLD_TOOLS).issubset(
+        set(CapabilityCatalogService(_office_root()).resolve_for_agent(ba))
+    )
 
 
 @pytest.mark.asyncio
@@ -168,6 +189,7 @@ async def test_capability_catalog_api_exposes_agent_effective_capabilities(tmp_p
 
     office_dir = tmp_path / "office"
     office_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(_office_root() / "catalog", office_dir / "catalog")
     (office_dir / "org.yaml").write_text("id: demo\nname: Demo Org\nmax_autonomy: 100\n", encoding="utf-8")
 
     settings = Settings(
@@ -227,12 +249,20 @@ async def test_capability_catalog_api_exposes_agent_effective_capabilities(tmp_p
                     "stack": "openai-compatible",
                     "connection_id": "zen-dev",
                     "model": "big-pickle",
-                        "workspace": {"project_id": project_id, "path": "/workspace/proj-zen"},
+                    "workspace": {"project_id": project_id, "path": "/workspace/proj-zen"},
                     "tools_mode": "none",
                 },
                 headers={"X-User-Id": "demo-user"},
             )
             assert create.status_code == 201, create.text
+
+            catalog = await client.get(
+                "/capabilities",
+                headers={"X-User-Id": "demo-user"},
+            )
+            assert catalog.status_code == 200, catalog.text
+            catalog_ids = {item["id"] for item in catalog.json()["items"]}
+            assert set(DEFAULT_GOLD_TOOLS).issubset(catalog_ids)
 
             capabilities = await client.get(
                 "/agents/sales-agent/capabilities",

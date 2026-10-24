@@ -129,7 +129,7 @@ async def get_agent_capabilities(
     if agent is None:
         raise HTTPException(status_code=404, detail=f"agent not found: {agent_id}")
 
-    service = CapabilityCatalogService()
+    service = CapabilityCatalogService(repo.root)
     effective = service.resolve_for_agent(agent)
     return AgentCapabilitiesResponse(
         agent_id=agent.id,
