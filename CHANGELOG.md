@@ -18,6 +18,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Softer, more welcoming language around core vision documents
 - Clear standard fork + PR workflow in contribution guide
 
+## [0.3.28] - 2026-10-25
+
+### Added
+- Catalog-driven Gold tool schemas, desk-resolved bindings, explicit handler dispatch, and rejection of unoffered tool calls.
+
+### Fixed
+- Connection API responses now omit stored authentication secrets while preserving safe key-presence indicators.
+
 ## [0.3.26] - 2026-08-30
 
 ### Added
