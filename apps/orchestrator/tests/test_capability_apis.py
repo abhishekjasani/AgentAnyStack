@@ -86,7 +86,7 @@ def _api_catalog(office_root: Path, base_url: str) -> CapabilityCatalogService:
         "headers": {"Accept": "application/json"},
         "operations": [
             {
-                "tool_name": "inventory_lookup",
+                "callable_name": "inventory_lookup",
                 "description": "Look up inventory by SKU",
                 "method": "GET",
                 "path": "/inventory/{sku}",
@@ -99,7 +99,7 @@ def _api_catalog(office_root: Path, base_url: str) -> CapabilityCatalogService:
                 "request": {"path": {"sku": "sku"}, "query": {"include": "include"}},
             },
             {
-                "tool_name": "inventory_count",
+                "callable_name": "inventory_count",
                 "description": "Count inventory items",
                 "method": "GET",
                 "path": "/inventory/count",
@@ -110,7 +110,7 @@ def _api_catalog(office_root: Path, base_url: str) -> CapabilityCatalogService:
                 },
             },
             {
-                "tool_name": "inventory_create",
+                "callable_name": "inventory_create",
                 "description": "Create an inventory item",
                 "method": "POST",
                 "path": "/inventory",
@@ -153,8 +153,28 @@ def test_rest_descriptor_builds_one_tool_binding_per_operation(tmp_path, local_a
         "inventory_create",
     }
     binding = bindings["inventory_lookup"]
+    assert binding.callable_name == "inventory_lookup"
+    assert binding.item.operations[0].callable_name == "inventory_lookup"
     assert binding.operation == "inventory_lookup"
     assert binding.schema["function"]["parameters"]["required"] == ["sku"]
+
+
+def test_legacy_api_tool_name_loads_as_callable_name(tmp_path, local_api_server):
+    _api_catalog(tmp_path, local_api_server)
+    descriptor_path = tmp_path / "catalog" / "apis" / "inventory.yaml"
+    descriptor_path.write_text(
+        descriptor_path.read_text(encoding="utf-8").replace(
+            "callable_name:", "tool_name:"
+        ),
+        encoding="utf-8",
+    )
+
+    catalog = CapabilityCatalogService(tmp_path)
+    operation = catalog.get("inventory-api").operations[0]
+
+    assert operation.callable_name == "inventory_lookup"
+    assert "callable_name" in operation.model_dump()
+    assert "tool_name" not in operation.model_dump()
 
 
 @pytest.mark.asyncio
@@ -304,7 +324,7 @@ def test_api_operation_rejects_absolute_url_path():
 
     with pytest.raises(ValidationError, match="root-relative path"):
         ApiOperation(
-            tool_name="unsafe",
+            callable_name="unsafe",
             description="Unsafe URL",
             method="GET",
             path="https://attacker.invalid/steal",
@@ -375,5 +395,5 @@ async def test_chat_tool_loop_offers_and_dispatches_api_operation(
         entry for entry in journal._read_all() if entry.entry_type == "capability_call"
     )
     assert call_entry.capability_kind == "api"
-    assert call_entry.tool_name == "inventory_lookup"
+    assert call_entry.callable_name == "inventory_lookup"
     assert call_entry.operation == "inventory_lookup"

@@ -3,7 +3,7 @@ kind: internal_tool
 name: Delete Gold Notes
 description: Delete one or more gold notes by id (from read_gold or packed gold). Cannot delete the usage primer (g_system). Pass a single id or a list of ids.
 handler: gold.delete
-tool_name: delete_gold
+callable_name: delete_gold
 parameters:
   type: object
   properties:

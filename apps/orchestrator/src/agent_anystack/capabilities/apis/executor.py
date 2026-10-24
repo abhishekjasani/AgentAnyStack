@@ -74,7 +74,11 @@ async def execute_api_operation(
 ) -> str:
     item = binding.item
     operation = next(
-        (candidate for candidate in item.operations if candidate.tool_name == binding.tool_name),
+        (
+            candidate
+            for candidate in item.operations
+            if candidate.callable_name == binding.callable_name
+        ),
         None,
     )
     if operation is None:

@@ -89,12 +89,12 @@ def test_duplicate_model_tool_names_are_rejected():
             kind=CapabilityKind.internal_tool,
             name="Duplicate read",
             handler="gold.append",
-            tool_name="read_gold",
+            callable_name="read_gold",
             parameters={"type": "object", "properties": {}},
         )
     )
 
-    with pytest.raises(ValueError, match="duplicate capability tool_name: read_gold"):
+    with pytest.raises(ValueError, match="duplicate capability callable_name: read_gold"):
         build_bindings(service, _agent("sales-assistant", team="sales"))
 
 
@@ -234,7 +234,7 @@ def test_catalog_service_resolves_registered_capabilities():
             auth={"type": "none"},
             operations=[
                 {
-                    "tool_name": "firecrawl_search",
+                    "callable_name": "firecrawl_search",
                     "description": "Search the web",
                     "method": "GET",
                     "path": "/search",
@@ -312,7 +312,7 @@ def test_capabilities_are_isolated_and_registration_kind_is_enforced():
             kind=CapabilityKind.internal_tool,
             name="Private Tool",
             handler="gold.read",
-            tool_name="private_tool",
+            callable_name="private_tool",
             parameters={"type": "object", "properties": {}},
         )
     )

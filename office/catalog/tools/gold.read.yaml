@@ -3,7 +3,7 @@ kind: internal_tool
 name: Read Gold Notes
 description: Read your personal working notes (gold). Each note has an id — use those ids with delete_gold.
 handler: gold.read
-tool_name: read_gold
+callable_name: read_gold
 parameters:
   type: object
   properties: {}

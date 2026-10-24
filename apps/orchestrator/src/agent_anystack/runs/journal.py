@@ -38,7 +38,7 @@ class JournalEntry:
     entry_type: str = "run"
     capability_id: str | None = None
     capability_kind: str | None = None
-    tool_name: str | None = None
+    callable_name: str | None = None
     operation: str | None = None
     approval_mode: str | None = None
     call_status: str | None = None
@@ -259,7 +259,7 @@ class RunJournal:
                         entry_type=str(data.get("entry_type") or "run"),
                         capability_id=data.get("capability_id"),
                         capability_kind=data.get("capability_kind"),
-                        tool_name=data.get("tool_name"),
+                        callable_name=data.get("callable_name") or data.get("tool_name"),
                         operation=data.get("operation"),
                         approval_mode=data.get("approval_mode"),
                         call_status=data.get("call_status"),

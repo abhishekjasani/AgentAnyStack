@@ -1,3 +1,4 @@
+import json
 import shutil
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -46,6 +47,35 @@ def _office_with_gold_approval(
         user_id="requester",
     )
     return repo, agent
+
+
+def test_legacy_journal_tool_name_loads_as_callable_name(tmp_path):
+    journal_path = tmp_path / "legacy-journal.jsonl"
+    journal_path.write_text(
+        json.dumps(
+            {
+                "run_id": "run-old",
+                "agent_id": "desk",
+                "user_id": "user",
+                "team": "eng",
+                "project_id": None,
+                "channel": "office_ui",
+                "stack": "capability",
+                "model": "",
+                "effective_autonomy": 50,
+                "status": "capability_call",
+                "started_at": "2026-10-25T00:00:00Z",
+                "entry_type": "capability_call",
+                "tool_name": "inventory_lookup",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    entry = RunJournal(journal_path)._read_all()[0]
+
+    assert entry.callable_name == "inventory_lookup"
 
 
 @pytest.mark.asyncio
@@ -143,7 +173,7 @@ async def test_never_mode_dispatches_and_journals_call_without_approval(tmp_path
     call_entries = [entry for entry in journal._read_all() if entry.entry_type == "capability_call"]
     assert len(call_entries) == 1
     assert call_entries[0].capability_id == "gold.append"
-    assert call_entries[0].tool_name == "append_gold"
+    assert call_entries[0].callable_name == "append_gold"
     assert call_entries[0].approval_mode == "never"
     assert call_entries[0].call_status == "succeeded"
     assert journal.recent_runs() == []

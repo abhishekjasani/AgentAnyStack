@@ -6,7 +6,7 @@ from typing import Any, Literal
 from urllib.parse import urlsplit
 
 import yaml
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.capabilities.apis.auth import has_auth_handler
@@ -34,7 +34,9 @@ class ApiRequestMapping(BaseModel):
 
 
 class ApiOperation(BaseModel):
-    tool_name: str
+    callable_name: str = Field(
+        validation_alias=AliasChoices("callable_name", "tool_name")
+    )
     description: str
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
     path: str
@@ -74,7 +76,10 @@ class CapabilityCatalogItem(BaseModel):
     secret_ref: str | None = None
     tags: list[str] = Field(default_factory=list)
     handler: str | None = None
-    tool_name: str | None = None
+    callable_name: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("callable_name", "tool_name"),
+    )
     parameters: dict[str, Any] | None = None
     base_url: str | None = None
     auth: dict[str, Any] = Field(default_factory=lambda: {"type": "none"})
@@ -89,9 +94,9 @@ class CapabilityCatalogItem(BaseModel):
     @model_validator(mode="after")
     def validate_internal_tool(self) -> CapabilityCatalogItem:
         if self.kind == CapabilityKind.internal_tool:
-            if not self.handler or not self.tool_name or self.parameters is None:
+            if not self.handler or not self.callable_name or self.parameters is None:
                 raise ValueError(
-                    "internal_tool capabilities require handler, tool_name, and parameters"
+                    "internal_tool capabilities require handler, callable_name, and parameters"
                 )
             if not has_handler(self.handler):
                 raise ValueError(f"unknown capability handler: {self.handler}")
@@ -111,9 +116,9 @@ class CapabilityCatalogItem(BaseModel):
                 raise ValueError(f"unknown API auth type: {auth_type}")
             if not self.operations:
                 raise ValueError("api capabilities require at least one operation")
-            names = [operation.tool_name for operation in self.operations]
+            names = [operation.callable_name for operation in self.operations]
             if len(names) != len(set(names)):
-                raise ValueError(f"duplicate API operation tool_name in capability {self.id}")
+                raise ValueError(f"duplicate API operation callable_name in capability {self.id}")
         return self
 
 

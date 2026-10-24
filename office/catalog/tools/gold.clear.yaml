@@ -3,7 +3,7 @@ kind: internal_tool
 name: Clear Gold Notes
 description: Remove all working gold notes. The usage primer is kept/restored.
 handler: gold.clear
-tool_name: clear_gold
+callable_name: clear_gold
 parameters:
   type: object
   properties: {}

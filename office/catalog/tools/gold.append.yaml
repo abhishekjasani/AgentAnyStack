@@ -3,7 +3,7 @@ kind: internal_tool
 name: Append Gold Note
 description: Append one durable working note (decision, open thread, preference). Do not dump the whole chat. Orchestrator assigns a unique id.
 handler: gold.append
-tool_name: append_gold
+callable_name: append_gold
 parameters:
   type: object
   properties:
