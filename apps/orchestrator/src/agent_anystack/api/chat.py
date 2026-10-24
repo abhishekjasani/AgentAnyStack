@@ -69,6 +69,8 @@ def get_chat_service(
         database_url=settings.database_url,
         opencode_default_context_limit=settings.opencode_default_context_limit,
         opencode_default_output_limit=settings.opencode_default_output_limit,
+        approver_mode=orc.approver_mode,
+        org_admins=settings.org_admins,
     )
 
 

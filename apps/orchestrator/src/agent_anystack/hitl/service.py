@@ -33,10 +33,18 @@ class ApprovalNotPendingError(ValueError):
 class ApprovalGateDeniedError(PermissionError):
     """Effective autonomy gate denied the propose."""
 
-    def __init__(self, message: str, *, effective: int, gate: GateOutcome) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        effective: int,
+        gate: GateOutcome,
+        approval_id: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.effective = effective
         self.gate = gate
+        self.approval_id = approval_id
 
 
 class AgentNotFoundError(LookupError):
@@ -113,6 +121,7 @@ class ApprovalService:
                 f"(need >20 for HITL, ≥80 for auto-allow)",
                 effective=effective,
                 gate=outcome,
+                approval_id=card.id,
             )
 
         if outcome == GateOutcome.allow:

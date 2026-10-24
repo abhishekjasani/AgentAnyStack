@@ -35,6 +35,13 @@ class JournalEntry:
     approval_id: str | None = None
     decision: str | None = None
     decided_by: str | None = None
+    entry_type: str = "run"
+    capability_id: str | None = None
+    capability_kind: str | None = None
+    tool_name: str | None = None
+    operation: str | None = None
+    approval_mode: str | None = None
+    call_status: str | None = None
     connection_id: str | None = None
     # Token usage & cost
     input_tokens: int | None = None
@@ -89,7 +96,7 @@ class RunJournal:
         sid = (stack or "").strip()
 
         def _matches(e: JournalEntry) -> bool:
-            if not e.agent_id or e.approval_id:
+            if not e.agent_id or e.approval_id or e.entry_type == "capability_call":
                 return False
             if e.connection_id:
                 return e.connection_id in all_ids
@@ -112,7 +119,7 @@ class RunJournal:
         rows = [
             e
             for e in self._read_all()
-            if e.stack == sid and e.agent_id and not e.approval_id
+            if e.stack == sid and e.agent_id and not e.approval_id and e.entry_type != "capability_call"
         ]
         rows.reverse()
         return rows[: max(0, limit)]
@@ -128,7 +135,11 @@ class RunJournal:
         user_id: str | None = None,
     ) -> list[JournalEntry]:
         """Newest-first run entries with optional filters (excludes approval-only rows)."""
-        rows = [e for e in self._read_all() if e.agent_id and not e.approval_id]
+        rows = [
+            e
+            for e in self._read_all()
+            if e.agent_id and not e.approval_id and e.entry_type != "capability_call"
+        ]
         if team:
             rows = [e for e in rows if e.team == team]
         if agent_id:
@@ -144,7 +155,11 @@ class RunJournal:
 
     def summary(self) -> dict[str, Any]:
         """Aggregated summary of runs, tokens (input/output), and cost across all runs."""
-        rows = [e for e in self._read_all() if e.agent_id and not e.approval_id]
+        rows = [
+            e
+            for e in self._read_all()
+            if e.agent_id and not e.approval_id and e.entry_type != "capability_call"
+        ]
         total_runs = len(rows)
         total_input_tokens = sum(e.input_tokens or e.prompt_tokens or 0 for e in rows)
         total_output_tokens = sum(e.output_tokens or e.completion_tokens or 0 for e in rows)
@@ -241,6 +256,13 @@ class RunJournal:
                         approval_id=data.get("approval_id"),
                         decision=data.get("decision"),
                         decided_by=data.get("decided_by"),
+                        entry_type=str(data.get("entry_type") or "run"),
+                        capability_id=data.get("capability_id"),
+                        capability_kind=data.get("capability_kind"),
+                        tool_name=data.get("tool_name"),
+                        operation=data.get("operation"),
+                        approval_mode=data.get("approval_mode"),
+                        call_status=data.get("call_status"),
                         connection_id=data.get("connection_id"),
                         input_tokens=inp,
                         output_tokens=out,

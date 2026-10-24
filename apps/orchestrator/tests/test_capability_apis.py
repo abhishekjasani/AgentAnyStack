@@ -12,6 +12,7 @@ from agent_anystack.capabilities.binding import build_bindings
 from agent_anystack.capabilities.catalog import CapabilityCatalogService
 from agent_anystack.domain.agent import AgentConfig, CapabilityRegistrations
 from agent_anystack.office.repository import OfficeRepository
+from agent_anystack.runs.journal import RunJournal
 from agent_anystack.runs.service import ChatRunService
 
 
@@ -321,10 +322,15 @@ async def test_chat_tool_loop_offers_and_dispatches_api_operation(
     from unittest.mock import AsyncMock, MagicMock
 
     _api_catalog(tmp_path, local_api_server)
+    (tmp_path / "org.yaml").write_text(
+        "id: demo\nname: Demo Org\nmax_autonomy: 100\n",
+        encoding="utf-8",
+    )
     monkeypatch.setenv("INVENTORY_TOKEN", "test-token")
+    journal = RunJournal(tmp_path / "journal.jsonl")
     service = ChatRunService(
         repo=OfficeRepository(tmp_path),
-        journal=MagicMock(),
+        journal=journal,
         openai_compatible_base_url="http://unused.invalid/v1",
         okf=MagicMock(),
         database_url=f"sqlite:///{tmp_path}/api-test.db",
@@ -365,3 +371,9 @@ async def test_chat_tool_loop_offers_and_dispatches_api_operation(
     assert _ApiHandler.last_request["query"] == {"include": ["availability"]}
     assert "test-token" not in str(events)
     assert "test-token" not in caplog.text
+    call_entry = next(
+        entry for entry in journal._read_all() if entry.entry_type == "capability_call"
+    )
+    assert call_entry.capability_kind == "api"
+    assert call_entry.tool_name == "inventory_lookup"
+    assert call_entry.operation == "inventory_lookup"

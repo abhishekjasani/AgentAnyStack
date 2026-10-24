@@ -33,12 +33,20 @@ from agent_anystack.capabilities.registry import ToolContext, dispatch
 from agent_anystack.domain.agent import AgentConfig
 from agent_anystack.envelope import build_office_envelope
 from agent_anystack.hitl.autonomy import compute_effective
+from agent_anystack.hitl import (
+    ApprovalService,
+    ApprovalStatus,
+    ApprovalStore,
+    GATED_ACTION_TYPE,
+)
+from agent_anystack.hitl.service import ApprovalGateDeniedError
 from agent_anystack.limits import (
     approx_tokens,
     resolve_run_limits,
     truncate_messages_to_input,
 )
 from agent_anystack.memory import ExtractJob, OkfStore, pack_memory_sections
+from agent_anystack.memory.store import sqlite_path_from_database_url
 from agent_anystack.office import OfficeRepository
 from agent_anystack.runs.journal import JournalEntry, RunJournal, new_run_id, utc_now
 
@@ -70,6 +78,9 @@ class ChatRunService:
         database_url: str = "sqlite:///./data/office.db",
         opencode_default_context_limit: int | None = None,
         opencode_default_output_limit: int | None = None,
+        approval_service: ApprovalService | None = None,
+        approver_mode: str = "permissive",
+        org_admins: str = "",
     ) -> None:
         self.repo = repo
         self.capability_catalog = CapabilityCatalogService(repo.root)
@@ -88,6 +99,13 @@ class ChatRunService:
         self._opencode_default_context_limit = opencode_default_context_limit
         self._opencode_default_output_limit = opencode_default_output_limit
         self.database_url = database_url
+        self.approvals = approval_service or ApprovalService(
+            ApprovalStore(sqlite_path_from_database_url(database_url)),
+            journal,
+            repo,
+            approver_mode=approver_mode,
+            org_admins=org_admins,
+        )
         self._bedrock_store = BedrockProviderStore(bedrock_data_dir(database_url))
         self._connections = connection_store_from_database_url(database_url)
         self.okf = okf
@@ -559,16 +577,14 @@ class ChatRunService:
                     binding = bindings.get(tc.name)
                     if binding is None:
                         result = "error: unknown tool"
+                        blocked_event = None
                     else:
-                        result = await dispatch(
+                        result, blocked_event = await self._dispatch_capability_call(
                             binding,
                             tc.arguments,
-                            ToolContext(
-                                repo=self.repo,
-                                agent=agent,
-                                user_id=user_id,
-                                run_id=run_id,
-                            ),
+                            agent=agent,
+                            user_id=user_id,
+                            run_id=run_id,
                         )
                     yield {
                         "type": "tool",
@@ -583,6 +599,9 @@ class ChatRunService:
                             "content": result,
                         }
                     )
+                    if blocked_event is not None:
+                        yield blocked_event
+                        return
                 continue
 
             text = turn.content or ""
@@ -596,6 +615,114 @@ class ChatRunService:
             "message": f"tool loop exceeded {MAX_TOOL_ROUNDS} rounds",
             "code": "tool_loop_limit",
         }
+
+    async def _dispatch_capability_call(
+        self,
+        binding: Any,
+        arguments: dict[str, Any] | str | None,
+        *,
+        agent: AgentConfig,
+        user_id: str,
+        run_id: str,
+    ) -> tuple[str, dict[str, Any] | None]:
+        item = binding.item
+        approval_id: str | None = None
+        mode = item.approval_mode
+        blocked_event: dict[str, Any] | None = None
+
+        if mode != "never":
+            action_type = GATED_ACTION_TYPE if mode == "autonomy" else "capability_call"
+            description = binding.schema["function"].get("description") or item.name
+            try:
+                proposal = self.approvals.propose(
+                    requester=user_id,
+                    agent_id=agent.id,
+                    team=agent.team,
+                    summary=f"Capability call: {description} ({binding.tool_name})",
+                    action_type=action_type,
+                    run_id=run_id,
+                    project_id=agent.workspace.project_id if agent.workspace else None,
+                )
+                approval_id = proposal.card.id
+                if proposal.card.status == ApprovalStatus.pending_human:
+                    result = f"error: capability call requires approval: {approval_id}"
+                    call_status = "pending"
+                    blocked_event = {
+                        "type": "error",
+                        "message": result.removeprefix("error: "),
+                        "code": "approval_pending",
+                        "approval_id": approval_id,
+                    }
+                elif proposal.card.status == ApprovalStatus.denied:
+                    result = f"error: capability call denied: {approval_id}"
+                    call_status = "denied"
+                    blocked_event = {
+                        "type": "error",
+                        "message": result.removeprefix("error: "),
+                        "code": "capability_denied",
+                        "approval_id": approval_id,
+                    }
+                else:
+                    result = await dispatch(
+                        binding,
+                        arguments,
+                        ToolContext(
+                            repo=self.repo,
+                            agent=agent,
+                            user_id=user_id,
+                            run_id=run_id,
+                        ),
+                    )
+                    call_status = "failed" if result.startswith("error:") else "succeeded"
+            except ApprovalGateDeniedError as exc:
+                approval_id = exc.approval_id
+                result = f"error: capability call denied: {approval_id or exc}"
+                call_status = "denied"
+                blocked_event = {
+                    "type": "error",
+                    "message": result.removeprefix("error: "),
+                    "code": "capability_denied",
+                    "approval_id": approval_id,
+                }
+        else:
+            result = await dispatch(
+                binding,
+                arguments,
+                ToolContext(
+                    repo=self.repo,
+                    agent=agent,
+                    user_id=user_id,
+                    run_id=run_id,
+                ),
+            )
+            call_status = "failed" if result.startswith("error:") else "succeeded"
+
+        now = utc_now()
+        self.journal.append(
+            JournalEntry(
+                run_id=run_id,
+                agent_id=agent.id,
+                user_id=user_id,
+                team=agent.team,
+                project_id=agent.workspace.project_id if agent.workspace else None,
+                channel="office_ui",
+                stack="capability",
+                model="",
+                effective_autonomy=compute_effective(self.repo.load_org(), agent),
+                status="capability_call",
+                started_at=now,
+                ended_at=now,
+                approval_id=approval_id,
+                entry_type="capability_call",
+                capability_id=item.id,
+                capability_kind=binding.kind.value,
+                tool_name=binding.tool_name,
+                operation=binding.operation,
+                approval_mode=mode,
+                call_status=call_status,
+            )
+        )
+        return result, blocked_event
 
 
 def _chunk_text(text: str, size: int) -> list[str]:
