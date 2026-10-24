@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class RiskClass(str, Enum):
@@ -29,10 +29,14 @@ class Workspace(BaseModel):
     path: str
 
 
-class Registrations(BaseModel):
+class CapabilityRegistrations(BaseModel):
+    tools: list[str] = Field(default_factory=list)
     mcp: list[str] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
     apis: list[str] = Field(default_factory=list)
+
+
+Registrations = CapabilityRegistrations
 
 
 class ToolsConfig(BaseModel):
@@ -54,11 +58,18 @@ class AgentConfig(BaseModel):
     workspace: Workspace | None = None
     system_prompt_file: str = "./AGENT.md"
     system_prompt: str | None = None
-    registrations: Registrations = Field(default_factory=Registrations)
+    capability_registrations: CapabilityRegistrations = Field(
+        default_factory=CapabilityRegistrations,
+        validation_alias=AliasChoices("capability_registrations", "registrations"),
+    )
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     # Advanced: -1 = inherit stack envelope (tighten-only when > 0).
     max_input_tokens: int = Field(default=-1, ge=-1, le=200_000)
     max_output_tokens: int = Field(default=-1, ge=-1, le=100_000)
+
+    @property
+    def registrations(self) -> CapabilityRegistrations:
+        return self.capability_registrations
 
 
 class AgentSummary(BaseModel):
@@ -109,6 +120,7 @@ class UpdateAgentRequest(BaseModel):
     max_input_tokens: int | None = Field(default=None, ge=-1, le=200_000)
     max_output_tokens: int | None = Field(default=None, ge=-1, le=100_000)
     persona_markdown: str | None = None
+    capability_registrations: CapabilityRegistrations | None = None
 
 
 class AgentDetail(AgentConfig):

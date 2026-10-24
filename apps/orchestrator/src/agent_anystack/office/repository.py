@@ -280,6 +280,10 @@ class OfficeRepository:
             data["workspace"] = req.workspace.model_dump(mode="json")
         if req.tools_mode is not None:
             data["tools"] = {"mode": req.tools_mode}
+        if req.capability_registrations is not None:
+            data["capability_registrations"] = req.capability_registrations.model_dump(
+                mode="json"
+            )
         if req.max_input_tokens is not None:
             data["max_input_tokens"] = req.max_input_tokens
         if req.max_output_tokens is not None:

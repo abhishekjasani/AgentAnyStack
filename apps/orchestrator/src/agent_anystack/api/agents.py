@@ -26,6 +26,7 @@ from agent_anystack.domain.agent import (
     AgentConfig,
     AgentDetail,
     AgentSummary,
+    CapabilityRegistrations,
     CreateAgentRequest,
     UpdateAgentRequest,
     Workspace,
@@ -139,6 +140,68 @@ async def get_agent_capabilities(
         catalog_count=len(service.list()),
         default_gold_tools=DEFAULT_GOLD_TOOLS,
     )
+
+
+@router.get(
+    "/agents/{agent_id}/registrations",
+    response_model=CapabilityRegistrations,
+)
+async def get_agent_registrations(
+    agent_id: str,
+    repo: OfficeRepository = Depends(get_office_repo),
+    _user_id: str = Depends(get_user_id),
+) -> CapabilityRegistrations:
+    agent = repo.get_agent(agent_id)
+    if agent is None:
+        raise HTTPException(status_code=404, detail=f"agent not found: {agent_id}")
+    return agent.capability_registrations
+
+
+@router.put(
+    "/agents/{agent_id}/registrations",
+    response_model=CapabilityRegistrations,
+)
+async def put_agent_registrations(
+    agent_id: str,
+    body: CapabilityRegistrations,
+    repo: OfficeRepository = Depends(get_office_repo),
+    _user_id: str = Depends(get_user_id),
+) -> CapabilityRegistrations:
+    if repo.get_agent(agent_id) is None:
+        raise HTTPException(status_code=404, detail=f"agent not found: {agent_id}")
+
+    catalog = CapabilityCatalogService(repo.root)
+    expected_kinds = {
+        "tools": "internal_tool",
+        "mcp": "mcp",
+        "skills": "skill",
+        "apis": "external_tool",
+    }
+    for registration_name, expected_kind in expected_kinds.items():
+        for item_id in getattr(body, registration_name):
+            item = catalog.get(item_id)
+            if item is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"unknown capability id: {item_id}",
+                )
+            if item.kind.value != expected_kind:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"capability {item_id} has kind {item.kind.value}; "
+                        f"expected {expected_kind} for {registration_name}"
+                    ),
+                )
+
+    try:
+        updated = repo.update_agent(
+            agent_id,
+            UpdateAgentRequest(capability_registrations=body),
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return updated.capability_registrations
 
 
 @router.post(

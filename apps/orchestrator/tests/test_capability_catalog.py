@@ -21,6 +21,7 @@ from agent_anystack.domain.agent import (
     PersonaAxes,
     Registrations,
     ToolsConfig,
+    UpdateAgentRequest,
     Workspace,
 )
 from agent_anystack.office.repository import OfficeRepository
@@ -242,6 +243,162 @@ def test_catalog_service_resolves_registered_capabilities():
 
     assert "firecrawl-api" in capabilities
     assert set(DEFAULT_GOLD_TOOLS).issubset(set(capabilities))
+
+
+def test_agent_config_reads_legacy_registrations_and_writes_new_key():
+    agent = AgentConfig.model_validate(
+        {
+            "id": "legacy-agent",
+            "name": "Legacy Agent",
+            "team": "eng",
+            "stack": "openai-compatible",
+            "model": "test-model",
+            "registrations": {"apis": ["firecrawl-api"]},
+        }
+    )
+
+    assert agent.capability_registrations.apis == ["firecrawl-api"]
+    assert agent.model_dump()["capability_registrations"]["apis"] == ["firecrawl-api"]
+    assert "registrations" not in agent.model_dump()
+
+
+def test_repository_migrates_legacy_registration_key_on_next_write(tmp_path):
+    agent_dir = tmp_path / "teams" / "eng" / "agents" / "legacy-agent"
+    agent_dir.mkdir(parents=True)
+    agent_yaml = agent_dir / "agent.yaml"
+    agent_yaml.write_text(
+        "id: legacy-agent\nname: Legacy Agent\nteam: eng\n"
+        "stack: openai-compatible\nmodel: test-model\n"
+        "registrations:\n  apis:\n    - firecrawl-api\n",
+        encoding="utf-8",
+    )
+    repo = OfficeRepository(tmp_path)
+
+    agent = repo.get_agent("legacy-agent")
+    assert agent is not None
+    assert agent.capability_registrations.apis == ["firecrawl-api"]
+    repo.update_agent("legacy-agent", UpdateAgentRequest(name="Migrated Agent"))
+
+    import yaml
+
+    persisted = yaml.safe_load(agent_yaml.read_text(encoding="utf-8"))
+    assert persisted["capability_registrations"]["apis"] == ["firecrawl-api"]
+    assert "registrations" not in persisted
+
+
+def test_capabilities_are_isolated_and_registration_kind_is_enforced():
+    service = CapabilityCatalogService(_office_root())
+    service.register(
+        CapabilityCatalogItem(
+            id="browser-mcp",
+            kind=CapabilityKind.mcp,
+            name="Browser MCP",
+        )
+    )
+    service.register(
+        CapabilityCatalogItem(
+            id="private-tool",
+            kind=CapabilityKind.internal_tool,
+            name="Private Tool",
+            handler="gold.read",
+            tool_name="private_tool",
+            parameters={"type": "object", "properties": {}},
+        )
+    )
+    desk_a = _agent("desk-a")
+    desk_b = _agent("desk-b")
+    desk_a.capability_registrations.mcp = ["browser-mcp"]
+    desk_a.capability_registrations.apis = ["private-tool"]
+
+    caps_a = set(service.resolve_for_agent(desk_a))
+    caps_b = set(service.resolve_for_agent(desk_b))
+
+    assert "browser-mcp" in caps_a
+    assert "browser-mcp" not in caps_b
+    assert "private-tool" not in caps_a
+
+
+@pytest.mark.asyncio
+async def test_registration_api_is_desk_scoped_and_rejects_unknown_ids(tmp_path):
+    from httpx import ASGITransport, AsyncClient
+
+    from agent_anystack.main import create_app
+
+    office_dir = tmp_path / "office"
+    shutil.copytree(_office_root() / "catalog", office_dir / "catalog")
+    mcp_dir = office_dir / "catalog" / "mcp"
+    mcp_dir.mkdir()
+    (mcp_dir / "browser.yaml").write_text(
+        "id: browser-mcp\nkind: mcp\nname: Browser MCP\n",
+        encoding="utf-8",
+    )
+    (office_dir / "org.yaml").write_text(
+        "id: demo\nname: Demo Org\nmax_autonomy: 100\n",
+        encoding="utf-8",
+    )
+    repo = OfficeRepository(office_dir)
+    for agent_id in ("desk-a", "desk-b"):
+        repo.create_agent(
+            CreateAgentRequest(
+                id=agent_id,
+                name=agent_id,
+                team="eng",
+                stack="openai-compatible",
+                model="test-model",
+                workspace={"project_id": "proj-1", "path": "/projects/proj-1"},
+            ),
+            user_id="test-user",
+        )
+
+    settings = Settings(
+        office_repo_path=str(office_dir),
+        database_url=f"sqlite:///{tmp_path}/office.db",
+        projects_root=str(tmp_path / "projects"),
+    )
+    app = create_app()
+    app.dependency_overrides[get_settings] = lambda: settings
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            headers = {"X-User-Id": "test-user"}
+            update = await client.put(
+                "/agents/desk-a/registrations",
+                headers=headers,
+                json={"tools": [], "mcp": ["browser-mcp"], "skills": [], "apis": []},
+            )
+            assert update.status_code == 200, update.text
+            assert update.json()["mcp"] == ["browser-mcp"]
+
+            import yaml
+
+            persisted = yaml.safe_load(
+                (office_dir / "teams" / "eng" / "agents" / "desk-a" / "agent.yaml")
+                .read_text(encoding="utf-8")
+            )
+            assert persisted["capability_registrations"]["mcp"] == ["browser-mcp"]
+            assert "registrations" not in persisted
+
+            desk_a = await client.get("/agents/desk-a/capabilities", headers=headers)
+            desk_b = await client.get("/agents/desk-b/capabilities", headers=headers)
+            assert "browser-mcp" in desk_a.json()["effective_capabilities"]
+            assert "browser-mcp" not in desk_b.json()["effective_capabilities"]
+
+            unknown = await client.put(
+                "/agents/desk-a/registrations",
+                headers=headers,
+                json={"tools": [], "mcp": ["not-in-catalog"], "skills": [], "apis": []},
+            )
+            assert unknown.status_code == 400
+
+            wrong_kind = await client.put(
+                "/agents/desk-a/registrations",
+                headers=headers,
+                json={"tools": [], "mcp": [], "skills": [], "apis": ["browser-mcp"]},
+            )
+            assert wrong_kind.status_code == 400
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_zen_connection_team_of_four_gold_only(tmp_path):

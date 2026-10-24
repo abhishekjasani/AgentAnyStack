@@ -58,15 +58,27 @@ class CapabilityCatalogService:
 
     def __init__(self, office_root: Path) -> None:
         self._items: dict[str, CapabilityCatalogItem] = {}
-        self._load_tools(office_root / "catalog" / "tools")
+        catalog_dir = office_root / "catalog"
+        for directory, expected_kind in (
+            ("tools", CapabilityKind.internal_tool),
+            ("mcp", CapabilityKind.mcp),
+            ("skills", CapabilityKind.skill),
+            ("apis", CapabilityKind.external_tool),
+        ):
+            self._load_directory(catalog_dir / directory, expected_kind)
 
-    def _load_tools(self, tools_dir: Path) -> None:
-        if not tools_dir.is_dir():
+    def _load_directory(self, directory: Path, expected_kind: CapabilityKind) -> None:
+        if not directory.is_dir():
             return
 
-        for descriptor_path in sorted(tools_dir.glob("*.yaml")):
+        for descriptor_path in sorted(directory.glob("*.yaml")):
             data = yaml.safe_load(descriptor_path.read_text(encoding="utf-8")) or {}
             item = CapabilityCatalogItem.model_validate(data)
+            if item.kind != expected_kind:
+                raise ValueError(
+                    f"capability {item.id} in catalog/{directory.name} has kind "
+                    f"{item.kind.value}; expected {expected_kind.value}"
+                )
             self._items[item.id] = item
 
     def register(self, item: CapabilityCatalogItem) -> CapabilityCatalogItem:
@@ -88,23 +100,21 @@ class CapabilityCatalogService:
         effective: set[str] = set()
 
         for item_id in DEFAULT_GOLD_TOOLS:
-            if self._items.get(item_id) is not None:
+            item = self.get(item_id)
+            if item is not None and item.kind == CapabilityKind.internal_tool:
                 effective.add(item_id)
 
-        for item_id in agent.registrations.mcp:
-            if self.get(item_id) is not None:
-                effective.add(item_id)
-
-        for item_id in agent.registrations.skills:
-            if self.get(item_id) is not None:
-                effective.add(item_id)
-
-        for item_id in agent.registrations.apis:
-            if self.get(item_id) is not None:
-                effective.add(item_id)
-
-        for item_id in getattr(agent.registrations, "tools", []):
-            if self.get(item_id) is not None:
-                effective.add(item_id)
+        registrations = agent.capability_registrations
+        expected_kinds = {
+            "tools": CapabilityKind.internal_tool,
+            "mcp": CapabilityKind.mcp,
+            "skills": CapabilityKind.skill,
+            "apis": CapabilityKind.external_tool,
+        }
+        for registration_name, expected_kind in expected_kinds.items():
+            for item_id in getattr(registrations, registration_name):
+                item = self.get(item_id)
+                if item is not None and item.kind == expected_kind:
+                    effective.add(item_id)
 
         return sorted(effective)
