@@ -18,6 +18,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Softer, more welcoming language around core vision documents
 - Clear standard fork + PR workflow in contribution guide
 
+## [0.3.29] - 2026-10-25
+
+### Added
+- Capability registration migration and desk-scoped assignment APIs with category validation.
+- Descriptor-driven REST API capabilities with operation bindings, constrained request mapping, authentication handlers, bounded responses, and per-user OAuth token storage.
+- MCP tool discovery and dispatch, registered-skill prompt injection, and capability catalog create/update/delete controls in the Office UI.
+- Approval-mode enforcement and per-capability-call journal entries.
+
+### Changed
+- Replaced hardcoded Gold capability IDs with descriptor-driven default inheritance.
+- Renamed callable descriptor and journal fields to `callable_name`, retaining legacy `tool_name` reads.
+
 ## [0.3.28] - 2026-10-25
 
 ### Added

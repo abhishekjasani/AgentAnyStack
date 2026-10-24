@@ -387,6 +387,7 @@
       if (!res.ok) throw new Error(`GET capabilities ${res.status}`);
       const data = await res.json();
       box.hidden = false;
+      $("#capability-registrations").hidden = false;
       $("#capabilities-agent-title").textContent = `${data.agent_id} \u00b7 ${data.team}`;
       $("#capabilities-agent-meta").textContent =
         `connection: ${data.connection_id || "\u2014"} \u00b7 ${data.effective_capabilities.length} of ${data.catalog_count} catalog items`;
@@ -397,10 +398,16 @@
         li.textContent = cap;
         ul.appendChild(li);
       }
+      const registrationsRes = await api(`/agents/${encodeURIComponent(agentId)}/registrations`);
+      if (!registrationsRes.ok) {
+        throw new Error(`GET registrations ${registrationsRes.status}`);
+      }
+      renderRegistrationChoices(capabilityCatalogItems, await registrationsRes.json());
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
       box.hidden = true;
+      $("#capability-registrations").hidden = true;
     }
   }
 
@@ -411,11 +418,6 @@
   async function loadTeam() {
     const list = $("#desk-list");
     const empty = $("#team-empty");
-          const registrationsRes = await api(`/agents/${encodeURIComponent(agentId)}/registrations`);
-          if (!registrationsRes.ok) {
-            throw new Error(`GET registrations ${registrationsRes.status}`);
-          }
-          renderRegistrationChoices(capabilityCatalogItems, await registrationsRes.json());
     const err = $("#team-error");
     err.hidden = true;
     try {
