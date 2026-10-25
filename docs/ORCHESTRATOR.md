@@ -551,6 +551,8 @@ The Capabilities UI supports descriptor create/edit/delete, per-desk registratio
 
 REST API capabilities expose one callable per operation; request host and auth are descriptor-controlled. MCP tools are discovered from registered Streamable HTTP servers at run time. Registered skills inject prompt text only when their declared capability dependencies are also available to the desk. Per-user OAuth tokens are encrypted in the SQLite store using `CAPABILITY_OAUTH_ENCRYPTION_KEY`; token values are not stored in office YAML or journal entries.
 
+The REST request/response mapping contract, pagination modes, body encodings, bounds, and examples are documented in [architecture/19_REST_CAPABILITY_DESCRIPTORS.md](./architecture/19_REST_CAPABILITY_DESCRIPTORS.md).
+
 **Do not confuse:**
 
 | Name | Where | What |

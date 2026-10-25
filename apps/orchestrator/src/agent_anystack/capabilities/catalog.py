@@ -26,6 +26,103 @@ class ApiRequestMapping(BaseModel):
     query: dict[str, str] = Field(default_factory=dict)
     body: dict[str, str] = Field(default_factory=dict)
     headers: dict[str, str] = Field(default_factory=dict)
+    body_encoding: Literal["json", "form_urlencoded", "multipart", "raw_base64"] = "json"
+    binary_fields: list[str] = Field(default_factory=list)
+    raw_body_argument: str | None = None
+    body_content_type: str | None = None
+
+    @field_validator("body_content_type")
+    @classmethod
+    def validate_body_content_type(cls, value: str | None) -> str | None:
+        if value is not None and (len(value) > 255 or "\r" in value or "\n" in value):
+            raise ValueError("body_content_type must be a valid content type")
+        return value
+
+    @field_validator("headers")
+    @classmethod
+    def validate_dynamic_header_names(cls, value: dict[str, str]) -> dict[str, str]:
+        protected = {
+            "host",
+            "content-length",
+            "transfer-encoding",
+            "connection",
+            "authorization",
+            "proxy-authorization",
+            "cookie",
+        }
+        for name in value:
+            lowered = name.lower()
+            if (
+                not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name)
+                or lowered in protected
+                or lowered.startswith("proxy-")
+                or lowered.startswith("sec-")
+            ):
+                raise ValueError(f"request header is not allowed: {name}")
+        return value
+
+    @model_validator(mode="after")
+    def validate_body_mapping(self) -> ApiRequestMapping:
+        if self.body_encoding == "raw_base64" and not self.raw_body_argument:
+            raise ValueError("raw_base64 body_encoding requires raw_body_argument")
+        if self.body_encoding != "multipart" and self.binary_fields:
+            raise ValueError("binary_fields are only valid for multipart requests")
+        if self.body_encoding == "raw_base64" and self.body:
+            raise ValueError("raw_base64 requests cannot also map body fields")
+        if self.body_encoding != "json" and any(
+            pointer.startswith("/") for pointer in self.body
+        ):
+            raise ValueError("nested request.body JSON Pointers require body_encoding: json")
+        return self
+
+
+class ApiPagination(BaseModel):
+    mode: Literal["cursor", "page"]
+    request_parameter: str
+    initial_value: str | int | None = None
+    next_value_pointer: str | None = None
+    has_more_pointer: str | None = None
+    items_pointer: str | None = None
+    max_pages: int = Field(default=5, ge=1, le=20)
+
+    @model_validator(mode="after")
+    def validate_pagination_mode(self) -> ApiPagination:
+        if not self.request_parameter.strip():
+            raise ValueError("pagination request_parameter is required")
+        if self.mode == "cursor" and not self.next_value_pointer:
+            raise ValueError("cursor pagination requires next_value_pointer")
+        if self.mode == "page":
+            if not self.has_more_pointer:
+                raise ValueError("page pagination requires has_more_pointer")
+            if self.initial_value is None:
+                self.initial_value = 1
+            if not isinstance(self.initial_value, int):
+                raise ValueError("page pagination initial_value must be an integer")
+        return self
+
+
+class ApiResponseMapping(BaseModel):
+    select: dict[str, str] = Field(default_factory=dict)
+    include_status: bool = False
+    headers: list[str] = Field(default_factory=list)
+    body_encoding: Literal["auto", "json", "text", "base64"] = "auto"
+
+    @model_validator(mode="after")
+    def validate_response_selection(self) -> ApiResponseMapping:
+        if self.select and self.body_encoding in {"text", "base64"}:
+            raise ValueError("response.select requires JSON/auto response encoding")
+        return self
+
+    @field_validator("headers")
+    @classmethod
+    def validate_response_headers(cls, value: list[str]) -> list[str]:
+        protected = {"set-cookie", "authorization", "proxy-authenticate"}
+        for name in value:
+            if not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name):
+                raise ValueError(f"invalid response header name: {name}")
+            if name.lower() in protected:
+                raise ValueError(f"sensitive response header cannot be exposed: {name}")
+        return value
 
 
 class ApiOperation(BaseModel):
@@ -38,6 +135,8 @@ class ApiOperation(BaseModel):
     parameters: dict[str, Any]
     request: ApiRequestMapping = Field(default_factory=ApiRequestMapping)
     idempotency_key_header: str | None = None
+    pagination: ApiPagination | None = None
+    response: ApiResponseMapping = Field(default_factory=ApiResponseMapping)
 
     @field_validator("idempotency_key_header")
     @classmethod
@@ -68,6 +167,16 @@ class ApiOperation(BaseModel):
         placeholders = set(re.findall(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}", self.path))
         if placeholders != set(self.request.path):
             raise ValueError("API request.path must map every path placeholder exactly once")
+        if self.pagination and self.method != "GET":
+            raise ValueError("pagination is only supported for GET operations")
+        if self.pagination and self.response.body_encoding == "base64":
+            raise ValueError("pagination cannot be combined with base64 response bodies")
+        if self.request.raw_body_argument:
+            properties = (self.parameters.get("properties") or {})
+            if self.request.raw_body_argument not in properties:
+                raise ValueError("raw_body_argument must be declared in parameters.properties")
+        if not set(self.request.binary_fields).issubset(self.request.body):
+            raise ValueError("every binary field must have a request.body mapping")
         return self
 
 

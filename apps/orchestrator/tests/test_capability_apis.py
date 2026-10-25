@@ -1,4 +1,5 @@
 import json
+import base64
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -18,6 +19,7 @@ from agent_anystack.runs.service import ChatRunService
 
 class _ApiHandler(BaseHTTPRequestHandler):
     last_request: dict | None = None
+    requests: list[dict] = []
     token_form: dict[str, list[str]] | None = None
 
     def _send_json(self, payload):
@@ -30,18 +32,40 @@ class _ApiHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
         type(self).last_request = {
             "path": parsed.path,
-            "query": parse_qs(parsed.query),
+            "query": query,
             "authorization": self.headers.get("Authorization"),
             "host": self.headers.get("Host"),
             "idempotency_key": self.headers.get("Idempotency-Key"),
+            "story_id": self.headers.get("X-Story-Id"),
         }
+        type(self).requests.append(type(self).last_request)
+        if parsed.path == "/pages":
+            page = int(query.get("page", ["1"])[0])
+            self._send_json({"results": [page], "has_more": page < 3})
+            return
+        if parsed.path == "/nested":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("X-Request-Id", "req-42")
+            self.end_headers()
+            self.wfile.write(b'{"data":{"record":{"id":"R-7","name":"June"}}}')
+            return
+        if parsed.path == "/cursor":
+            cursor = query.get("cursor", [""])[0]
+            if not cursor:
+                self._send_json({"items": ["first"], "next": "cursor-2"})
+            else:
+                self._send_json({"items": ["second"], "next": None})
+            return
         self._send_json({"ok": True, "value": "x" * 30_000})
 
     def do_POST(self):
         parsed = urlparse(self.path)
         payload = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+        content_type = self.headers.get("Content-Type", "")
         if parsed.path == "/oauth/token":
             type(self).token_form = parse_qs(payload.decode())
             self._send_json({"access_token": "oauth-access-token"})
@@ -52,8 +76,12 @@ class _ApiHandler(BaseHTTPRequestHandler):
             "authorization": self.headers.get("Authorization"),
             "host": self.headers.get("Host"),
             "idempotency_key": self.headers.get("Idempotency-Key"),
-            "body": json.loads(payload) if payload else None,
+            "story_id": self.headers.get("X-Story-Id"),
+            "content_type": content_type,
+            "body": json.loads(payload) if payload and "application/json" in content_type else None,
+            "body_raw": payload,
         }
+        type(self).requests.append(type(self).last_request)
         self._send_json({"ok": True, "value": "x" * 30_000})
 
     def log_message(self, _format, *_args):
@@ -63,6 +91,7 @@ class _ApiHandler(BaseHTTPRequestHandler):
 @pytest.fixture
 def local_api_server():
     _ApiHandler.last_request = None
+    _ApiHandler.requests = []
     _ApiHandler.token_form = None
     server = ThreadingHTTPServer(("127.0.0.1", 0), _ApiHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -132,6 +161,17 @@ def _api_catalog(office_root: Path, base_url: str) -> CapabilityCatalogService:
         encoding="utf-8",
     )
     return CapabilityCatalogService(office_root)
+
+
+def _rewrite_operation(tmp_path: Path, callable_name: str, update: dict) -> CapabilityCatalogService:
+    descriptor_path = tmp_path / "catalog" / "apis" / "inventory.yaml"
+    descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+    operation = next(
+        op for op in descriptor["operations"] if op["callable_name"] == callable_name
+    )
+    operation.update(update)
+    descriptor_path.write_text(yaml.safe_dump(descriptor, sort_keys=False), encoding="utf-8")
+    return CapabilityCatalogService(tmp_path)
 
 
 def _api_agent() -> AgentConfig:
@@ -208,6 +248,7 @@ async def test_rest_dispatch_maps_arguments_and_uses_fixed_host(tmp_path, local_
         "authorization": "Bearer test-token",
         "host": urlparse(local_api_server).netloc,
         "idempotency_key": None,
+        "story_id": None,
     }
     assert "test-token" not in result
 
@@ -236,6 +277,341 @@ async def test_rest_dispatch_maps_body_fields(tmp_path, local_api_server):
     assert _ApiHandler.last_request["body"] == {"sku": "sku-99", "name": "Widget"}
     assert _ApiHandler.last_request["host"] == urlparse(local_api_server).netloc
     assert _ApiHandler.last_request["idempotency_key"] == "capcall-test-123"
+
+
+@pytest.mark.asyncio
+async def test_nested_json_dynamic_header_and_response_selection(tmp_path, local_api_server):
+    _api_catalog(tmp_path, local_api_server)
+    catalog = _rewrite_operation(
+        tmp_path,
+        "inventory_lookup",
+        {
+            "path": "/nested",
+            "parameters": {
+                "type": "object",
+                "properties": {"story_id": {"type": "string"}},
+                "required": ["story_id"],
+                "additionalProperties": False,
+            },
+            "request": {"headers": {"X-Story-Id": "story_id"}},
+            "response": {
+                "select": {"record_id": "/data/record/id"},
+                "include_status": True,
+                "headers": ["X-Request-Id"],
+            },
+        },
+    )
+    binding = build_bindings(catalog, _api_agent())["inventory_lookup"]
+
+    from agent_anystack.capabilities.registry import ToolContext, dispatch
+
+    result = json.loads(await dispatch(
+        binding,
+        {"story_id": "harbor-17"},
+        ToolContext(
+            repo=None,
+            agent=_api_agent(),
+            user_id="u",
+            run_id="r",
+            secret_resolver=lambda _name: "test-token",
+        ),
+    ))
+
+    assert _ApiHandler.last_request["story_id"] == "harbor-17"
+    assert result == {
+        "data": {"record_id": "R-7"},
+        "status": 200,
+        "headers": {"X-Request-Id": "req-42"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_nested_json_body_mapping(tmp_path, local_api_server):
+    _api_catalog(tmp_path, local_api_server)
+    catalog = _rewrite_operation(
+        tmp_path,
+        "inventory_create",
+        {
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["city", "tags"],
+                "additionalProperties": False,
+            },
+            "request": {
+                "body": {
+                    "/customer/address/city": "city",
+                    "/tags": "tags",
+                }
+            },
+        },
+    )
+    binding = build_bindings(catalog, _api_agent())["inventory_create"]
+
+    from agent_anystack.capabilities.registry import ToolContext, dispatch
+
+    await dispatch(
+        binding,
+        {"city": "San Francisco", "tags": ["fiction", "harbor"]},
+        ToolContext(
+            repo=None,
+            agent=_api_agent(),
+            user_id="u",
+            run_id="r",
+            secret_resolver=lambda _name: "test-token",
+        ),
+    )
+
+    assert _ApiHandler.last_request["body"] == {
+        "customer": {"address": {"city": "San Francisco"}},
+        "tags": ["fiction", "harbor"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_form_urlencoded_dynamic_header(tmp_path, local_api_server):
+    _api_catalog(tmp_path, local_api_server)
+    catalog = _rewrite_operation(
+        tmp_path,
+        "inventory_create",
+        {
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "return_to": {"type": "string"},
+                    "story_id": {"type": "string"},
+                },
+                "required": ["return_to", "story_id"],
+                "additionalProperties": False,
+            },
+            "request": {
+                "body": {"return_to": "return_to"},
+                "headers": {"X-Story-Id": "story_id"},
+                "body_encoding": "form_urlencoded",
+            },
+        },
+    )
+    binding = build_bindings(catalog, _api_agent())["inventory_create"]
+
+    from agent_anystack.capabilities.registry import ToolContext, dispatch
+
+    result = await dispatch(
+        binding,
+        {"return_to": "https://example.test/a b", "story_id": "story-9"},
+        ToolContext(
+            repo=None,
+            agent=_api_agent(),
+            user_id="u",
+            run_id="r",
+            secret_resolver=lambda _name: "test-token",
+        ),
+    )
+
+    assert '"ok": true' in result
+    assert _ApiHandler.last_request["story_id"] == "story-9"
+    assert b"return_to=https%3A%2F%2Fexample.test%2Fa+b" in _ApiHandler.last_request["body_raw"]
+
+
+@pytest.mark.asyncio
+async def test_multipart_base64_binary_upload(tmp_path, local_api_server):
+    _api_catalog(tmp_path, local_api_server)
+    catalog = _rewrite_operation(
+        tmp_path,
+        "inventory_create",
+        {
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "caption": {"type": "string"},
+                    "attachment_b64": {"type": "string", "description": "Base64 file bytes"},
+                },
+                "required": ["caption", "attachment_b64"],
+                "additionalProperties": False,
+            },
+            "request": {
+                "body": {"caption": "caption", "attachment": "attachment_b64"},
+                "body_encoding": "multipart",
+                "binary_fields": ["attachment"],
+            },
+        },
+    )
+    binding = build_bindings(catalog, _api_agent())["inventory_create"]
+
+    from agent_anystack.capabilities.registry import ToolContext, dispatch
+
+    await dispatch(
+        binding,
+        {"caption": "June's story", "attachment_b64": base64.b64encode(b"story-card").decode()},
+        ToolContext(
+            repo=None,
+            agent=_api_agent(),
+            user_id="u",
+            run_id="r",
+            secret_resolver=lambda _name: "test-token",
+        ),
+    )
+
+    request = _ApiHandler.last_request
+    assert request["content_type"].startswith("multipart/form-data; boundary=")
+    assert b"name=\"caption\"" in request["body_raw"]
+    assert b"filename=\"upload.bin\"" in request["body_raw"]
+    assert b"story-card" in request["body_raw"]
+
+
+@pytest.mark.asyncio
+async def test_raw_base64_body_and_content_type(tmp_path, local_api_server):
+    _api_catalog(tmp_path, local_api_server)
+    catalog = _rewrite_operation(
+        tmp_path,
+        "inventory_create",
+        {
+            "parameters": {
+                "type": "object",
+                "properties": {"file_b64": {"type": "string"}},
+                "required": ["file_b64"],
+                "additionalProperties": False,
+            },
+            "request": {
+                "body_encoding": "raw_base64",
+                "raw_body_argument": "file_b64",
+                "body_content_type": "application/octet-stream",
+            },
+        },
+    )
+    binding = build_bindings(catalog, _api_agent())["inventory_create"]
+
+    from agent_anystack.capabilities.registry import ToolContext, dispatch
+
+    await dispatch(
+        binding,
+        {"file_b64": base64.b64encode(b"binary-story").decode()},
+        ToolContext(
+            repo=None,
+            agent=_api_agent(),
+            user_id="u",
+            run_id="r",
+            secret_resolver=lambda _name: "test-token",
+        ),
+    )
+
+    assert _ApiHandler.last_request["content_type"] == "application/octet-stream"
+    assert _ApiHandler.last_request["body_raw"] == b"binary-story"
+
+
+@pytest.mark.asyncio
+async def test_bounded_page_pagination_and_response_extraction(tmp_path, local_api_server):
+    _api_catalog(tmp_path, local_api_server)
+    catalog = _rewrite_operation(
+        tmp_path,
+        "inventory_count",
+        {
+            "path": "/pages",
+            "pagination": {
+                "mode": "page",
+                "request_parameter": "page",
+                "has_more_pointer": "/has_more",
+                "items_pointer": "/results",
+                "max_pages": 3,
+            },
+            "response": {
+                "select": {"results": "/items", "pages_read": "/page_count"},
+                "include_status": True,
+                "headers": ["Content-Type"],
+            },
+        },
+    )
+    binding = build_bindings(catalog, _api_agent())["inventory_count"]
+
+    from agent_anystack.capabilities.registry import ToolContext, dispatch
+
+    result = json.loads(await dispatch(
+        binding,
+        {},
+        ToolContext(
+            repo=None,
+            agent=_api_agent(),
+            user_id="u",
+            run_id="r",
+            secret_resolver=lambda _name: "test-token",
+        ),
+    ))
+
+    assert [request["query"]["page"][0] for request in _ApiHandler.requests] == ["1", "2", "3"]
+    assert result == {
+        "data": {"results": [1, 2, 3], "pages_read": 3},
+        "status": 200,
+        "headers": {"Content-Type": "application/json"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_cursor_pagination_aggregates_selected_items(tmp_path, local_api_server):
+    _api_catalog(tmp_path, local_api_server)
+    catalog = _rewrite_operation(
+        tmp_path,
+        "inventory_count",
+        {
+            "path": "/cursor",
+            "pagination": {
+                "mode": "cursor",
+                "request_parameter": "cursor",
+                "next_value_pointer": "/next",
+                "items_pointer": "/items",
+                "max_pages": 4,
+            },
+        },
+    )
+    binding = build_bindings(catalog, _api_agent())["inventory_count"]
+
+    from agent_anystack.capabilities.registry import ToolContext, dispatch
+
+    result = json.loads(await dispatch(
+        binding,
+        {},
+        ToolContext(
+            repo=None,
+            agent=_api_agent(),
+            user_id="u",
+            run_id="r",
+            secret_resolver=lambda _name: "test-token",
+        ),
+    ))
+
+    assert [request["query"].get("cursor", [""])[0] for request in _ApiHandler.requests] == ["", "cursor-2"]
+    assert result == {"items": ["first", "second"], "page_count": 2, "has_more": False}
+
+
+@pytest.mark.asyncio
+async def test_invalid_response_pointer_returns_safe_executor_error(tmp_path, local_api_server):
+    _api_catalog(tmp_path, local_api_server)
+    catalog = _rewrite_operation(
+        tmp_path,
+        "inventory_count",
+        {
+            "path": "/nested",
+            "response": {"select": {"missing": "/data/no-such-field"}},
+        },
+    )
+    binding = build_bindings(catalog, _api_agent())["inventory_count"]
+
+    from agent_anystack.capabilities.registry import ToolContext, dispatch
+
+    result = await dispatch(
+        binding,
+        {},
+        ToolContext(
+            repo=None,
+            agent=_api_agent(),
+            user_id="u",
+            run_id="r",
+            secret_resolver=lambda _name: "test-token",
+        ),
+    )
+
+    assert result == "error: API request failed (ValueError)"
 
 
 @pytest.mark.asyncio
