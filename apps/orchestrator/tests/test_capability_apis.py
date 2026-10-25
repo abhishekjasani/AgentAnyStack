@@ -35,6 +35,7 @@ class _ApiHandler(BaseHTTPRequestHandler):
             "query": parse_qs(parsed.query),
             "authorization": self.headers.get("Authorization"),
             "host": self.headers.get("Host"),
+            "idempotency_key": self.headers.get("Idempotency-Key"),
         }
         self._send_json({"ok": True, "value": "x" * 30_000})
 
@@ -50,6 +51,7 @@ class _ApiHandler(BaseHTTPRequestHandler):
             "query": parse_qs(parsed.query),
             "authorization": self.headers.get("Authorization"),
             "host": self.headers.get("Host"),
+            "idempotency_key": self.headers.get("Idempotency-Key"),
             "body": json.loads(payload) if payload else None,
         }
         self._send_json({"ok": True, "value": "x" * 30_000})
@@ -121,6 +123,7 @@ def _api_catalog(office_root: Path, base_url: str) -> CapabilityCatalogService:
                     "additionalProperties": False,
                 },
                 "request": {"body": {"sku": "sku", "name": "name"}},
+                "idempotency_key_header": "Idempotency-Key",
             },
         ],
     }
@@ -204,6 +207,7 @@ async def test_rest_dispatch_maps_arguments_and_uses_fixed_host(tmp_path, local_
         "query": {"include": ["stock"]},
         "authorization": "Bearer test-token",
         "host": urlparse(local_api_server).netloc,
+        "idempotency_key": None,
     }
     assert "test-token" not in result
 
@@ -223,6 +227,7 @@ async def test_rest_dispatch_maps_body_fields(tmp_path, local_api_server):
             agent=_api_agent(),
             user_id="u",
             run_id="r",
+            capability_call_id="capcall-test-123",
             secret_resolver=lambda ref: "test-token" if ref == "INVENTORY_TOKEN" else None,
         ),
     )
@@ -230,6 +235,7 @@ async def test_rest_dispatch_maps_body_fields(tmp_path, local_api_server):
     assert _ApiHandler.last_request["path"] == "/inventory"
     assert _ApiHandler.last_request["body"] == {"sku": "sku-99", "name": "Widget"}
     assert _ApiHandler.last_request["host"] == urlparse(local_api_server).netloc
+    assert _ApiHandler.last_request["idempotency_key"] == "capcall-test-123"
 
 
 @pytest.mark.asyncio

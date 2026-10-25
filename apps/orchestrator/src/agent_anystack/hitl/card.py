@@ -44,3 +44,4 @@ class ApprovalCard:
     note: str | None = None
     effective_autonomy: int | None = None
     gate: str | None = None  # allow | hitl | deny
+    capability_call_id: str | None = None

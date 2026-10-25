@@ -73,6 +73,7 @@ async def execute_api_operation(
     secret_resolver: Callable[[str], str | None] | None = None,
     oauth_token_resolver=None,
     user_id: str | None = None,
+    capability_call_id: str | None = None,
 ) -> str:
     item = binding.item
     operation = next(
@@ -111,6 +112,9 @@ async def execute_api_operation(
             )
         query = _mapped_values(operation.request.query, args)
         body = _mapped_values(operation.request.body, args)
+        headers.update(_mapped_values(operation.request.headers, args))
+        if operation.idempotency_key_header and capability_call_id:
+            headers[operation.idempotency_key_header] = capability_call_id
         async with httpx.AsyncClient(timeout=API_TIMEOUT_SECONDS, follow_redirects=False) as client:
             async with client.stream(
                 operation.method,

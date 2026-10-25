@@ -42,6 +42,7 @@ class JournalEntry:
     operation: str | None = None
     approval_mode: str | None = None
     call_status: str | None = None
+    capability_call_id: str | None = None
     connection_id: str | None = None
     # Token usage & cost
     input_tokens: int | None = None

@@ -85,6 +85,7 @@ class ApprovalService:
         run_id: str | None = None,
         project_id: str | None = None,
         user_override: int | None = None,
+        capability_call_id: str | None = None,
     ) -> ProposeResult:
         agent = self.repo.get_agent(agent_id)
         if agent is None:
@@ -113,6 +114,7 @@ class ApprovalService:
                 note=f"denied by autonomy gate (effective={effective})",
                 effective_autonomy=effective,
                 gate=outcome.value,
+                capability_call_id=capability_call_id,
             )
             self.store.upsert(card)
             self._journal_gate(card, status="approval_deny", actor="gate")
@@ -143,6 +145,7 @@ class ApprovalService:
                 note=f"auto-allow (effective={effective})",
                 effective_autonomy=effective,
                 gate=outcome.value,
+                capability_call_id=capability_call_id,
             )
             self.store.upsert(card)
             self._journal_gate(card, status="approval_accept", actor="gate")
@@ -163,6 +166,7 @@ class ApprovalService:
             created_at=now,
             effective_autonomy=effective,
             gate=outcome.value,
+            capability_call_id=capability_call_id,
         )
         self.store.upsert(card)
         return ProposeResult(card=card, gate=outcome, effective_autonomy=effective)

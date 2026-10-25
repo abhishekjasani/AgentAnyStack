@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -27,9 +28,22 @@ from agent_anystack.adapters.stack_models import (
     resolve_desk_runtime,
 )
 from agent_anystack.adapters.thinking import append_thinking
-from agent_anystack.channel_history import ChannelHistoryStore
-from agent_anystack.capabilities.binding import build_bindings
-from agent_anystack.capabilities.catalog import CapabilityCatalogService
+from agent_anystack.channel_history import (
+    ChannelHistoryStore,
+    ChannelMessage,
+    new_message_id,
+    utc_now as channel_utc_now,
+)
+from agent_anystack.capabilities.binding import CapabilityBinding, build_bindings
+from agent_anystack.capabilities.call_store import (
+    CapabilityCallRecord,
+    CapabilityCallStore,
+    new_capability_call_id,
+)
+from agent_anystack.capabilities.catalog import (
+    CapabilityCatalogItem,
+    CapabilityCatalogService,
+)
 from agent_anystack.capabilities.registry import ToolContext, dispatch
 from agent_anystack.capabilities.skills import render_registered_skill_prompt
 from agent_anystack.capabilities.mcp.client import discover_mcp_bindings
@@ -104,6 +118,9 @@ class ChatRunService:
         self._opencode_default_context_limit = opencode_default_context_limit
         self._opencode_default_output_limit = opencode_default_output_limit
         self.database_url = database_url
+        self.capability_calls = CapabilityCallStore(
+            sqlite_path_from_database_url(database_url)
+        )
         self.approvals = approval_service or ApprovalService(
             ApprovalStore(sqlite_path_from_database_url(database_url)),
             journal,
@@ -343,6 +360,8 @@ class ChatRunService:
                     user_id=user_id,
                     run_id=run_id,
                     max_tokens=limits.max_output_tokens,
+                    stack=runtime.stack,
+                    connection_id=connection_id,
                 ):
                     if event.get("type") == "token":
                         assistant_parts.append(event.get("text") or "")
@@ -360,7 +379,11 @@ class ChatRunService:
                         )
                         accumulated_usage = accumulated_usage.add(u)
                     if event.get("type") == "error":
-                        status = "error"
+                        status = (
+                            "pending_approval"
+                            if event.get("code") == "approval_pending"
+                            else "error"
+                        )
                         error = event.get("message") or "chat error"
                     yield event
         except StackError as exc:
@@ -539,6 +562,8 @@ class ChatRunService:
         user_id: str,
         run_id: str,
         max_tokens: int | None = None,
+        stack: str = "openai-compatible",
+        connection_id: str = "",
     ) -> AsyncIterator[dict]:
         """Tool loop for gold CRUD; then emit assistant text as tokens."""
         bindings = build_bindings(self.capability_catalog, agent)
@@ -596,45 +621,51 @@ class ChatRunService:
                     yield {"type": "thinking", "text": chunk}
 
             if turn.tool_calls:
-                assistant_msg: dict[str, Any] = {
-                    "role": "assistant",
-                    "content": turn.content or "",
-                    "tool_calls": [
+                for call_index, tool_call in enumerate(turn.tool_calls):
+                    messages.append(
                         {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {
-                                "name": tc.name,
-                                "arguments": tc.arguments,
-                            },
+                            "role": "assistant",
+                            "content": turn.content or "" if call_index == 0 else "",
+                            "tool_calls": [
+                                {
+                                    "id": tool_call.provider_tool_call_id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": tool_call.name,
+                                        "arguments": tool_call.arguments,
+                                    },
+                                }
+                            ],
                         }
-                        for tc in turn.tool_calls
-                    ],
-                }
-                messages.append(assistant_msg)
-                for tc in turn.tool_calls:
-                    binding = bindings.get(tc.name)
+                    )
+                    binding = bindings.get(tool_call.name)
                     if binding is None:
                         result = "error: unknown tool"
                         blocked_event = None
                     else:
                         result, blocked_event = await self._dispatch_capability_call(
                             binding,
-                            tc.arguments,
+                            tool_call.arguments,
                             agent=agent,
                             user_id=user_id,
                             run_id=run_id,
+                            provider_tool_call_id=tool_call.provider_tool_call_id,
+                            model=model,
+                            messages=messages,
+                            max_tokens=max_tokens,
+                            stack=stack,
+                            connection_id=connection_id or agent.connection_id or "",
                         )
                     yield {
                         "type": "tool",
-                        "name": tc.name,
+                        "name": tool_call.name,
                         "ok": not result.startswith("error:"),
                         "detail": result[:200],
                     }
                     messages.append(
                         {
                             "role": "tool",
-                            "tool_call_id": tc.id,
+                            "tool_call_id": tool_call.provider_tool_call_id,
                             "content": result,
                         }
                     )
@@ -663,13 +694,41 @@ class ChatRunService:
         agent: AgentConfig,
         user_id: str,
         run_id: str,
+        provider_tool_call_id: str,
+        model: str,
+        messages: list[dict[str, Any]],
+        max_tokens: int | None,
+        stack: str,
+        connection_id: str,
     ) -> tuple[str, dict[str, Any] | None]:
         item = binding.item
         approval_id: str | None = None
         mode = item.approval_mode
         blocked_event: dict[str, Any] | None = None
+        capability_call_id = new_capability_call_id()
 
         if mode != "never":
+            self.capability_calls.create_pending(
+                CapabilityCallRecord(
+                    capability_call_id=capability_call_id or new_capability_call_id(),
+                    approval_id=None,
+                    run_id=run_id,
+                    provider_tool_call_id=provider_tool_call_id,
+                    agent_id=agent.id,
+                    user_id=user_id,
+                    team=agent.team,
+                    project_id=agent.workspace.project_id if agent.workspace else None,
+                    stack=stack,
+                    connection_id=connection_id,
+                    model=model,
+                    max_tokens=max_tokens,
+                    capability=item.model_dump(mode="json"),
+                    binding_schema=binding.schema,
+                    callable_name=binding.callable_name,
+                    arguments=arguments if isinstance(arguments, str) else json.dumps(arguments or {}),
+                    messages=messages,
+                )
+            )
             action_type = GATED_ACTION_TYPE if mode == "autonomy" else "capability_call"
             description = binding.schema["function"].get("description") or item.name
             try:
@@ -681,8 +740,14 @@ class ChatRunService:
                     action_type=action_type,
                     run_id=run_id,
                     project_id=agent.workspace.project_id if agent.workspace else None,
+                    capability_call_id=capability_call_id,
                 )
                 approval_id = proposal.card.id
+                if capability_call_id:
+                    self.capability_calls.link_approval(
+                        capability_call_id,
+                        approval_id,
+                    )
                 if proposal.card.status == ApprovalStatus.pending_human:
                     result = f"error: capability call requires approval: {approval_id}"
                     call_status = "pending"
@@ -693,6 +758,12 @@ class ChatRunService:
                         "approval_id": approval_id,
                     }
                 elif proposal.card.status == ApprovalStatus.denied:
+                    if capability_call_id:
+                        self.capability_calls.fail_pending(
+                            capability_call_id,
+                            stage="approval",
+                            error="Denied by autonomy gate",
+                        )
                     result = f"error: capability call denied: {approval_id}"
                     call_status = "denied"
                     blocked_event = {
@@ -702,20 +773,53 @@ class ChatRunService:
                         "approval_id": approval_id,
                     }
                 else:
-                    result = await dispatch(
-                        binding,
-                        arguments,
-                        ToolContext(
-                            repo=self.repo,
-                            agent=agent,
-                            user_id=user_id,
-                            run_id=run_id,
-                            oauth_token_resolver=self._resolve_capability_oauth_token,
-                        ),
-                    )
-                    call_status = "failed" if result.startswith("error:") else "succeeded"
+                    claimed = self.capability_calls.claim(capability_call_id or "")
+                    if claimed is None:
+                        result = "error: capability call could not be claimed"
+                        call_status = "failed"
+                        blocked_event = {
+                            "type": "error",
+                            "message": result.removeprefix("error: "),
+                            "code": "capability_failed",
+                            "capability_call_id": capability_call_id,
+                        }
+                    else:
+                        try:
+                            result = await self._execute_binding(
+                                binding,
+                                arguments,
+                                agent=agent,
+                                user_id=user_id,
+                                run_id=run_id,
+                                capability_call_id=capability_call_id,
+                            )
+                        except Exception as exc:  # noqa: BLE001
+                            result = f"error: capability dispatch failed ({type(exc).__name__})"
+                        failed = result.startswith("error:")
+                        uncertain = failed and "timeout" in result.lower()
+                        call_status = "uncertain" if uncertain else "failed" if failed else "succeeded"
+                        self.capability_calls.finish(
+                            claimed.capability_call_id,
+                            status=call_status if call_status in {"failed", "uncertain"} else "succeeded",
+                            result=result,
+                            error_stage="api" if failed and binding.kind.value == "api" else "dispatch" if failed else None,
+                            error=result if failed else None,
+                        )
+                        if failed:
+                            blocked_event = {
+                                "type": "error",
+                                "message": result.removeprefix("error: "),
+                                "code": "capability_uncertain" if uncertain else "capability_failed",
+                                "capability_call_id": capability_call_id,
+                            }
             except ApprovalGateDeniedError as exc:
                 approval_id = exc.approval_id
+                if capability_call_id:
+                    self.capability_calls.fail_pending(
+                        capability_call_id,
+                        stage="approval",
+                        error=str(exc),
+                    )
                 result = f"error: capability call denied: {approval_id or exc}"
                 call_status = "denied"
                 blocked_event = {
@@ -724,17 +828,22 @@ class ChatRunService:
                     "code": "capability_denied",
                     "approval_id": approval_id,
                 }
+            except Exception as exc:  # noqa: BLE001 — fail checkpoint; do not retry
+                if capability_call_id:
+                    self.capability_calls.fail_pending(
+                        capability_call_id,
+                        stage="approval",
+                        error=f"Approval proposal failed: {type(exc).__name__}",
+                    )
+                raise
         else:
-            result = await dispatch(
+            result = await self._execute_binding(
                 binding,
                 arguments,
-                ToolContext(
-                    repo=self.repo,
-                    agent=agent,
-                    user_id=user_id,
-                    run_id=run_id,
-                    oauth_token_resolver=self._resolve_capability_oauth_token,
-                ),
+                agent=agent,
+                user_id=user_id,
+                run_id=run_id,
+                capability_call_id=capability_call_id,
             )
             call_status = "failed" if result.startswith("error:") else "succeeded"
 
@@ -761,9 +870,251 @@ class ChatRunService:
                 operation=binding.operation,
                 approval_mode=mode,
                 call_status=call_status,
+                capability_call_id=capability_call_id,
             )
         )
         return result, blocked_event
+
+    async def _execute_binding(
+        self,
+        binding: Any,
+        arguments: dict[str, Any] | str | None,
+        *,
+        agent: AgentConfig,
+        user_id: str,
+        run_id: str,
+        capability_call_id: str | None = None,
+    ) -> str:
+        return await dispatch(
+            binding,
+            arguments,
+            ToolContext(
+                repo=self.repo,
+                agent=agent,
+                user_id=user_id,
+                run_id=run_id,
+                capability_call_id=capability_call_id,
+                oauth_token_resolver=self._resolve_capability_oauth_token,
+            ),
+        )
+
+    async def resume_approved_capability_call(
+        self,
+        capability_call_id: str,
+    ) -> dict[str, str | None]:
+        """Execute an approved checkpoint once, then continue its saved model turn."""
+        record = self.capability_calls.claim(capability_call_id)
+        if record is None:
+            current = self.capability_calls.get(capability_call_id)
+            return {
+                "status": current.status if current else "not_found",
+                "assistant_text": None,
+                "error": "Capability call is not pending; automatic retry is disabled.",
+            }
+
+        agent = self.repo.get_agent(record.agent_id)
+        if agent is None:
+            error = f"Agent no longer exists: {record.agent_id}"
+            self.capability_calls.finish(
+                capability_call_id,
+                status="failed",
+                error_stage="restore",
+                error=error,
+            )
+            return {"status": "failed", "assistant_text": None, "error": error}
+
+        try:
+            item = CapabilityCatalogItem.model_validate(record.capability)
+            binding = CapabilityBinding(
+                callable_name=record.callable_name,
+                kind=item.kind,
+                item=item,
+                operation=record.callable_name,
+                schema=record.binding_schema,
+            )
+        except Exception as exc:  # noqa: BLE001
+            error = f"Could not restore approved capability: {type(exc).__name__}"
+            self.capability_calls.finish(
+                capability_call_id,
+                status="failed",
+                error_stage="restore",
+                error=error,
+            )
+            return {"status": "failed", "assistant_text": None, "error": error}
+
+        try:
+            result = await self._execute_binding(
+                binding,
+                record.arguments,
+                agent=agent,
+                user_id=record.user_id,
+                run_id=record.run_id,
+                capability_call_id=capability_call_id,
+            )
+        except Exception as exc:  # noqa: BLE001 — terminal; never auto-retry
+            error = f"Capability execution failed: {type(exc).__name__}"
+            self.capability_calls.finish(
+                capability_call_id,
+                status="failed",
+                error_stage="dispatch",
+                error=error,
+            )
+            self._journal_resumed_call(record, "failed", error)
+            return {"status": "failed", "assistant_text": None, "error": error}
+
+        if result.startswith("error:"):
+            uncertain = "timeout" in result.lower()
+            status = "uncertain" if uncertain else "failed"
+            self.capability_calls.finish(
+                capability_call_id,
+                status=status,
+                result=result,
+                error_stage="api" if item.kind.value == "api" else "dispatch",
+                error=result,
+            )
+            self._journal_resumed_call(record, status, result)
+            return {"status": status, "assistant_text": None, "error": result}
+
+        self.capability_calls.finish(
+            capability_call_id,
+            status="succeeded",
+            result=result,
+        )
+        self._journal_resumed_call(record, "succeeded", None)
+
+        messages = list(record.messages)
+        messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": record.provider_tool_call_id,
+                "content": result,
+            }
+        )
+        try:
+            adapter = self._adapter_for(record.stack, connection_id=record.connection_id)
+            assistant_parts: list[str] = []
+            continuation_error: str | None = None
+            pending_approval_id: str | None = None
+            async for event in self._run_with_gold_tools(
+                adapter=adapter,
+                model=record.model,
+                messages=messages,
+                agent=agent,
+                user_id=record.user_id,
+                run_id=record.run_id,
+                max_tokens=record.max_tokens,
+                stack=record.stack,
+                connection_id=record.connection_id,
+            ):
+                if event.get("type") == "token":
+                    assistant_parts.append(str(event.get("text") or ""))
+                elif event.get("type") == "error":
+                    continuation_error = str(event.get("message") or "Model continuation failed")
+                    pending_approval_id = event.get("approval_id")
+            assistant_text = "".join(assistant_parts).strip()
+        except Exception as exc:  # noqa: BLE001
+            error = f"Model continuation failed: {type(exc).__name__}"
+            self._journal_resume_failure(record, error)
+            return {"status": "continuation_failed", "assistant_text": None, "error": error}
+
+        if assistant_text and self.channel_history is not None:
+            self.channel_history.append(
+                record.user_id,
+                ChannelMessage(
+                    id=new_message_id(),
+                    role="assistant",
+                    text=assistant_text,
+                    created_at=channel_utc_now(),
+                    mode="agent",
+                    agent_id=record.agent_id,
+                    run_id=record.run_id,
+                ),
+            )
+        if pending_approval_id:
+            return {
+                "status": "pending_approval",
+                "assistant_text": assistant_text or None,
+                "error": continuation_error,
+                "approval_id": pending_approval_id,
+            }
+        if continuation_error:
+            self._journal_resume_failure(record, continuation_error)
+            return {
+                "status": "continuation_failed",
+                "assistant_text": assistant_text or None,
+                "error": continuation_error,
+            }
+        return {"status": "completed", "assistant_text": assistant_text or None, "error": None}
+
+    def _journal_resume_failure(
+        self,
+        record: CapabilityCallRecord,
+        error: str,
+    ) -> None:
+        agent = self.repo.get_agent(record.agent_id)
+        effective = compute_effective(self.repo.load_org(), agent) if agent else 0
+        now = utc_now()
+        self.journal.append(
+            JournalEntry(
+                run_id=record.run_id,
+                agent_id=record.agent_id,
+                user_id=record.user_id,
+                team=record.team,
+                project_id=record.project_id,
+                channel="office_ui",
+                stack=record.stack,
+                model=record.model,
+                effective_autonomy=effective,
+                status="resume_failed",
+                started_at=now,
+                ended_at=now,
+                error=error,
+                approval_id=record.approval_id,
+                entry_type="resume",
+                capability_call_id=record.capability_call_id,
+            )
+        )
+
+    def reject_pending_capability_call(self, capability_call_id: str) -> None:
+        self.capability_calls.fail_pending(
+            capability_call_id,
+            stage="approval",
+            error="Rejected by approver",
+        )
+
+    def _journal_resumed_call(
+        self,
+        record: CapabilityCallRecord,
+        call_status: str,
+        error: str | None,
+    ) -> None:
+        item = CapabilityCatalogItem.model_validate(record.capability)
+        self.journal.append(
+            JournalEntry(
+                run_id=record.run_id,
+                agent_id=record.agent_id,
+                user_id=record.user_id,
+                team=record.team,
+                project_id=record.project_id,
+                channel="office_ui",
+                stack="capability",
+                model="",
+                effective_autonomy=compute_effective(self.repo.load_org(), self.repo.get_agent(record.agent_id)),
+                status="capability_call",
+                started_at=utc_now(),
+                ended_at=utc_now(),
+                approval_id=record.approval_id,
+                entry_type="capability_call",
+                capability_id=item.id,
+                capability_kind=item.kind.value,
+                callable_name=record.callable_name,
+                operation=record.callable_name,
+                approval_mode=item.approval_mode,
+                call_status=call_status,
+                capability_call_id=record.capability_call_id,
+                error=error,
+            )
+        )
 
 
 def _chunk_text(text: str, size: int) -> list[str]:

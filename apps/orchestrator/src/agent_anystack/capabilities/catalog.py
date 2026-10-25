@@ -25,6 +25,7 @@ class ApiRequestMapping(BaseModel):
     path: dict[str, str] = Field(default_factory=dict)
     query: dict[str, str] = Field(default_factory=dict)
     body: dict[str, str] = Field(default_factory=dict)
+    headers: dict[str, str] = Field(default_factory=dict)
 
 
 class ApiOperation(BaseModel):
@@ -36,6 +37,19 @@ class ApiOperation(BaseModel):
     path: str
     parameters: dict[str, Any]
     request: ApiRequestMapping = Field(default_factory=ApiRequestMapping)
+    idempotency_key_header: str | None = None
+
+    @field_validator("idempotency_key_header")
+    @classmethod
+    def validate_idempotency_header(cls, value: str | None) -> str | None:
+        if value is not None and (
+            not value.strip()
+            or "\r" in value
+            or "\n" in value
+            or ":" in value
+        ):
+            raise ValueError("idempotency_key_header must be a valid HTTP header name")
+        return value
 
     @field_validator("path")
     @classmethod

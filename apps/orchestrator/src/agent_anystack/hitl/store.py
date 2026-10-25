@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS approval_cards (
     decision TEXT,
     note TEXT,
     effective_autonomy INTEGER,
-    gate TEXT
+    gate TEXT,
+    capability_call_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_appr_status ON approval_cards(status);
 CREATE INDEX IF NOT EXISTS idx_appr_created ON approval_cards(created_at);
@@ -34,6 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_appr_created ON approval_cards(created_at);
 _ALTERS = (
     "ALTER TABLE approval_cards ADD COLUMN effective_autonomy INTEGER",
     "ALTER TABLE approval_cards ADD COLUMN gate TEXT",
+    "ALTER TABLE approval_cards ADD COLUMN capability_call_id TEXT",
 )
 
 
@@ -70,7 +72,8 @@ class ApprovalStore:
                     id, tag, status, run_id, agent_id, user_id, team, project_id,
                     summary, action_type, created_at, decided_at, decided_by,
                     decision, note, effective_autonomy, gate
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    , capability_call_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     tag=excluded.tag,
                     status=excluded.status,
@@ -87,7 +90,8 @@ class ApprovalStore:
                     decision=excluded.decision,
                     note=excluded.note,
                     effective_autonomy=excluded.effective_autonomy,
-                    gate=excluded.gate
+                    gate=excluded.gate,
+                    capability_call_id=excluded.capability_call_id
                 """,
                 (
                     card.id,
@@ -107,6 +111,7 @@ class ApprovalStore:
                     card.note,
                     card.effective_autonomy,
                     card.gate,
+                    card.capability_call_id,
                 ),
             )
             conn.commit()
@@ -169,4 +174,5 @@ def _row_to_card(row: sqlite3.Row) -> ApprovalCard:
         note=row["note"],
         effective_autonomy=int(eff) if eff is not None else None,
         gate=gate,
+        capability_call_id=row["capability_call_id"] if "capability_call_id" in keys else None,
     )

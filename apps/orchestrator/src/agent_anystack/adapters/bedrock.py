@@ -468,7 +468,12 @@ def _to_converse_messages(
                 system.append({"text": text})
             continue
         if role == "tool":
-            tool_id = str(msg.get("tool_call_id") or msg.get("id") or "tool")
+            tool_id = msg.get("tool_call_id") or msg.get("id")
+            if not isinstance(tool_id, str) or not tool_id.strip():
+                raise StackError(
+                    "Tool result omitted its provider tool-call ID",
+                    code="missing_provider_tool_call_id",
+                )
             body = content if isinstance(content, str) else json.dumps(content)
             pending_tool_results.append({
                 "toolResult": {
@@ -487,6 +492,12 @@ def _to_converse_messages(
                     continue
                 fn = tc.get("function") or {}
                 name = fn.get("name") or ""
+                provider_id = tc.get("id")
+                if not isinstance(provider_id, str) or not provider_id.strip():
+                    raise StackError(
+                        f"Assistant tool call {name!r} omitted its provider call ID",
+                        code="missing_provider_tool_call_id",
+                    )
                 raw_args = fn.get("arguments") or "{}"
                 try:
                     parsed = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
@@ -494,7 +505,7 @@ def _to_converse_messages(
                     parsed = {"raw": str(raw_args)}
                 blocks.append({
                     "toolUse": {
-                        "toolUseId": str(tc.get("id") or name),
+                        "toolUseId": provider_id,
                         "name": name,
                         "input": parsed if isinstance(parsed, dict) else {"value": parsed},
                     }
@@ -531,6 +542,12 @@ def _parse_converse_output(resp: dict[str, Any]) -> ChatTurnResult:
                 reasoning_texts.append(str(r_text))
         tool_use = block.get("toolUse")
         if isinstance(tool_use, dict) and tool_use.get("name"):
+            provider_id = tool_use.get("toolUseId")
+            if not isinstance(provider_id, str) or not provider_id.strip():
+                raise StackError(
+                    f"Bedrock tool call {tool_use['name']!r} omitted toolUseId",
+                    code="missing_provider_tool_call_id",
+                )
             inp = tool_use.get("input")
             if isinstance(inp, dict):
                 args_s = json.dumps(inp, ensure_ascii=False)
@@ -538,7 +555,7 @@ def _parse_converse_output(resp: dict[str, Any]) -> ChatTurnResult:
                 args_s = str(inp or "{}")
             tool_calls.append(
                 ToolCallRequest(
-                    id=str(tool_use.get("toolUseId") or tool_use["name"]),
+                    provider_tool_call_id=provider_id,
                     name=str(tool_use["name"]),
                     arguments=args_s,
                 )

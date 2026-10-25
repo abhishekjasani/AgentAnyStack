@@ -1,16 +1,6 @@
 projects:
-- id: python-demo-076d1bb5
-  name: python_demo
-  slug: python-demo
-  path: /projects/python-demo
-  status: active
-- id: loan-portal-5e7434c9
-  name: loan portal
-  slug: loan-portal
-  path: /projects/loan-portal
-  status: active
-- id: zen-api-test-0a2178ae
-  name: Zen API Test Project
-  slug: zen-api-test
-  path: /projects/zen-api-test
+- id: harbor-story-walk-61ee6e2f
+  name: Harbor Story Walk
+  slug: harbor-story-walk
+  path: projects/harbor-story-walk
   status: active

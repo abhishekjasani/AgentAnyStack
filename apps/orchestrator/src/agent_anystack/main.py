@@ -31,6 +31,12 @@ from agent_anystack.config import get_settings
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     settings = get_settings()
+    from agent_anystack.capabilities.call_store import CapabilityCallStore
+    from agent_anystack.database import sqlite_path_from_database_url
+
+    CapabilityCallStore(
+        sqlite_path_from_database_url(settings.database_url)
+    ).mark_interrupted_executions_uncertain()
     if settings.opencode_bin.strip():
         os.environ["OPENCODE_BIN"] = settings.opencode_bin.strip()
     from agent_anystack.adapters.opencode.runtime import (

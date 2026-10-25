@@ -21,6 +21,7 @@ class ToolContext:
     agent: AgentConfig
     user_id: str
     run_id: str
+    capability_call_id: str | None = None
     secret_resolver: SecretResolver | None = None
     oauth_token_resolver: Any = None
 
@@ -50,6 +51,7 @@ async def dispatch(
             secret_resolver=ctx.secret_resolver,
             oauth_token_resolver=ctx.oauth_token_resolver,
             user_id=ctx.user_id,
+            capability_call_id=ctx.capability_call_id,
         )
     if binding.kind.value == "mcp":
         from agent_anystack.capabilities.mcp.client import call_mcp_tool

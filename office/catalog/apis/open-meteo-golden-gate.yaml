@@ -1,0 +1,53 @@
+id: open-meteo-golden-gate
+kind: api
+name: Golden Gate Park Live Weather
+description: Free Open-Meteo current weather for the Harbor Story Walk setting; no
+  API key required.
+default_inherit: false
+approval_mode: always
+risk_class: read_draft
+tags:
+- weather
+- storytelling
+- free-api
+base_url: https://api.open-meteo.com
+auth:
+  type: none
+headers: {}
+operations:
+- callable_name: get_golden_gate_weather
+  description: Fetch current temperature, feels-like temperature, precipitation, wind
+    speed and WMO weather code for Golden Gate Park, San Francisco. Use before mentioning
+    current weather.
+  method: GET
+  path: /v1/forecast
+  parameters:
+    type: object
+    properties:
+      latitude:
+        type: number
+        description: Use 37.7694 for Golden Gate Park.
+      longitude:
+        type: number
+        description: Use -122.4862 for Golden Gate Park.
+      current:
+        type: string
+        description: 'Comma-separated current variables: temperature_2m,apparent_temperature,precipitation,wind_speed_10m,weather_code,is_day.'
+      timezone:
+        type: string
+        description: Use America/Los_Angeles.
+    required:
+    - latitude
+    - longitude
+    - current
+    - timezone
+    additionalProperties: false
+  request:
+    path: {}
+    query:
+      latitude: latitude
+      longitude: longitude
+      current: current
+      timezone: timezone
+    body: {}
+requires: []

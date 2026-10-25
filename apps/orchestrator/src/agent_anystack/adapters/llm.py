@@ -43,11 +43,32 @@ class StackError(Exception):
         super().__init__(message)
 
 
-@dataclass
+@dataclass(init=False)
 class ToolCallRequest:
-    id: str
+    provider_tool_call_id: str
     name: str
     arguments: str
+
+    def __init__(
+        self,
+        provider_tool_call_id: str | None = None,
+        name: str = "",
+        arguments: str = "",
+        *,
+        id: str | None = None,
+    ) -> None:
+        # `id` remains a compatibility alias for existing adapter/test callers.
+        resolved_id = provider_tool_call_id or id
+        if not resolved_id:
+            raise ValueError("provider tool-call ID is required")
+        self.provider_tool_call_id = resolved_id
+        self.name = name
+        self.arguments = arguments
+
+    @property
+    def id(self) -> str:
+        """Compatibility alias; this is the provider ID, not an orchestrator ID."""
+        return self.provider_tool_call_id
 
 
 @dataclass
@@ -580,7 +601,7 @@ def _parse_tool_calls(raw: Any) -> list[ToolCallRequest]:
     if not isinstance(raw, list):
         return []
     out: list[ToolCallRequest] = []
-    for i, item in enumerate(raw):
+    for item in raw:
         if not isinstance(item, dict):
             continue
         fn = item.get("function") or {}
@@ -594,8 +615,19 @@ def _parse_tool_calls(raw: Any) -> list[ToolCallRequest]:
             args_s = json.dumps(args, ensure_ascii=False)
         else:
             args_s = str(args or "")
-        call_id = str(item.get("id") or f"call_{i}")
-        out.append(ToolCallRequest(id=call_id, name=name, arguments=args_s))
+        provider_id = item.get("id")
+        if not isinstance(provider_id, str) or not provider_id.strip():
+            raise StackError(
+                f"model tool call {name!r} omitted its provider call ID",
+                code="missing_provider_tool_call_id",
+            )
+        out.append(
+            ToolCallRequest(
+                provider_tool_call_id=provider_id,
+                name=name,
+                arguments=args_s,
+            )
+        )
     return out
 
 

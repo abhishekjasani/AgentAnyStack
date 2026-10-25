@@ -1,0 +1,26 @@
+id: harbor-storyteller
+name: Harbor Storyteller
+team: story-lab
+stack: bedrock
+model: mistral.ministral-3-3b-instruct
+connection_id: bedrock-test
+persona:
+  domain: general
+  channels: []
+  risk_class: read_draft
+autonomy:
+  default: 50
+workspace:
+  project_id: harbor-story-walk-61ee6e2f
+  path: projects/harbor-story-walk
+system_prompt_file: ./AGENT.md
+capability_registrations:
+  tools: []
+  mcp: []
+  skills: []
+  apis:
+  - open-meteo-golden-gate
+tools:
+  mode: none
+max_input_tokens: -1
+max_output_tokens: 1600

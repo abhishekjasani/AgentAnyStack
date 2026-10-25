@@ -18,6 +18,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Softer, more welcoming language around core vision documents
 - Clear standard fork + PR workflow in contribution guide
 
+## [0.3.30] - 2026-10-25
+
+### Added
+- Durable capability-call checkpoints with separate provider and orchestrator IDs, atomic one-time approval claims, same-run model continuation, and terminal failure/uncertain states.
+- Approval responses now include continuation text or failure status; the Office UI surfaces resume outcomes.
+- Optional descriptor-declared idempotency headers map the orchestrator capability-call ID to upstream APIs that support idempotency.
+
+### Fixed
+- OpenAI-compatible and Bedrock adapters reject tool calls missing provider correlation IDs instead of substituting list positions or callable names.
+
 ## [0.3.29] - 2026-10-25
 
 ### Added

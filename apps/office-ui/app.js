@@ -2062,6 +2062,11 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || `decide ${res.status}`);
       await loadChannel({ keepRoute: true });
+      if (data.resume_status) {
+        $("#chat-meta").textContent = data.resume_error
+          ? `Approval ${data.resume_status}: ${data.resume_error}`
+          : `Approval ${data.resume_status}${data.continuation_text ? " · response continued" : ""}${data.next_approval_id ? ` · next approval ${data.next_approval_id}` : ""}`;
+      }
     } catch (e) {
       err.textContent = String(e.message || e);
       err.hidden = false;
@@ -3311,7 +3316,12 @@
       if (!res.ok) {
         throw new Error(data.detail || `decide ${res.status}`);
       }
-      ok.textContent = `${decision} ${data.id} → journal`;
+      const resumeDetail = data.resume_status
+        ? data.resume_error
+          ? ` · ${data.resume_status}: ${data.resume_error}`
+          : ` · ${data.resume_status}${data.continuation_text ? ": response continued in Chat" : ""}${data.next_approval_id ? `; next approval ${data.next_approval_id}` : ""}`
+        : "";
+      ok.textContent = `${decision} ${data.id} → journal${resumeDetail}`;
       ok.hidden = false;
       await loadApprovals();
     } catch (e) {

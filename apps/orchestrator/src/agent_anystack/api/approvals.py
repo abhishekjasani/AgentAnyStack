@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from agent_anystack.api.deps import get_user_id
+from agent_anystack.api.chat import get_chat_service
 from agent_anystack.config import Settings, get_settings
 from agent_anystack.hitl import (
     ApprovalCard,
@@ -22,6 +23,7 @@ from agent_anystack.hitl.service import (
 )
 from agent_anystack.database import sqlite_path_from_database_url
 from agent_anystack.runs.journal import RunJournal
+from agent_anystack.runs.service import ChatRunService
 from agent_anystack.runs.service import journal_path_from_database_url
 
 router = APIRouter(tags=["approvals"])
@@ -61,6 +63,11 @@ class ApprovalCardOut(BaseModel):
     note: str | None
     effective_autonomy: int | None = None
     gate: str | None = None
+    capability_call_id: str | None = None
+    resume_status: str | None = None
+    continuation_text: str | None = None
+    resume_error: str | None = None
+    next_approval_id: str | None = None
 
     @classmethod
     def from_card(cls, card: ApprovalCard) -> "ApprovalCardOut":
@@ -82,6 +89,7 @@ class ApprovalCardOut(BaseModel):
             note=card.note,
             effective_autonomy=card.effective_autonomy,
             gate=card.gate,
+            capability_call_id=card.capability_call_id,
         )
 
 
@@ -161,6 +169,7 @@ async def decide_approval(
     body: DecideApprovalRequest,
     user_id: str = Depends(get_user_id),
     svc: ApprovalService = Depends(get_approval_service),
+    chat: ChatRunService = Depends(get_chat_service),
 ) -> ApprovalCardOut:
     """Accept or reject — permissive: requester ∪ ORG_ADMINS. Writes journal."""
     try:
@@ -174,4 +183,21 @@ async def decide_approval(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except ApprovalForbiddenError as e:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(e)) from e
-    return ApprovalCardOut.from_card(card)
+    response = ApprovalCardOut.from_card(card)
+    if card.capability_call_id:
+        if body.decision == ApprovalDecision.accept:
+            continuation = await chat.resume_approved_capability_call(
+                card.capability_call_id
+            )
+            response = response.model_copy(
+                update={
+                    "resume_status": continuation.get("status"),
+                    "continuation_text": continuation.get("assistant_text"),
+                    "resume_error": continuation.get("error"),
+                    "next_approval_id": continuation.get("approval_id"),
+                }
+            )
+        else:
+            chat.reject_pending_capability_call(card.capability_call_id)
+            response = response.model_copy(update={"resume_status": "rejected"})
+    return response
